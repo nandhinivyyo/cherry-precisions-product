@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+.Python
+*.egg-info/
+
+# Virtual environments
+venv/
+env/
+.venv/
+
+# Databases (may contain sensitive production data)
+*.db
+*.db-shm
+*.db-wal
+
+# Logs and temp files
+*.log
+live_data_log.json
+runchat_state.json
+
+# OS junk
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Arduino build artifacts
+*.hex
+*.elf
+*.bin
+build/
+
+# VS Code / IDE settings
+.vscode/
+.idea/
+
+# Windows
+$RECYCLE.BIN/
