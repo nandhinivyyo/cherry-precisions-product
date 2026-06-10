@@ -1788,6 +1788,7 @@ class CherryApp(ctk.CTk):
 
         # ---------------- App state ----------------
         self.active_page = None
+        self.sidebar_user_visible = False
         self.run_chat_active = False
         self._closing = False
 
@@ -1875,6 +1876,8 @@ class CherryApp(ctk.CTk):
         self.create_header()
         self.create_content_area()
         self.create_sidebar()
+        
+        self.sidebar_user_visible = False
 
         # ---------------- Resize optimization ----------------
         self._install_resize_throttle()
@@ -2587,6 +2590,20 @@ class CherryApp(ctk.CTk):
         header_inner = ctk.CTkFrame(header, fg_color="transparent")
         header_inner.pack(fill="both", expand=True, padx=2, pady=2)
         
+        # Add Hamburger Menu Button (Three dashes ☰ with "More") on the far left of the header
+        self.menu_btn = ctk.CTkButton(
+            header_inner,
+            text="☰  More",
+            font=("Segoe UI", 15, "bold"),
+            text_color="white",
+            fg_color="transparent",
+            hover_color="#1565C0",
+            width=100,
+            height=45,
+            command=self.toggle_sidebar
+        )
+        self.menu_btn.pack(side="left", padx=(15, 5), pady=10)
+        
         # --- Title with modern styling ---
         try:
             # Use same logo as sidebar (ensure resource_path is working)
@@ -2601,7 +2618,7 @@ class CherryApp(ctk.CTk):
             self.logo_header = ctk.CTkImage(pil_img, size=(180, 50))
             
             logo_label = ctk.CTkLabel(header_inner, text="", image=self.logo_header)
-            logo_label.pack(side="left", padx=(24, 10), pady=10)
+            logo_label.pack(side="left", padx=(10, 10), pady=10)
             
             # Add Text Title Next to Logo
             title_text = ctk.CTkLabel(
@@ -2801,6 +2818,14 @@ class CherryApp(ctk.CTk):
         self.after(800, self._pulse_status_light)
 
 
+    def toggle_sidebar(self):
+        if self.sidebar.winfo_ismapped():
+            self.sidebar.pack_forget()
+            self.sidebar_user_visible = False
+        else:
+            self.sidebar.pack(side="left", fill="y", before=self.content_frame)
+            self.sidebar_user_visible = True
+
     def create_sidebar(self):
         # === Modern Sidebar with Glassmorphism ===
         self.sidebar = ctk.CTkFrame(
@@ -2809,7 +2834,7 @@ class CherryApp(ctk.CTk):
             width=240,
             corner_radius=0
         )
-        self.sidebar.pack(side="left", fill="y")
+        # Hidden by default - packed only via toggle
         
         # Add subtle inner border effect
         sidebar_inner = ctk.CTkFrame(
@@ -2818,42 +2843,6 @@ class CherryApp(ctk.CTk):
             corner_radius=0
         )
         sidebar_inner.pack(fill="both", expand=True, padx=0, pady=0)
-
-        # --- Logo/Brand Section with Modern Styling ---
-        brand_frame = ctk.CTkFrame(
-            sidebar_inner,
-            fg_color="#1E282D",
-            corner_radius=0,
-            height=80
-        )
-        brand_frame.pack(fill="x", pady=(0, 10))
-        brand_frame.pack_propagate(False)
-        
-        # LOGO REMOVED FROM SIDEBAR (Moved to Header)
-        # Keeper frame remains to avoid resizing layout (as requested)
-        # -------------------------------------------
-        
-        # try:
-        #     logo_path = resource_path("settings/cherry_full_logo.png")
-        #     # Keep reference to avoid garbage collection
-        #     self.logo_img = ctk.CTkImage(Image.open(logo_path), size=(210, 60))
-        #     ctk.CTkLabel(brand_frame, text="", image=self.logo_img).pack(pady=(10, 5))
-        # except Exception as e:
-        #     print(f"Logo load error: {e}")
-
-        # ctk.CTkLabel(
-        #     brand_frame,
-        #     text="Cherry Precision\nProduct",
-        #     font=("Times New Roman", 18, "bold"),
-        #     text_color="white"
-        # ).pack(pady=(5, 5))
-        
-        # ctk.CTkLabel(
-        #     brand_frame,
-        #     text="Air Gauge System",
-        #     font=("Times New Roman", 10),
-        #     text_color="#90A4AE"
-        # ).pack()
 
         # --- Modern Menu Items with Icons ---
         menu_items = [
@@ -2874,7 +2863,9 @@ class CherryApp(ctk.CTk):
                 sidebar_inner,
                 fg_color="transparent"
             )
-            btn_container.pack(fill="x", padx=12, pady=4)
+            # Add top margin for the first item (Home) to align it perfectly
+            pady_val = (15, 4) if key == "home" else 4
+            btn_container.pack(fill="x", padx=12, pady=pady_val)
             
             btn = ctk.CTkButton(
                 btn_container,
@@ -4073,6 +4064,7 @@ class ComponentSetupPage(ctk.CTkFrame):
                 button_color="#CCCCCC"
             )
             self.item_dropdown.grid(row=0, column=1, padx=(310,10), pady=10, sticky="w")
+            self.item_dropdown.set("")
 
             # Try to enable typing-search on the internal entry widget (best-effort; wrapped in try/except)
             try:
@@ -4097,6 +4089,7 @@ class ComponentSetupPage(ctk.CTkFrame):
                 button_color="#CCCCCC"
             )
             self.customer_dropdown.grid(row=0, column=1, padx=(590, 10), pady=10, sticky="w")
+            self.customer_dropdown.set("")
 
             # Enable typing-search (same style as Item)
             try:
@@ -4535,78 +4528,31 @@ class ComponentSetupPage(ctk.CTkFrame):
             pass
 
     def load_channel_data(self):
-        """Load data into entries and item dropdown when AirGauge or Channel changes.
-
-        Auto-fill item per rules:
-          - If this channel has item -> use it
-          - Else if any other channel of same AirGauge has item -> use that item
-          - Else -> leave item empty
+        """Keep entry fields empty even when AirGauge ID or Channel changes.
+        There is no need for auto-entering values from stored specs.
         """
-        ag_id = self.id_dropdown.get().strip()
-        ch = self.selected_channel.get().strip()
-
-        # clear form if no AirGauge selected
-        if not ag_id:
-            for var in self.entry_vars.values():
-                var.set("")
-            try:
-                self.item_dropdown.set("")  # clear item combo
-            except Exception:
-                pass
-            return
-
-        # Load numeric/strings for drawing & tolerances
-        data = self.comp_map.get(ag_id, {}).get(ch, {}) if ag_id in self.comp_map else {}
-        for key, var in self.entry_vars.items():
-            var.set(data.get(key, ""))
-
-        # ITEM selection logic
-        item_code = data.get("item_code", "")
-        item_name = data.get("item_name", "")
-
-        selected_display = ""
-        if item_code and item_name:
-            # exact saved item for this channel
-            selected_display = f"{item_name} ({item_code})"
-        else:
-            # find a different channel under same AirGauge that has item (reuse)
-            found = False
-            for other_ch, vals in (self.comp_map.get(ag_id, {}) or {}).items():
-                if other_ch == ch:
-                    continue
-                if vals and vals.get("item_code") and vals.get("item_name"):
-                    selected_display = f"{vals.get('item_name')} ({vals.get('item_code')})"
-                    found = True
-                    break
-            if not found:
-                selected_display = ""
-
+        for var in self.entry_vars.values():
+            var.set("")
         try:
-            # ensure dropdown values are up-to-date
-            self.item_dropdown.configure(values=self._display_list)
-            self.item_dropdown.set(selected_display)
+            self.item_dropdown.set("")
         except Exception:
             try:
-                # fallback: set via internal entry if present
                 entry_widget = getattr(self.item_dropdown, "_entry", None)
                 if entry_widget:
                     entry_widget.delete(0, "end")
-                    entry_widget.insert(0, selected_display)
             except Exception:
                 pass
-
-        cust_code = data.get("customer_code", "")
-        cust_name = data.get("customer_name", "")
-
-        cust_display = f"{cust_name} ({cust_code})" if cust_code and cust_name else ""
         try:
             self.customer_dropdown.configure(values=self._customer_display_list)
-            self.customer_dropdown.set(cust_display)
+            self.customer_dropdown.set("")
         except Exception:
-            pass
-
-        # Type
-        self.comp_type.set(data.get("type", "Shaft"))
+            try:
+                entry_widget = getattr(self.customer_dropdown, "_entry", None)
+                if entry_widget:
+                    entry_widget.delete(0, "end")
+            except Exception:
+                pass
+        self.comp_type.set("Shaft")
 
 
     def save_data(self):
@@ -9335,8 +9281,8 @@ class UsbDataPage(ctk.CTkFrame):
         ctk.CTkLabel(
             title_frame,
             text="🔌 USB Data Upload",
-            font=("Segoe UI", 24, "bold"),
-            text_color="#0F172A"
+            font=("Times New Roman", 22, "bold"),
+            text_color="#1976D2"
         ).pack(side="left")
         
         # Buttons Frame (Right)
@@ -9452,13 +9398,7 @@ class UsbDataPage(ctk.CTkFrame):
                 headers=cols,
                 data=[],
                 show_x_scrollbar=True,
-                show_y_scrollbar=True,
-                row_height=30,
-                header_height=38,
-                header_font=("Segoe UI", 12, "bold"),
-                font=("Segoe UI", 11, "normal"),
-                empty_horizontal=0,
-                empty_vertical=0,
+                show_y_scrollbar=True
             )
             self.sheet.grid(row=0, column=0, sticky="nsew")
             self.table_frame.grid_rowconfigure(0, weight=1)
@@ -9467,27 +9407,10 @@ class UsbDataPage(ctk.CTkFrame):
             # Basic configuration
             self.sheet.enable_bindings()
             self.sheet.disable_bindings("edit_cell", "rc_insert_column", "rc_delete_column",
-                                        "rc_insert_row", "rc_delete_row")
+                                         "rc_insert_row", "rc_delete_row")
             try:
                 self.sheet.set_options(
-                    theme="light",                # Base theme
-                    alternate_color="#F8FAFC",    # Very light greyish-blue for alternate rows
-                    # ── Professional Header Styling ──
-                    header_bg="#1565C0",          # Always use this professional blue
-                    header_fg="#FFFFFF",
-                    header_grid_fg="#1976D2",
-                    header_selected_cells_bg="#0D47A1",
-                    # ── Data Cell Styling ──
-                    table_bg="#FFFFFF",
-                    table_fg="#212121",
-                    table_grid_fg="#E0E0E0",
-                    table_selected_cells_bg="#E3F2FD",
-                    table_selected_cells_fg="#0D47A1",
-                    # ── Row Index & Top-Left Corner ──
-                    row_index_bg="#F5F5F5",
-                    row_index_fg="#616161",
-                    top_left_bg="#1565C0",
-                    top_left_fg="#FFFFFF",
+                    theme="light",
                 )
                 self.sheet.hide_row_index()
             except Exception:
@@ -9496,8 +9419,13 @@ class UsbDataPage(ctk.CTkFrame):
             # Apply initial column widths after widget is fully drawn
             self.sheet.after(100, self._apply_column_widths)
 
-            # Bind resize to the sheet itself for reliable width detection
-            self.sheet.bind("<Configure>", self._on_table_resize)
+            # Bind resize to the table frame (like LiveDataPage) for reliable width detection
+            self.table_frame.bind("<Configure>", self._on_table_resize)
+            
+            try:
+                self.sheet.redraw()
+            except Exception:
+                pass
 
         except Exception as e:
             ctk.CTkLabel(self.table_frame, text=f"Error loading table: {e}", text_color="red").pack(pady=20)
@@ -9540,6 +9468,7 @@ class UsbDataPage(ctk.CTkFrame):
                 widths[-1] += leftover
 
             self.sheet.set_column_widths(widths)
+            self.sheet.redraw()
         except Exception:
             pass
 
@@ -14354,9 +14283,9 @@ class AnalysisPage(ctk.CTkFrame):
     # ------------------------------
     def go_back(self, event=None):
         try:
-            # Restore sidebar
-            if hasattr(self.app, "sidebar") and not self.app.sidebar.winfo_ismapped():
-                self.app.sidebar.pack(side="left", fill="y")
+            # Restore sidebar if user had it visible
+            if hasattr(self.app, "sidebar") and getattr(self.app, "sidebar_user_visible", False) and not self.app.sidebar.winfo_ismapped():
+                self.app.sidebar.pack(side="left", fill="y", before=self.app.content_frame)
 
             # Reset content frame position
             if hasattr(self.app, "content_frame"):
@@ -14829,10 +14758,10 @@ class AnalysisPage(ctk.CTkFrame):
         should restore the existing instance.
         Also need to RESTORE the sidebar if it was hidden.
         """
-        # Restore Sidebar & Layout
+        # Restore Sidebar & Layout if user had it visible
         try:
-            if hasattr(self.app, "sidebar") and not self.app.sidebar.winfo_ismapped():
-                self.app.sidebar.pack(side="left", fill="y", padx=0, pady=0)
+            if hasattr(self.app, "sidebar") and getattr(self.app, "sidebar_user_visible", False) and not self.app.sidebar.winfo_ismapped():
+                self.app.sidebar.pack(side="left", fill="y", padx=0, pady=0, before=self.app.content_frame)
             
             if hasattr(self.app, "content_frame"):
                 # Reset content frame to original position (right of sidebar)
