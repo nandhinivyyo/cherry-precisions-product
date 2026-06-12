@@ -2016,104 +2016,28 @@ class CherryApp(ctk.CTk):
     # ─────────────────────────────────────────────────────────────────
     def _switch_page_with_overlay(self, load_fn, delay_ms=50, manual_dismiss=False,
                                     page_attr=None):
-        # Prevent double transitions
-        if getattr(self, "_transition_in_progress", False):
-            return
-
-        cf = self.content_frame
-        w = cf.winfo_width()
-        h = cf.winfo_height()
-        
-        # Get current page (any widget packed in content_frame)
-        old_page = None
-        for widget in cf.winfo_children():
-            if widget.winfo_manager() == "pack" and widget.winfo_viewable():
-                old_page = widget
-                break
-
-        def do_slide_transition(new_page):
-            if not old_page or not new_page or w < 50 or h < 50:
-                # Fallback: instant switch
-                if old_page:
-                    try: old_page.pack_forget()
-                    except: pass
-                new_page.pack(fill="both", expand=True)
-                self._transition_in_progress = False
-                return
-
-            self._transition_in_progress = True
-            
-            # Place old page so it stays visible while forgotten from pack
-            try:
-                old_page.pack_forget()
-                old_page.place(x=0, y=0, width=w, height=h)
-            except:
-                pass
-
-            # Place new page offscreen to the right
-            try:
-                new_page.pack_forget()
-                new_page.place(x=w, y=0, width=w, height=h)
-                new_page.lift()
-            except:
-                pass
-
-            duration = 320 # ms
-            start_time = time.time() * 1000
-
-            def step():
-                elapsed = (time.time() * 1000) - start_time
-                progress = min(elapsed / duration, 1.0)
-                eased = Easing.ease_out_cubic(progress)
-                
-                old_x = int(-w * eased)
-                new_x = int(w - w * eased)
-
+        # ── 1. Smart Cache Bypass ────────────────────────────────────
+        # If the page already exists, load it instantly with zero delay
+        if page_attr is not None:
+            existing = getattr(self, page_attr, None)
+            if existing is not None and hasattr(existing, "winfo_exists"):
                 try:
-                    if old_page: old_page.place(x=old_x, y=0)
-                    new_page.place(x=new_x, y=0)
-                except:
+                    if existing.winfo_exists():
+                        load_fn()
+                        return
+                except Exception:
                     pass
 
-                if progress < 1.0:
-                    self.after(14, step)
-                else:
-                    try:
-                        if old_page: old_page.place_forget()
-                        new_page.place_forget()
-                        new_page.pack(fill="both", expand=True)
-                    except:
-                        pass
-                    self._transition_in_progress = False
-                    
-                    # Notify callback if manual dismiss is requested
-                    if manual_dismiss and hasattr(self, "_dismiss_overlay_callback"):
-                        try: self._dismiss_overlay_callback()
-                        except: pass
-
-            step()
-
-        # Run load_fn to instantiate/pack new_page
-        def run_load():
-            try:
-                load_fn()
-                
-                # Find new page (packed after load)
-                new_page = None
-                for widget in cf.winfo_children():
-                    if widget.winfo_manager() == "pack" and widget != old_page:
-                        new_page = widget
-                        break
-                        
-                if new_page:
-                    do_slide_transition(new_page)
-                else:
-                    self._transition_in_progress = False
-            except Exception as e:
-                print("Transition load error:", e)
-                self._transition_in_progress = False
-
-        self.after(delay_ms, run_load)
+        # ── 2. Instant Switch (No Slide Animation) ───────────────────
+        # Runs load_fn directly to load/switch the page instantly, avoiding lag.
+        try:
+            load_fn()
+            
+            # Setup callback if manual dismiss is required (e.g. for AnalysisPage thread completion)
+            if manual_dismiss:
+                self._dismiss_overlay_callback = lambda: None
+        except Exception as e:
+            print("Page load error:", e)
 
     def _load_comp_json(self):
         """Load component setup JSON from SQLite for tolerance lookups."""
