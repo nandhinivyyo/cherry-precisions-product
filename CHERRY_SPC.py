@@ -10957,6 +10957,23 @@ class ReportPage(ctk.CTkFrame):
         super().__init__(parent)
         self.app = app
 
+        # Configure premium styling for ttk.Combobox drop-downs
+        style = ttk.Style()
+        try:
+            style.configure('TCombobox',
+                            fieldbackground='white',
+                            background='white',
+                            foreground='#333333',
+                            bordercolor='#E0E0E0',
+                            arrowcolor='#2E7D32',
+                            arrowsize=12,
+                            font=("Segoe UI", 11))
+            style.map('TCombobox',
+                      fieldbackground=[('readonly', 'white')],
+                      bordercolor=[('focus', '#2E7D32'), ('hover', '#43A047')])
+        except Exception as e:
+            print("Error styling combobox:", e)
+
         # Config
         self.AIR_CONFIG_FILE = "airgauge_component_config.json"
         self.DELETE_PASSWORD = "delete@cherry"
@@ -11142,8 +11159,7 @@ class ReportPage(ctk.CTkFrame):
             text_color="#1976D2"
         ).pack(side="left", padx=(0, 15))
 
-        # Export Button with modern styling
-        # Export Excel Button
+        # Export Excel Button (Deep Green theme)
         self.excel_btn = ModernButton(
             left_frame,
             text="📊 Export Excel",
@@ -11151,15 +11167,15 @@ class ReportPage(ctk.CTkFrame):
             width=120,
             height=38,
             font=("Segoe UI", 13, "bold"),
-            fg_color="#43A047",
-            hover_color="#2E7D32",
+            fg_color="#1B5E20",
+            hover_color="#154d1a",
             corner_radius=8,
             border_width=0,
             command=lambda: self.export_data("excel")
         )
         self.excel_btn.pack(side="left", padx=6)
 
-        # Export PDF Button
+        # Export PDF Button (Deep Green theme)
         self.pdf_btn = ModernButton(
             left_frame,
             text="📄 Export PDF",
@@ -11167,8 +11183,8 @@ class ReportPage(ctk.CTkFrame):
             width=120,
             height=38,
             font=("Segoe UI", 13, "bold"),
-            fg_color="#43A047",
-            hover_color="#2E7D32", # Green
+            fg_color="#1B5E20",
+            hover_color="#154d1a",
             corner_radius=8,
             border_width=0,
             command=lambda: self.export_data("pdf")
@@ -11176,7 +11192,7 @@ class ReportPage(ctk.CTkFrame):
         self.pdf_btn.pack(side="left", padx=6)
 
         # ---------------------------------------------------------
-        # CENTER SECTION → Analyze Button
+        # CENTER SECTION → Analyze Button (Dark Blue theme)
         # ---------------------------------------------------------
         center_frame = ctk.CTkFrame(header_inner, fg_color="transparent")
         center_frame.pack(side="left", expand=True)
@@ -11187,8 +11203,8 @@ class ReportPage(ctk.CTkFrame):
             width=130,
             height=38,
             font=("Segoe UI", 13, "bold"),
-            fg_color="#0288D1",
-            hover_color="#0277BD",
+            fg_color="#0D47A1",
+            hover_color="#0a3c85",
             corner_radius=8,
             border_width=0,
             command=self.open_analyze_page
@@ -11207,8 +11223,8 @@ class ReportPage(ctk.CTkFrame):
             width=100,
             height=38,
             font=("Segoe UI", 13, "bold"),
-            fg_color="#E53935",
-            hover_color="#D32F2F",
+            fg_color="#C62828",
+            hover_color="#a82222",
             corner_radius=8,
             border_width=0,
             command=self._on_delete_clicked
@@ -11221,8 +11237,8 @@ class ReportPage(ctk.CTkFrame):
             width=100,
             height=38,
             font=("Segoe UI", 13, "bold"),
-            fg_color="#1976D2",
-            hover_color="#1565C0",
+            fg_color="#00695C",
+            hover_color="#00574b",
             corner_radius=8,
             border_width=0,
             command=self.refresh_table_data
@@ -11567,88 +11583,174 @@ class ReportPage(ctk.CTkFrame):
 
 
     # ---------------------------
-    # Filter grid (2x6)
+    # Filter grid (2x4)
     # ---------------------------
     def _build_filter_grid(self):
-        # === Modern Filter Panel Card ===
+        # === Modern Filter Panel Container (Transparent since cards themselves have borders) ===
         filter_container = ctk.CTkFrame(
             self,
-            corner_radius=15,
-            border_width=1,
-            border_color="#E0E0E0"
+            fg_color="transparent"
         )
         filter_container.pack(fill="x", padx=20, pady=(0, 10))
         
         filter_frame = ctk.CTkFrame(filter_container, fg_color="transparent")
-        filter_frame.pack(fill="x", padx=15, pady=15)
+        filter_frame.pack(fill="x", padx=0, pady=0)
 
-        ROWS, COLS = 2, 8
+        # 4 columns for clean grid:
+        # Col 0: Date Time (From/To) [Wide]
+        # Col 1: Item / Operator
+        # Col 2: AirGauge ID / Machine ID
+        # Col 3: Drawing / Customer
+        filter_frame.grid_columnconfigure(0, weight=3)
+        filter_frame.grid_columnconfigure(1, weight=2)
+        filter_frame.grid_columnconfigure(2, weight=2)
+        filter_frame.grid_columnconfigure(3, weight=2)
+
         self.filter_cells = []
-        cell_h = 36
+        ROWS, COLS = 2, 4
         for r in range(ROWS):
             row_list = []
             for c in range(COLS):
-                cell = ctk.CTkFrame(
+                card = ctk.CTkFrame(
                     filter_frame,
-                    fg_color="#FAFAFA",
-                    corner_radius=6,
+                    fg_color="white",
+                    corner_radius=12,
                     border_width=1,
                     border_color="#E0E0E0",
-                    width=160,
-                    height=cell_h
+                    height=85
                 )
-                cell.grid(row=r, column=c, sticky="nsew", padx=2, pady=2)
-                cell.grid_propagate(False)
-                row_list.append(cell)
+                card.grid(row=r, column=c, sticky="nsew", padx=6, pady=6)
+                card.grid_propagate(False)
+                row_list.append(card)
             self.filter_cells.append(row_list)
-        for c in range(COLS):
-            filter_frame.grid_columnconfigure(c, weight=1)
 
-        # From
-        ctk.CTkLabel(self.filter_cells[0][0], text="Date Time (From)", font=("Segoe UI", 11, "bold"),
-                     text_color="#333").pack(anchor="w", padx=6, pady=(4, 0))
-        from_dt_container = ctk.CTkFrame(self.filter_cells[0][1])
-        from_dt_container.pack(fill="both", padx=4, pady=(3, 3))
-        from_dt_container.grid_columnconfigure(0, weight=1); from_dt_container.grid_columnconfigure(1, weight=1)
-        self.from_date_entry = ctk.CTkEntry(from_dt_container, textvariable=self.from_date_var,
-                                            placeholder_text="dd/mm/yyyy", height=26, corner_radius=4, border_color="#D0D0D0")
-        self.from_date_entry.grid(row=0, column=0, sticky="nsew", padx=(0, 6))
+        # ---------------------------------------------------------
+        # Card 0,0: Date Time (From)
+        # ---------------------------------------------------------
+        from_card = self.filter_cells[0][0]
+        ctk.CTkLabel(
+            from_card, 
+            text="Date Time (From)", 
+            font=("Segoe UI", 11, "bold"),
+            text_color="#757575"
+        ).pack(anchor="w", padx=12, pady=(8, 2))
+        
+        from_dt_container = ctk.CTkFrame(from_card, fg_color="transparent")
+        from_dt_container.pack(fill="x", padx=10, pady=(2, 8))
+        from_dt_container.grid_columnconfigure(0, weight=3)
+        from_dt_container.grid_columnconfigure(1, weight=2)
+
+        # Date Entry Container (to place the 📅 calendar icon inside)
+        from_date_container = ctk.CTkFrame(from_dt_container, fg_color="transparent")
+        from_date_container.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
+        
+        self.from_date_entry = ctk.CTkEntry(
+            from_date_container, 
+            textvariable=self.from_date_var,
+            placeholder_text="dd/mm/yyyy", 
+            height=30, 
+            corner_radius=6, 
+            border_color="#E0E0E0",
+            fg_color="white",
+            text_color="#333333",
+            font=("Segoe UI", 12)
+        )
+        self.from_date_entry.pack(side="left", fill="x", expand=True)
+        
+        from_cal_btn = ctk.CTkLabel(
+            from_date_container, 
+            text="📅", 
+            font=("Segoe UI", 13), 
+            text_color="#2E7D32", 
+            cursor="hand2"
+        )
+        from_cal_btn.pack(side="right", padx=(4, 0))
         if Calendar is not None:
             self.from_date_entry.bind("<Button-1>", lambda e: self.open_calendar_popup(self.from_date_entry, self.from_date_var))
+            from_cal_btn.bind("<Button-1>", lambda e: self.open_calendar_popup(self.from_date_entry, self.from_date_var))
+
+        # Time spinner (From)
         self.from_time_spinner = self._create_time_spinner(from_dt_container, self.from_time_var)
         self.from_time_spinner.grid(row=0, column=1, sticky="nsew")
 
-        # To
-        ctk.CTkLabel(self.filter_cells[1][0], text="Date Time (To)", font=("Segoe UI", 11, "bold"),
-                     text_color="#333").pack(anchor="w", padx=6, pady=(4, 0))
-        to_dt_container = ctk.CTkFrame(self.filter_cells[1][1])
-        to_dt_container.pack(fill="both", padx=4, pady=(3, 3))
-        to_dt_container.grid_columnconfigure(0, weight=1); to_dt_container.grid_columnconfigure(1, weight=1)
-        self.to_date_entry = ctk.CTkEntry(to_dt_container, textvariable=self.to_date_var,
-                                          placeholder_text="dd/mm/yyyy", height=26, corner_radius=4, border_color="#D0D0D0")
-        self.to_date_entry.grid(row=0, column=0, sticky="nsew", padx=(0, 6))
+        # ---------------------------------------------------------
+        # Card 1,0: Date Time (To)
+        # ---------------------------------------------------------
+        to_card = self.filter_cells[1][0]
+        ctk.CTkLabel(
+            to_card, 
+            text="Date Time (To)", 
+            font=("Segoe UI", 11, "bold"),
+            text_color="#757575"
+        ).pack(anchor="w", padx=12, pady=(8, 2))
+        
+        to_dt_container = ctk.CTkFrame(to_card, fg_color="transparent")
+        to_dt_container.pack(fill="x", padx=10, pady=(2, 8))
+        to_dt_container.grid_columnconfigure(0, weight=3)
+        to_dt_container.grid_columnconfigure(1, weight=2)
+
+        # Date Entry Container (To)
+        to_date_container = ctk.CTkFrame(to_dt_container, fg_color="transparent")
+        to_date_container.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
+        
+        self.to_date_entry = ctk.CTkEntry(
+            to_date_container, 
+            textvariable=self.to_date_var,
+            placeholder_text="dd/mm/yyyy", 
+            height=30, 
+            corner_radius=6, 
+            border_color="#E0E0E0",
+            fg_color="white",
+            text_color="#333333",
+            font=("Segoe UI", 12)
+        )
+        self.to_date_entry.pack(side="left", fill="x", expand=True)
+        
+        to_cal_btn = ctk.CTkLabel(
+            to_date_container, 
+            text="📅", 
+            font=("Segoe UI", 13), 
+            text_color="#2E7D32", 
+            cursor="hand2"
+        )
+        to_cal_btn.pack(side="right", padx=(4, 0))
         if Calendar is not None:
             self.to_date_entry.bind("<Button-1>", lambda e: self.open_calendar_popup(self.to_date_entry, self.to_date_var))
+            to_cal_btn.bind("<Button-1>", lambda e: self.open_calendar_popup(self.to_date_entry, self.to_date_var))
+
+        # Time spinner (To)
         self.to_time_spinner = self._create_time_spinner(to_dt_container, self.to_time_var)
         self.to_time_spinner.grid(row=0, column=1, sticky="nsew")
 
-        # Item
-        ctk.CTkLabel(self.filter_cells[0][2], text="Item", font=("Segoe UI", 11)).pack(anchor="w", padx=6, pady=(6, 0))
-        self.item_combo = self._create_searchable_combobox(self.filter_cells[0][3], self.item_var, self._items_display_list())
-
-        # AirGauge ID (reduced width)
+        # ---------------------------------------------------------
+        # Card 0,1: Item
+        # ---------------------------------------------------------
+        item_card = self.filter_cells[0][1]
         ctk.CTkLabel(
-            self.filter_cells[0][4],
-            text="AirGauge ID",
-            font=("Segoe UI", 11)
-        ).pack(anchor="w", padx=6, pady=(6, 0))
+            item_card, 
+            text="Item", 
+            font=("Segoe UI", 11, "bold"),
+            text_color="#757575"
+        ).pack(anchor="w", padx=12, pady=(8, 2))
+        self.item_combo = self._create_searchable_combobox(item_card, self.item_var, self._items_display_list())
 
-        ag_container = ctk.CTkFrame(self.filter_cells[0][5])
-        ag_container.pack(fill="both", padx=4, pady=(3, 3))
+        # ---------------------------------------------------------
+        # Card 0,2: AirGauge ID
+        # ---------------------------------------------------------
+        ag_card = self.filter_cells[0][2]
+        ctk.CTkLabel(
+            ag_card, 
+            text="AirGauge ID", 
+            font=("Segoe UI", 11, "bold"),
+            text_color="#757575"
+        ).pack(anchor="w", padx=12, pady=(8, 2))
+        
+        ag_container = ctk.CTkFrame(ag_card, fg_color="transparent")
+        ag_container.pack(fill="x", padx=10, pady=(2, 8))
         ag_container.grid_columnconfigure(0, weight=1)
         ag_container.grid_columnconfigure(1, weight=1)
 
-        # AirGauge combo (LEFT)
+        # AirGauge ID combo
         self.airgauge_combo = ttk.Combobox(
             ag_container,
             values=self._load_airgauge_ids(),
@@ -11658,7 +11760,7 @@ class ReportPage(ctk.CTkFrame):
         self.airgauge_combo.grid(row=0, column=0, sticky="nsew", padx=(0, 4))
         self.airgauge_combo._base_values = list(self.airgauge_combo["values"])
 
-        # Channel combo (RIGHT)
+        # Channel combo
         self.channel_combo = ttk.Combobox(
             ag_container,
             values=["All"],
@@ -11668,31 +11770,60 @@ class ReportPage(ctk.CTkFrame):
         self.channel_combo.grid(row=0, column=1, sticky="nsew")
         self.channel_combo._base_values = ["All"]
 
+        # ---------------------------------------------------------
+        # Card 0,3: Drawing
+        # ---------------------------------------------------------
+        drawing_card = self.filter_cells[0][3]
+        ctk.CTkLabel(
+            drawing_card, 
+            text="Drawing", 
+            font=("Segoe UI", 11, "bold"),
+            text_color="#757575"
+        ).pack(anchor="w", padx=12, pady=(8, 2))
+        self.drawing_combo = self._create_searchable_combobox(drawing_card, self.drawing_var, ["All"])
 
-        # Operator
-        ctk.CTkLabel(self.filter_cells[1][2], text="Operator", font=("Segoe UI", 11)).pack(anchor="w", padx=6, pady=(6, 0))
-        self.operator_combo = self._create_searchable_combobox(self.filter_cells[1][3], self.operator_var, self._operators_display_list())
+        # ---------------------------------------------------------
+        # Card 1,1: Operator
+        # ---------------------------------------------------------
+        operator_card = self.filter_cells[1][1]
+        ctk.CTkLabel(
+            operator_card, 
+            text="Operator", 
+            font=("Segoe UI", 11, "bold"),
+            text_color="#757575"
+        ).pack(anchor="w", padx=12, pady=(8, 2))
+        self.operator_combo = self._create_searchable_combobox(operator_card, self.operator_var, self._operators_display_list())
 
-        # Machine
-        ctk.CTkLabel(self.filter_cells[1][4], text="Machine ID", font=("Segoe UI", 11)).pack(anchor="w", padx=6, pady=(6, 0))
-        self.machine_combo = self._create_searchable_combobox(self.filter_cells[1][5], self.machine_var, self._machines_display_list())
+        # ---------------------------------------------------------
+        # Card 1,2: Machine ID
+        # ---------------------------------------------------------
+        machine_card = self.filter_cells[1][2]
+        ctk.CTkLabel(
+            machine_card, 
+            text="Machine ID", 
+            font=("Segoe UI", 11, "bold"),
+            text_color="#757575"
+        ).pack(anchor="w", padx=12, pady=(8, 2))
+        self.machine_combo = self._create_searchable_combobox(machine_card, self.machine_var, self._machines_display_list())
 
-        # Drawing (dynamic from visible table)
-        ctk.CTkLabel(self.filter_cells[0][6],text="Drawing",font=("Segoe UI", 11)).pack(anchor="w", padx=6, pady=(6, 0))
-        self.drawing_combo = self._create_searchable_combobox(self.filter_cells[0][7],self.drawing_var,["All"])
-
-        # Customer filter
-        ctk.CTkLabel(self.filter_cells[1][6],text="Customer",font=("Segoe UI", 11)).pack(anchor="w", padx=6, pady=(6, 0))
-        self.customer_combo = self._create_searchable_combobox(self.filter_cells[1][7],self.customer_var,["All"])
-
-
+        # ---------------------------------------------------------
+        # Card 1,3: Customer
+        # ---------------------------------------------------------
+        customer_card = self.filter_cells[1][3]
+        ctk.CTkLabel(
+            customer_card, 
+            text="Customer", 
+            font=("Segoe UI", 11, "bold"),
+            text_color="#757575"
+        ).pack(anchor="w", padx=12, pady=(8, 2))
+        self.customer_combo = self._create_searchable_combobox(customer_card, self.customer_var, ["All"])
 
     # ---------------------------
     # Searchable combobox helper
     # ---------------------------
     def _create_searchable_combobox(self, parent_cell, tk_var, options_list):
-        frm = ctk.CTkFrame(parent_cell, corner_radius=0)
-        frm.pack(fill="both", padx=4, pady=(3, 3))
+        frm = ctk.CTkFrame(parent_cell, fg_color="transparent")
+        frm.pack(fill="x", padx=10, pady=(2, 8))
         combo = ttk.Combobox(frm, values=options_list, textvariable=tk_var)
         combo.pack(fill="x", expand=True)
         combo.config(state="normal")
@@ -11958,9 +12089,27 @@ class ReportPage(ctk.CTkFrame):
             "S.No", "Time", "Date","Reading","Offset", "Status","AirGauge ID", "Channel",
              "Drawing", "User", "CompID", "Item", "CNC ID", "Customer"
         )
+        
+        cols_display = {
+            "S.No": "# S.No",
+            "Time": "🕒 Time",
+            "Date": "📅 Date",
+            "Reading": "📈 Reading",
+            "Offset": "⚙️ Offset",
+            "Status": "🟢 Status",
+            "AirGauge ID": "🏷️ AirGauge ID",
+            "Channel": "📊 Channel",
+            "Drawing": "📄 Drawing",
+            "User": "👤 User",
+            "CompID": "📦 CompID",
+            "Item": "📋 Item",
+            "CNC ID": "⚙️ CNC ID",
+            "Customer": "👥 Customer"
+        }
+        cols_display_list = [cols_display[h] for h in cols]
 
         if self.use_tksheet:
-            self.sheet = Sheet(table_frame, headers=cols, show_x_scrollbar=True, show_y_scrollbar=True, height=500)
+            self.sheet = Sheet(table_frame, headers=cols_display_list, show_x_scrollbar=True, show_y_scrollbar=True, height=500)
             try:
                 self.sheet.set_options(auto_resize_columns=False)
                 self.sheet.set_options(column_width_resize=False)
@@ -11975,14 +12124,46 @@ class ReportPage(ctk.CTkFrame):
         else:
             self.tree = ttk.Treeview(table_frame, columns=cols, show="headings", selectmode="browse")
             for h in cols:
-                self.tree.heading(h, text=h); self.tree.column(h, width=120, anchor="center")
+                self.tree.heading(h, text=cols_display[h])
+                self.tree.column(h, width=120, anchor="center")
             vsb = ttk.Scrollbar(table_frame, orient="vertical", command=self.tree.yview)
             hsb = ttk.Scrollbar(table_frame, orient="horizontal", command=self.tree.xview)
             self.tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
             self.tree.grid(row=0, column=0, sticky="nsew"); vsb.grid(row=0, column=1, sticky="ns"); hsb.grid(row=1, column=0, sticky="ew")
 
-            # double click edit (if needed) - keep for compatibility
             self.tree.bind("<Double-1>", lambda e: None)
+            
+        # Create empty state overlay frame (white to blend with card bg)
+        self.empty_state_frame = ctk.CTkFrame(table_frame, fg_color="white", corner_radius=12)
+        
+        # Center container
+        center_content = ctk.CTkFrame(self.empty_state_frame, fg_color="transparent")
+        center_content.place(relx=0.5, rely=0.5, anchor="center")
+        
+        # Empty state graphic, title and helper text
+        icon_lbl = ctk.CTkLabel(
+            center_content, 
+            text="📥", 
+            font=("Segoe UI", 48), 
+            text_color="#BDBDBD"
+        )
+        icon_lbl.pack(pady=(0, 10))
+        
+        msg_lbl = ctk.CTkLabel(
+            center_content, 
+            text="No data available", 
+            font=("Segoe UI", 15, "bold"), 
+            text_color="#333333"
+        )
+        msg_lbl.pack(pady=(0, 4))
+        
+        sub_lbl = ctk.CTkLabel(
+            center_content, 
+            text="Please select filters and click Analyze to view data.", 
+            font=("Segoe UI", 11), 
+            text_color="#757575"
+        )
+        sub_lbl.pack()
 
     # ---------------------------
     # Loading overlay
@@ -12207,6 +12388,7 @@ class ReportPage(ctk.CTkFrame):
         # ✅ NOW table is final → update all dynamic filters at once
         self._update_all_dynamic_filters(parsed_data)
 
+        self._update_empty_state(len(table_rows))
 
         self._suspend_auto_filter = False
         self._set_loading_state(False)
@@ -12217,6 +12399,16 @@ class ReportPage(ctk.CTkFrame):
             self.after(3000, lambda: self.app.status_label.configure(text="Ready"))
         except:
             pass
+
+    def _update_empty_state(self, row_count):
+        try:
+            if row_count == 0:
+                self.empty_state_frame.place(relx=0, rely=0, relwidth=1, relheight=1)
+                self.empty_state_frame.lift()
+            else:
+                self.empty_state_frame.place_forget()
+        except Exception as e:
+            print("Error updating empty state:", e)
 
 
 
@@ -12517,6 +12709,7 @@ class ReportPage(ctk.CTkFrame):
             else:
                 for iid in self.tree.get_children(): self.tree.delete(iid)
                 for rrow in table_rows: self.tree.insert("", "end", values=rrow)
+            self._update_empty_state(len(table_rows))
         except Exception:
             pass
         try:
@@ -12754,6 +12947,7 @@ class ReportPage(ctk.CTkFrame):
             else:
                 for iid in self.tree.get_children(): self.tree.delete(iid)
                 for rrow in table_rows: self.tree.insert("", "end", values=rrow)
+            self._update_empty_state(len(table_rows))
         except Exception:
             pass
 
