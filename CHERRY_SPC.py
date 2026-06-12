@@ -521,6 +521,12 @@ class AdminLoginPage(ctk.CTkFrame):
         super().__init__(parent)
         self.controller = controller
 
+        # Momentary password masking setup
+        self.actual_password = ""
+        self.mask_char = "●"
+        self.mask_job = None
+        self.show_pass = False
+
         self.configure(fg_color="#F5F5F5")
 
         self.main_card = ctk.CTkFrame(self, fg_color="white", corner_radius=20, width=900, height=560)
@@ -534,11 +540,20 @@ class AdminLoginPage(ctk.CTkFrame):
 
         # Load cherry logo image
         try:
-            logo_path = resource_path("cherry_precision_transparent.ico")
+            logo_path = resource_path("settings/cherry_login_logo.png")
+            if not os.path.exists(logo_path):
+                logo_path = resource_path("cherry_precision_transparent.ico")
             if os.path.exists(logo_path):
                 pil_img = Image.open(logo_path)
-                pil_img = pil_img.resize((140, 140), Image.Resampling.LANCZOS)
-                self.cherry_logo_img = ctk.CTkImage(pil_img, size=(140, 140))
+                width, height = pil_img.size
+                aspect = width / height
+                target_height = 140
+                target_width = int(target_height * aspect)
+                if target_width > 200:
+                    target_width = 200
+                    target_height = int(target_width / aspect)
+                pil_img = pil_img.resize((target_width, target_height), Image.Resampling.LANCZOS)
+                self.cherry_logo_img = ctk.CTkImage(pil_img, size=(target_width, target_height))
                 logo_lbl = ctk.CTkLabel(self.left_panel, text="", image=self.cherry_logo_img, fg_color="transparent")
                 logo_lbl.place(relx=0.5, rely=0.28, anchor="center")
         except Exception as e:
@@ -611,7 +626,7 @@ class AdminLoginPage(ctk.CTkFrame):
 
         self.pass_entry = tk.Entry(pass_container, relief="flat", bd=0, bg="white", fg="#333",
                                    selectbackground="#1976D2", selectforeground="white",
-                                   font=("Segoe UI", 13), insertbackground="#333", show="●")
+                                   font=("Segoe UI", 13), insertbackground="#333")
         self.pass_entry.pack(side="left", fill="x", expand=True, padx=(2, 5), pady=12)
 
         # Password Placeholder label
@@ -628,17 +643,20 @@ class AdminLoginPage(ctk.CTkFrame):
             else:
                 pass_placeholder.place(x=40, y=24, anchor="w")
 
+        # Hook validation for momentary password masking
+        pass_vcmd = (self.register(self._validate_pass_input), '%d', '%i', '%P', '%s', '%S')
+        self.pass_entry.config(validate="key", validatecommand=pass_vcmd)
+
         self.pass_entry.bind("<KeyRelease>", on_pass_key)
 
         # Show/Hide eye button
-        self.show_pass = False
         def toggle_pass_visibility():
             self.show_pass = not self.show_pass
             if self.show_pass:
-                self.pass_entry.config(show="")
+                self._set_pass_display_text(self.actual_password)
                 eye_btn.configure(text="👁")
             else:
-                self.pass_entry.config(show="●")
+                self._set_pass_display_text(self.mask_char * len(self.actual_password))
                 eye_btn.configure(text="👁‍🗨")
 
         eye_btn = ctk.CTkLabel(pass_container, text="👁‍🗨", font=("Segoe UI", 16), text_color="#757575", fg_color="transparent", cursor="hand2")
@@ -682,9 +700,51 @@ class AdminLoginPage(ctk.CTkFrame):
         ctk.CTkLabel(self.right_panel, text="Secure Terminal v1.0",
                      font=("Segoe UI", 11), text_color="#9E9E9E").place(relx=0.5, rely=0.95, anchor="center")
 
+    def _validate_pass_input(self, action, index, value_if_allowed, prior_value, text_inserted_deleted):
+        idx = int(index)
+        action = int(action)
+
+        if action == 1: # Insert
+            self.actual_password = self.actual_password[:idx] + text_inserted_deleted + self.actual_password[idx:]
+        elif action == 0: # Delete
+            self.actual_password = self.actual_password[:idx] + self.actual_password[idx + len(text_inserted_deleted):]
+
+        # Schedule the display update
+        if self.show_pass:
+            self.after_idle(lambda: self._set_pass_display_text(self.actual_password))
+        else:
+            if action == 1 and len(text_inserted_deleted) == 1:
+                masked = "".join(self.mask_char if i != idx else c for i, c in enumerate(self.actual_password))
+                self.after_idle(lambda: self._set_pass_display_text(masked))
+                self._schedule_pass_masking()
+            else:
+                masked = self.mask_char * len(self.actual_password)
+                self.after_idle(lambda: self._set_pass_display_text(masked))
+
+        return True
+
+    def _set_pass_display_text(self, text):
+        self.pass_entry.config(validate="none")
+        cursor_pos = self.pass_entry.index(tk.INSERT)
+        self.pass_entry.delete(0, tk.END)
+        self.pass_entry.insert(0, text)
+        self.pass_entry.icursor(cursor_pos)
+        self.pass_entry.config(validate="key")
+
+    def _schedule_pass_masking(self):
+        if self.mask_job:
+            self.after_cancel(self.mask_job)
+        self.mask_job = self.after(1500, self._mask_all_pass)
+
+    def _mask_all_pass(self):
+        self.mask_job = None
+        if not self.show_pass:
+            masked = self.mask_char * len(self.actual_password)
+            self._set_pass_display_text(masked)
+
     def check_login(self):
         admin_name_input = self.user_entry.get().strip()
-        password_input   = self.pass_entry.get().strip()
+        password_input   = self.actual_password.strip()
 
         stored_admin = SetupDatabase.get_admin_name()
         stored_pass  = SetupDatabase.get_admin_password()
@@ -707,13 +767,24 @@ class AdminLoginPage(ctk.CTkFrame):
 class ForgotPasswordDialog(ctk.CTkToplevel):
     """
     Two-panel modal:
-      Left  – Cherry service contact information (Forest green panel with red divider curve)
-      Right – Cherry Service ID & Password entry (styled exactly like Admin Login)
+      Left  – Cherry service contact information
+      Right – Cherry Service ID & Password entry
     """
     def __init__(self, parent, controller):
         super().__init__(parent)
         self.controller  = controller
         self.parent_page = parent
+
+        # Load small colorful cherry logo for header
+        self.cherry_header_img = None
+        try:
+            logo_path = resource_path("settings/cherry_login_logo.png")
+            if os.path.exists(logo_path):
+                pil_img = Image.open(logo_path)
+                pil_img = pil_img.resize((24, 24), Image.Resampling.LANCZOS)
+                self.cherry_header_img = ctk.CTkImage(pil_img, size=(24, 24))
+        except Exception as e:
+            print("Error loading header logo:", e)
 
         self.title("Forgot Password — Cherry Precision Service")
         self.resizable(False, False)
@@ -721,211 +792,160 @@ class ForgotPasswordDialog(ctk.CTkToplevel):
         self.transient(parent)
         self.grab_set()
 
-        # ── Outer container ──
-        card = ctk.CTkFrame(self, fg_color="white", corner_radius=0)
+        # ── Outer card ───────────────────────────────────────
+        card = tk.Frame(self, bg="white")
         card.pack(fill="both", expand=True)
 
-        # ── LEFT PANEL: Contact info ──
-        left = ctk.CTkFrame(card, fg_color="#1B5E20", width=360, corner_radius=0)
+        # ── LEFT: contact info ───────────────────────────────
+        left = tk.Frame(card, bg="#1B5E20", width=340)
         left.pack(side="left", fill="y")
         left.pack_propagate(False)
 
-        # Subtle red accent top frame
-        ctk.CTkFrame(left, fg_color="#C62828", height=5, corner_radius=0).pack(fill="x")
+        tk.Frame(left, bg="#4CAF50", height=5).pack(fill="x")
 
-        # Circular Support Badge (Red lifebuoy inside white circle)
-        support_badge = ctk.CTkFrame(left, fg_color="white", width=60, height=60, corner_radius=30)
-        support_badge.pack(pady=(20, 5))
-        support_badge.pack_propagate(False)
-        
-        support_icon = ctk.CTkLabel(support_badge, text="🛟", font=("Segoe UI", 32), text_color="#C62828")
-        support_icon.place(relx=0.5, rely=0.5, anchor="center")
+        tk.Label(left, text="Need Help?",
+                 font=("Segoe UI", 18, "bold"), fg="white", bg="#1B5E20").pack(pady=(28, 4))
+        tk.Label(left, text="Cherry Precision Service Support",
+                 font=("Segoe UI", 11), fg="#A5D6A7", bg="#1B5E20").pack(pady=(0, 14))
+        tk.Frame(left, bg="#4CAF50", height=1, width=280).pack(pady=(0, 16))
 
-        # System Locked Label at the very bottom
-        ctk.CTkLabel(left, text="🔒  System Locked",
-                     font=("Segoe UI", 12, "bold"), text_color="#C8E6C9", fg_color="transparent").pack(side="bottom", pady=(0, 20))
+        body = tk.Frame(left, bg="#1B5E20")
+        body.pack(fill="x", padx=22)
 
-        # Vertical Red/Crimson Divider Stripe on the right of the green panel
-        divider = ctk.CTkFrame(left, fg_color="#C62828", width=4, corner_radius=0)
-        divider.pack(side="right", fill="y")
-
-        # Titles
-        ctk.CTkLabel(left, text="Need Help?",
-                     font=("Segoe UI", 18, "bold"), text_color="white", fg_color="transparent").pack(pady=1)
-        ctk.CTkLabel(left, text="Cherry Precision Service Support",
-                     font=("Segoe UI", 10), text_color="#A5D6A7", fg_color="transparent").pack(pady=(0, 10))
-        ctk.CTkFrame(left, fg_color="#2E7D32", height=1, width=300, corner_radius=0).pack(pady=(0, 12))
-
-        # Description body
-        body = ctk.CTkFrame(left, fg_color="transparent", corner_radius=0)
-        body.pack(fill="both", expand=True, padx=25)
-
-        intro = "If you have forgotten your admin password, please contact your Cherry Precision service representative. They will provide you with a Cherry Service ID & Password to reset your admin credentials."
-        ctk.CTkLabel(body, text=intro, font=("Segoe UI", 9.5),
-                     text_color="#C8E6C9", fg_color="transparent", justify="left",
-                     wraplength=300).pack(anchor="w", pady=(0, 15))
+        intro = ("If you have forgotten your admin password,\n"
+                 "please contact your Cherry Precision\n"
+                 "service representative. They will provide\n"
+                 "you with a Cherry Service ID & Password\n"
+                 "to reset your admin credentials.")
+        tk.Label(body, text=intro, font=("Segoe UI", 11),
+                 fg="#C8E6C9", bg="#1B5E20", justify="left",
+                 wraplength=290).pack(anchor="w", pady=(0, 18))
 
         # Contacts list
         contacts = [
-            ("📞", "+91-98765-43210"),
-            ("📧", "service@cherryprecision.com"),
-            ("🕐", "Mon–Sat | 9:00 AM – 6:00 PM"),
-            ("🏢", "Cherry Precision Products"),
+            ("📞  Helpline :",  "+91-98765-43210"),
+            ("📧  Email :",     "service@cherryprecision.com"),
+            ("🕐  Hours :",     "Mon–Sat  |  9:00 AM – 6:00 PM"),
+            ("🏢  Service :",   "Cherry Precision Products"),
         ]
-        for icon, value in contacts:
-            row = ctk.CTkFrame(body, fg_color="transparent", corner_radius=0)
+        for label, value in contacts:
+            row = tk.Frame(body, bg="#1B5E20")
             row.pack(fill="x", pady=3)
-            ctk.CTkLabel(row, text=icon, font=("Segoe UI", 11),
-                         text_color="#81C784", fg_color="transparent", width=25, anchor="w").pack(side="left")
-            ctk.CTkLabel(row, text=value, font=("Segoe UI", 9.5),
-                         text_color="white", fg_color="transparent", anchor="w", wraplength=260, justify="left").pack(side="left")
+            tk.Label(row, text=label, font=("Segoe UI", 11, "bold"),
+                     fg="#81C784", bg="#1B5E20", width=13, anchor="w").pack(side="left")
+            tk.Label(row, text=value, font=("Segoe UI", 11),
+                     fg="white", bg="#1B5E20", anchor="w").pack(side="left")
 
-        # ── RIGHT PANEL: Form inputs ──
-        right = ctk.CTkFrame(card, fg_color="white", corner_radius=0)
+        tk.Label(left, text="Please have your machine serial\nnumber ready when you call.",
+                 font=("Segoe UI", 11, "italic"), fg="#A5D6A7",
+                 bg="#1B5E20", justify="center").pack(side="bottom", pady=20)
+
+        # ── RIGHT: credentials entry ─────────────────────────
+        right = tk.Frame(card, bg="white")
         right.pack(side="right", fill="both", expand=True)
 
-        # Form content container
-        inner = ctk.CTkFrame(right, fg_color="white", corner_radius=0)
-        inner.place(relx=0.5, rely=0.5, anchor="center")
+        # Use pack with padding to center content vertically and horizontally
+        right_inner_wrap = tk.Frame(right, bg="white")
+        right_inner_wrap.pack(fill="both", expand=True)
 
-        # Header with Logo & Title Text
-        header_frame = ctk.CTkFrame(inner, fg_color="white", corner_radius=0)
-        header_frame.pack(pady=(0, 20))
+        inner = tk.Frame(right_inner_wrap, bg="white")
+        inner.pack(expand=True, padx=32, pady=30)
 
-        try:
-            logo_path = resource_path("cherry_precision_transparent.ico")
-            if os.path.exists(logo_path):
-                pil_img = Image.open(logo_path).resize((24, 24), Image.Resampling.LANCZOS)
-                self.logo_img = ctk.CTkImage(pil_img, size=(24, 24))
-                logo_lbl = ctk.CTkLabel(header_frame, text="", image=self.logo_img, fg_color="transparent")
-                logo_lbl.pack(side="left", padx=(0, 8))
-        except Exception:
-            pass
+        tk.Label(inner, text="Enter Cherry Service Credentials",
+                 font=("Segoe UI", 18, "bold"), fg="#1B5E20", bg="white").pack(pady=(0, 6))
+        tk.Label(inner,
+                 text="Use the Cherry Service ID & Password\nprovided by your service representative.",
+                 font=("Segoe UI", 11), fg="#757575", bg="white",
+                 justify="center").pack(pady=(0, 22))
 
-        ctk.CTkLabel(header_frame, text="Forgot Password — Cherry Precision Service",
-                     font=("Segoe UI", 11, "bold"), text_color="#757575", fg_color="transparent").pack(side="left")
-
-        # Title
-        title_frame = ctk.CTkFrame(inner, fg_color="white", corner_radius=0)
-        title_frame.pack(pady=(0, 4))
-        
-        ctk.CTkLabel(title_frame, text="Enter ", font=("Segoe UI", 22, "bold"), text_color="#333", fg_color="transparent").pack(side="left")
-        ctk.CTkLabel(title_frame, text="Cherry Service Credentials", font=("Segoe UI", 22, "bold"), text_color="#1B5E20", fg_color="transparent").pack(side="left")
-
-        # Subtitle
-        ctk.CTkLabel(inner, text="Use the Cherry Service ID & Password\nprovided by your service representative.",
-                     font=("Segoe UI", 11), text_color="#757575", fg_color="transparent",
-                     justify="center").pack(pady=(0, 25))
-
-        # --- Service ID Container ---
-        id_container = ctk.CTkFrame(inner, fg_color="white", border_color="#E0E0E0", border_width=1, corner_radius=8, height=48, width=320)
-        id_container.pack(pady=8)
-        id_container.pack_propagate(False)
-
-        id_icon = ctk.CTkLabel(id_container, text="👤", font=("Segoe UI", 16), text_color="#757575", fg_color="transparent")
-        id_icon.pack(side="left", padx=(12, 5))
-
-        self.id_entry = tk.Entry(id_container, relief="flat", bd=0, bg="white", fg="#333",
-                                 selectbackground="#1976D2", selectforeground="white",
-                                 font=("Segoe UI", 13), insertbackground="#333")
-        self.id_entry.pack(side="left", fill="x", expand=True, padx=(2, 12), pady=12)
+        tk.Label(inner, text="Cherry Service ID", font=("Segoe UI", 11, "bold"),
+                 fg="#333", bg="white", anchor="w").pack(fill="x")
+        self.id_entry = ctk.CTkEntry(inner, placeholder_text="Enter Cherry Service ID",
+                                     height=44, width=320, font=("Segoe UI", 13),
+                                     border_color="#B0BEC5", corner_radius=8)
+        self.id_entry.pack(pady=(4, 12))
         self.id_entry.focus()
 
-        # Service ID Placeholder
-        id_placeholder = ctk.CTkLabel(id_container, text="Enter service ID", font=("Segoe UI", 13), text_color="#9E9E9E", fg_color="transparent")
-        id_placeholder.place(x=40, y=24, anchor="w")
-        id_placeholder.bind("<Button-1>", lambda e: self.id_entry.focus())
+        tk.Label(inner, text="Cherry Service Password", font=("Segoe UI", 11, "bold"),
+                 fg="#333", bg="white", anchor="w").pack(fill="x")
+        self.pw_entry = ctk.CTkEntry(inner, placeholder_text="Enter service password",
+                                     show="●", height=44, width=320,
+                                     font=("Segoe UI", 13),
+                                     border_color="#B0BEC5", corner_radius=8)
+        self.pw_entry.pack(pady=(4, 12))
 
-        def check_id_placeholder():
-            if self.id_entry.get():
-                id_placeholder.place_forget()
-            else:
-                id_placeholder.place(x=40, y=24, anchor="w")
-
-        self.id_entry.bind("<KeyRelease>", lambda e: self.after(10, check_id_placeholder))
-
-        # --- Service Password Container ---
-        pw_container = ctk.CTkFrame(inner, fg_color="white", border_color="#E0E0E0", border_width=1, corner_radius=8, height=48, width=320)
-        pw_container.pack(pady=8)
-        pw_container.pack_propagate(False)
-
-        pw_icon = ctk.CTkLabel(pw_container, text="🔒", font=("Segoe UI", 16), text_color="#757575", fg_color="transparent")
-        pw_icon.pack(side="left", padx=(12, 5))
-
-        self.pw_entry = tk.Entry(pw_container, relief="flat", bd=0, bg="white", fg="#333",
-                                 selectbackground="#1976D2", selectforeground="white",
-                                 font=("Segoe UI", 13), insertbackground="#333", show="●")
-        self.pw_entry.pack(side="left", fill="x", expand=True, padx=(2, 5), pady=12)
-
-        # Service Password Placeholder
-        pw_placeholder = ctk.CTkLabel(pw_container, text="Enter service password", font=("Segoe UI", 13), text_color="#9E9E9E", fg_color="transparent")
-        pw_placeholder.place(x=40, y=24, anchor="w")
-        pw_placeholder.bind("<Button-1>", lambda e: self.pw_entry.focus())
-
-        def check_pw_placeholder():
-            if self.pw_entry.get():
-                pw_placeholder.place_forget()
-            else:
-                pw_placeholder.place(x=40, y=24, anchor="w")
-
-        self.pw_entry.bind("<KeyRelease>", lambda e: self.after(10, check_pw_placeholder))
-
-        # Show/Hide eye button
-        self.show_pw = False
-        def toggle_pw_visibility():
-            self.show_pw = not self.show_pw
-            if self.show_pw:
-                self.pw_entry.config(show="")
-                eye_btn.configure(text="👁")
-            else:
-                self.pw_entry.config(show="●")
-                eye_btn.configure(text="👁‍🗨")
-
-        eye_btn = ctk.CTkLabel(pw_container, text="👁‍🗨", font=("Segoe UI", 16), text_color="#757575", fg_color="transparent", cursor="hand2")
-        eye_btn.pack(side="right", padx=(5, 12))
-        eye_btn.bind("<Button-1>", lambda e: toggle_pw_visibility())
-
-        # Focus ring bindings
-        self.id_entry.bind("<FocusIn>", lambda e: [id_container.configure(border_color="#1976D2"), id_placeholder.place_forget()])
-        self.id_entry.bind("<FocusOut>", lambda e: [id_container.configure(border_color="#E0E0E0"), check_id_placeholder()])
-        
-        self.pw_entry.bind("<FocusIn>", lambda e: [pw_container.configure(border_color="#1976D2"), pw_placeholder.place_forget()])
-        self.pw_entry.bind("<FocusOut>", lambda e: [pw_container.configure(border_color="#E0E0E0"), check_pw_placeholder()])
-
-        # Return bindings
         self.id_entry.bind("<Return>", lambda event: self.pw_entry.focus())
         self.pw_entry.bind("<Return>", lambda event: self.on_verify())
 
-        # Error label
-        self.err_lbl = ctk.CTkLabel(inner, text="", font=("Segoe UI", 11),
-                                    text_color="#C62828", fg_color="transparent", wraplength=320, justify="center")
-        self.err_lbl.pack(pady=(4, 2))
+        self.err_lbl = tk.Label(inner, text="", font=("Segoe UI", 11),
+                                fg="#C62828", bg="white", wraplength=320, justify="center")
+        self.err_lbl.pack(pady=(0, 8))
 
-        # Reset button
-        ModernButton(inner, text="🛡️  VERIFY & RESET PASSWORD",
+        ModernButton(inner, text="VERIFY & RESET PASSWORD",
                       font=("Segoe UI", 13, "bold"),
                       height=46, width=320,
-                      fg_color="#C62828", hover_color="#B71C1C",
+                      fg_color="#2E7D32", hover_color="#1B5E20",
                       corner_radius=8,
-                      command=self.on_verify).pack(pady=6)
+                      command=self.on_verify).pack(pady=4)
 
-        # Cancel button
         ModernButton(inner, text="Cancel",
                       font=("Segoe UI", 11), height=36, width=320,
-                      fg_color="transparent", hover_color="#F5F5F5",
+                      fg_color="transparent", hover_color="#E8F5E9",
                       text_color="#555", border_width=1, border_color="#BDBDBD",
                       corner_radius=8,
-                      command=self.destroy).pack(pady=(4, 0))
+                      command=self.destroy).pack(pady=(6, 0))
 
         # Set explicit size and centre on screen
-        W, H = 840, 540
+        W, H = 820, 500
         x = (self.winfo_screenwidth()  - W) // 2
         y = (self.winfo_screenheight() - H) // 2
         self.geometry(f"{W}x{H}+{x}+{y}")
 
+    def _validate_forgot_pw_input(self, action, index, value_if_allowed, prior_value, text_inserted_deleted):
+        idx = int(index)
+        action = int(action)
+
+        if action == 1: # Insert
+            self.pw_actual_password = self.pw_actual_password[:idx] + text_inserted_deleted + self.pw_actual_password[idx:]
+        elif action == 0: # Delete
+            self.pw_actual_password = self.pw_actual_password[:idx] + self.pw_actual_password[idx + len(text_inserted_deleted):]
+
+        # Schedule the display update
+        if self.pw_show_pass:
+            self.after_idle(lambda: self._set_forgot_pw_display_text(self.pw_actual_password))
+        else:
+            if action == 1 and len(text_inserted_deleted) == 1:
+                masked = "".join(self.pw_mask_char if i != idx else c for i, c in enumerate(self.pw_actual_password))
+                self.after_idle(lambda: self._set_forgot_pw_display_text(masked))
+                self._schedule_forgot_pw_masking()
+            else:
+                masked = self.pw_mask_char * len(self.pw_actual_password)
+                self.after_idle(lambda: self._set_forgot_pw_display_text(masked))
+
+        return True
+
+    def _set_forgot_pw_display_text(self, text):
+        self.pw_entry.config(validate="none")
+        cursor_pos = self.pw_entry.index(tk.INSERT)
+        self.pw_entry.delete(0, tk.END)
+        self.pw_entry.insert(0, text)
+        self.pw_entry.icursor(cursor_pos)
+        self.pw_entry.config(validate="key")
+
+    def _schedule_forgot_pw_masking(self):
+        if self.pw_mask_job:
+            self.after_cancel(self.pw_mask_job)
+        self.pw_mask_job = self.after(1500, self._mask_all_forgot_pw)
+
+    def _mask_all_forgot_pw(self):
+        self.pw_mask_job = None
+        if not self.pw_show_pass:
+            masked = self.pw_mask_char * len(self.pw_actual_password)
+            self._set_forgot_pw_display_text(masked)
+
     def on_verify(self):
         cherry_id = self.id_entry.get().strip()
-        cherry_pw = self.pw_entry.get().strip()
+        cherry_pw = self.pw_actual_password.strip()
 
         if not cherry_id or not cherry_pw:
             self.err_lbl.configure(text="Please enter both Cherry Service ID and Password.")
