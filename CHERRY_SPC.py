@@ -296,10 +296,14 @@ class InstallerLoginPage(ctk.CTkFrame):
         self.user_entry = ctk.CTkEntry(self.login_form, placeholder_text="Username", height=50, width=300, 
                                        font=("Segoe UI", 14), border_color="#E0E0E0", corner_radius=8)
         self.user_entry.pack(pady=10)
+        self.user_entry.focus()
 
         self.pass_entry = ctk.CTkEntry(self.login_form, placeholder_text="Password", show="●", height=50, width=300, 
                                        font=("Segoe UI", 14), border_color="#E0E0E0", corner_radius=8)
         self.pass_entry.pack(pady=10)
+
+        self.user_entry.bind("<Return>", lambda event: self.pass_entry.focus())
+        self.pass_entry.bind("<Return>", lambda event: self.check_login())
 
         # Error
         self.error_label = ctk.CTkLabel(self.login_form, text="", text_color="#D32F2F", font=("Segoe UI", 12))
@@ -473,11 +477,15 @@ class AdminLoginPage(ctk.CTkFrame):
                                        height=50, width=300, font=("Segoe UI", 14),
                                        border_color="#E0E0E0", corner_radius=8)
         self.user_entry.pack(pady=8)
+        self.user_entry.focus()
 
         self.pass_entry = ctk.CTkEntry(self.login_form, placeholder_text="Password",
                                        show="●", height=50, width=300,
                                        font=("Segoe UI", 14), border_color="#E0E0E0", corner_radius=8)
         self.pass_entry.pack(pady=8)
+
+        self.user_entry.bind("<Return>", lambda event: self.pass_entry.focus())
+        self.pass_entry.bind("<Return>", lambda event: self.check_login())
 
         self.error_label = ctk.CTkLabel(self.login_form, text="", text_color="#D32F2F",
                                         font=("Segoe UI", 12))
@@ -615,6 +623,7 @@ class ForgotPasswordDialog(tk.Toplevel):
                                      height=44, width=320, font=("Segoe UI", 13),
                                      border_color="#B0BEC5", corner_radius=8)
         self.id_entry.pack(pady=(4, 12))
+        self.id_entry.focus()
 
         tk.Label(inner, text="Cherry Service Password", font=("Segoe UI", 12, "bold"),
                  fg="#333", bg="white", anchor="w").pack(fill="x")
@@ -623,6 +632,9 @@ class ForgotPasswordDialog(tk.Toplevel):
                                      font=("Segoe UI", 13),
                                      border_color="#B0BEC5", corner_radius=8)
         self.pw_entry.pack(pady=(4, 12))
+
+        self.id_entry.bind("<Return>", lambda event: self.pw_entry.focus())
+        self.pw_entry.bind("<Return>", lambda event: self.on_verify())
 
         self.err_lbl = tk.Label(inner, text="", font=("Segoe UI", 11),
                                 fg="#C62828", bg="white", wraplength=320, justify="center")
@@ -710,6 +722,7 @@ class ResetPasswordDialog(tk.Toplevel):
                                      height=44, width=360, font=("Segoe UI", 13),
                                      border_color="#B0BEC5", corner_radius=8)
         self.name_ent.pack(pady=(4, 10))
+        self.name_ent.focus()
 
         tk.Label(card, text="New Password", font=("Segoe UI", 12, "bold"),
                  fg="#333", bg="white", anchor="w").pack(fill="x")
@@ -728,6 +741,10 @@ class ResetPasswordDialog(tk.Toplevel):
                                      border_color="#B0BEC5", corner_radius=8)
         self.conf_ent.pack(pady=(4, 10))
         self.conf_ent.bind("<KeyRelease>", self._validate)
+
+        self.name_ent.bind("<Return>", lambda event: self.pass_ent.focus())
+        self.pass_ent.bind("<Return>", lambda event: self.conf_ent.focus())
+        self.conf_ent.bind("<Return>", lambda event: self.save_btn.invoke() if self.save_btn.cget('state') == 'normal' else None)
 
         # Password rules checklist
         rules_frame = tk.Frame(card, bg="white")
@@ -1389,6 +1406,13 @@ class OrganizationSetupPage(ctk.CTkFrame):
         
         self.create_field("Company Name", "company_name")
         self.create_field("Address", "address")
+        
+        try:
+            self.fields["company_name"].focus()
+            self.fields["company_name"].bind("<Return>", lambda event: self.fields["address"].focus())
+            self.fields["address"].bind("<Return>", lambda event: self.save_btn.invoke())
+        except Exception as e:
+            print(f"Error binding OrganizationSetupPage: {e}")
 
         # Error Label
         self.error_label = ctk.CTkLabel(self.form_container, text="", text_color="red", font=("Segoe UI", 12))
@@ -1474,6 +1498,7 @@ class AdminSetupPage(ctk.CTkFrame):
         ctk.CTkLabel(name_frame, text="Admin Name", font=("Segoe UI", 12, "bold"), text_color="#555", anchor="w").pack(fill="x", pady=(0, 2))
         self.name_entry = ctk.CTkEntry(name_frame, height=40, width=320, font=("Segoe UI", 13), border_color="#E0E0E0", corner_radius=6)
         self.name_entry.pack(fill="x")
+        self.name_entry.focus()
 
         # Password
         pass_frame = ctk.CTkFrame(self.form_container, fg_color="transparent")
@@ -1490,6 +1515,10 @@ class AdminSetupPage(ctk.CTkFrame):
         self.confirm_entry = ctk.CTkEntry(confirm_frame, height=40, width=320, font=("Segoe UI", 13), show="●", border_color="#E0E0E0", corner_radius=6)
         self.confirm_entry.pack(fill="x")
         self.confirm_entry.bind("<KeyRelease>", self.validate_password)
+
+        self.name_entry.bind("<Return>", lambda event: self.pass_entry.focus())
+        self.pass_entry.bind("<Return>", lambda event: self.confirm_entry.focus())
+        self.confirm_entry.bind("<Return>", lambda event: self.save_btn.invoke() if self.save_btn.cget('state') == 'normal' else None)
 
         # Password Rules Checklist
         self.rules_frame = ctk.CTkFrame(self.form_container, fg_color="transparent")
