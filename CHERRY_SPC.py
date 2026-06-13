@@ -4547,170 +4547,165 @@ class SettingsPage(ctk.CTkFrame):
             return os.path.join(base_path, relative_path)
 
         # ===========================================================
-        #  LOAD YOUR IMAGE FROM settings/ FOLDER
+        #  LOAD ICONS FROM settings/ FOLDER
         # ===========================================================
 
-        # LOAD component SETUP ICON
-        try:
-            ICON_PATH = resource_path("settings/componentsetup.png")
-            gear_img_raw = Image.open(ICON_PATH)
-            gear_img_raw = gear_img_raw.resize((100, 100))
-            self.general_icon = ctk.CTkImage(dark_image=gear_img_raw, size=(100, 100))
-        except Exception as e:
-            print("Image load error:", e)
-            self.general_icon = None
+        def _load_icon(rel_path, size=(100, 100)):
+            try:
+                img = Image.open(resource_path(rel_path)).resize(size, Image.Resampling.LANCZOS)
+                return ctk.CTkImage(dark_image=img, size=size)
+            except Exception as e:
+                print(f"Icon load error ({rel_path}):", e)
+                return None
 
-        # LOAD MACHINE SETUP ICON
-        try:
-            ICON_PATH2 = resource_path("settings/machinesetup.png")
-            msetup_img_raw = Image.open(ICON_PATH2)
-            msetup_img_raw = msetup_img_raw.resize((130, 100))
-            self.machine_icon = ctk.CTkImage(dark_image=msetup_img_raw, size=(130, 100))
-        except Exception as e:
-            print("Image load error:", e)
-            self.machine_icon = None
-
-        # LOAD OPERATOR LIST PAGE ICON
-        try:
-            ICON_PATH3 = resource_path("settings/operatorlist.png")
-            operator_img_raw = Image.open(ICON_PATH3)
-            operator_img_raw = operator_img_raw.resize((100, 100))
-            self.operator_icon = ctk.CTkImage(dark_image=operator_img_raw, size=(100, 100))
-        except Exception as e:
-            print("Image load error:", e)
-            self.operator_icon = None
-
-        # LOAD COUSTOMER LIST PAGE ICON
-        try:
-            ICON_PATH4 = resource_path("settings/coustomer.png")
-            customer_img_raw = Image.open(ICON_PATH4)
-            customer_img_raw = customer_img_raw.resize((100, 100))
-            self.customer_icon = ctk.CTkImage(dark_image=customer_img_raw, size=(100, 100))
-        except Exception as e:
-            print("Image load error:", e)
-            self.customer_icon = None
-
-        # LOAD ITEM MASTER ICON
-        try:
-            ICON_PATH5 = resource_path("settings/item_master.png")
-            item_img_raw = Image.open(ICON_PATH5)
-            item_img_raw = item_img_raw.resize((100, 100))
-            self.item_icon = ctk.CTkImage(dark_image=item_img_raw, size=(100, 100))
-        except Exception as e:
-            print("Image load error:", e)
-            self.item_icon = None
-
-        # LOAD PROCESS MASTER ICON
-        try:
-            ICON_PATH6 = resource_path("settings/process_master.png")
-            process_img_raw = Image.open(ICON_PATH6)
-            process_img_raw = process_img_raw.resize((100, 100))
-            self.process_icon = ctk.CTkImage(dark_image=process_img_raw, size=(100, 100))
-        except Exception as e:
-            print("Image load error:", e)
-            self.process_icon = None
-
-        # LOAD MACHINE MASTER ICON
-        try:
-            ICON_PATH7 = resource_path("settings/machine_master.png")
-            m_raw = Image.open(ICON_PATH7)
-            m_raw = m_raw.resize((130, 110))
-            self.machine_master_icon = ctk.CTkImage(dark_image=m_raw, size=(130, 110))
-        except:
-            self.machine_master_icon = None
-
+        self.machine_icon        = _load_icon("settings/machinesetup.png",    (120, 95))
+        self.item_icon           = _load_icon("settings/item_master.png",      (100, 100))
+        self.general_icon        = _load_icon("settings/componentsetup.png",   (100, 100))
+        self.customer_icon       = _load_icon("settings/coustomer.png",        (100, 100))
+        self.operator_icon       = _load_icon("settings/operatorlist.png",     (100, 100))
+        self.process_icon        = _load_icon("settings/process_master.png",   (100, 100))
+        self.machine_master_icon = _load_icon("settings/machine_master.png",   (120, 100))
 
         # ===========================================================
-        #  PAGE TITLE
+        #  PAGE BACKGROUND  (light gray like the mockup)
         # ===========================================================
+        self.configure(fg_color="#F0F2F5")
+
         # ===========================================================
-        #  PAGE TITLE
+        #  HEADER BAR  (white bar with logo + title + green border)
         # ===========================================================
-        title = ctk.CTkLabel(
-            self,
-            text="⚙️  Settings",
-            font=("Segoe UI", 24, "bold"),
-            text_color="#1565C0"
+        header_bar = ctk.CTkFrame(self, fg_color="white", corner_radius=0, height=70)
+        header_bar.pack(fill="x", side="top")
+        header_bar.pack_propagate(False)
+
+        # Cherry full logo on the LEFT
+        try:
+            logo_path = resource_path("settings/cherry_full_logo.png")
+            pil_logo = Image.open(logo_path).resize((140, 42), Image.Resampling.LANCZOS)
+            self._hdr_logo = ctk.CTkImage(pil_logo, size=(140, 42))
+            logo_lbl = ctk.CTkLabel(header_bar, image=self._hdr_logo, text="")
+            logo_lbl.pack(side="left", padx=(18, 0), pady=14)
+        except Exception as e:
+            print("Header logo error:", e)
+
+        # Centered title container (place so it stays centered regardless of logo width)
+        title_center = ctk.CTkFrame(header_bar, fg_color="transparent")
+        title_center.place(relx=0.5, rely=0.5, anchor="center")
+
+        gear_lbl = ctk.CTkLabel(
+            title_center, text="\u2699",
+            font=("Segoe UI", 28, "bold"),
+            text_color="#007B43"
         )
-        title.pack(pady=(25, 15))
+        gear_lbl.pack(side="left", padx=(0, 6))
+
+        settings_lbl = ctk.CTkLabel(
+            title_center, text="Settings",
+            font=("Segoe UI", 24, "bold"),
+            text_color="#007B43"
+        )
+        settings_lbl.pack(side="left")
+
+        # Thin green separator line below header
+        sep = ctk.CTkFrame(self, fg_color="#007B43", height=3, corner_radius=0)
+        sep.pack(fill="x", side="top")
 
         # ===========================================================
-        #  GRID CONTAINER (MOBILE STYLE)
+        #  SCROLLABLE CONTENT AREA
         # ===========================================================
-        # ===========================================================
-        #  GRID CONTAINER (MOBILE STYLE)
-        # ===========================================================
-        grid = ctk.CTkFrame(self, fg_color=("white", "#1c1c1c"))
-        grid.pack(fill="both", expand=True, padx=25, pady=10)
-
-        grid.grid_rowconfigure((0, 1, 2), weight=1)
-        grid.grid_columnconfigure((0, 1, 2), weight=1)
+        scroll_area = ctk.CTkScrollableFrame(
+            self, fg_color="#F0F2F5",
+            scrollbar_button_color="#C8C8C8",
+            scrollbar_button_hover_color="#A0A0A0"
+        )
+        scroll_area.pack(fill="both", expand=True)
 
         # ===========================================================
-        #  MOBILE STYLE TILE BUTTON
+        #  GRID CONTAINER  (3 columns)
         # ===========================================================
-        self.text_labels = []  # Store references for resize updates
+        grid = ctk.CTkFrame(scroll_area, fg_color="transparent")
+        grid.pack(fill="both", expand=True, padx=30, pady=28)
 
-        def mobile_button(icon, text, r, c, img=False):
+        for col in range(3):
+            grid.grid_columnconfigure(col, weight=1, uniform="card_col")
+
+        self.text_labels = []  # store for resize
+
+        # ===========================================================
+        #  CARD TILE BUILDER
+        # ===========================================================
+        def make_card(icon_image, label_text, row, col):
+            """White rounded card with icon, bold label, green underline bar."""
+            outer = ctk.CTkFrame(grid, fg_color="transparent")
+            outer.grid(row=row, column=col, padx=18, pady=18, sticky="nsew")
+
             card = ctk.CTkFrame(
-                grid,
-                fg_color="transparent",
-                border_width=0
+                outer,
+                fg_color="white",
+                corner_radius=16,
+                border_width=1,
+                border_color="#E4E8EE"
             )
-            card.grid(row=r, column=c, padx=18, pady=18, sticky="nsew")
+            card.pack(fill="both", expand=True)
 
-            # icon or image display
-            if img and icon is not None:
-                icon_label = ctk.CTkLabel(card, image=icon, text="")
+            # Icon
+            if icon_image is not None:
+                icon_lbl = ctk.CTkLabel(card, image=icon_image, text="")
             else:
-                icon_label = ctk.CTkLabel(
-                    card,
-                    text=icon,
-                    font=("Segoe UI", 24, "bold"),
-                    text_color=("black", "white")
+                icon_lbl = ctk.CTkLabel(
+                    card, text="\u2699",
+                    font=("Segoe UI", 40, "bold"),
+                    text_color="#007B43"
                 )
+            icon_lbl.pack(pady=(28, 10))
 
-            icon_label.pack(pady=(12, 6))
-
-            text_label = ctk.CTkLabel(
-                card,
-                text=text,
-                font=("Segoe UI", 18, "bold"),
-                text_color=("black", "white"),
-                wraplength=160  # Initial wrap length
+            # Label
+            text_lbl = ctk.CTkLabel(
+                card, text=label_text,
+                font=("Segoe UI", 14, "bold"),
+                text_color="#1A1A1A"
             )
-            text_label.pack(pady=(0, 12))
-            
-            # Store reference to card and label for dynamic resizing
-            self.text_labels.append((card, text_label))
-            
-            # Bind click
-            icon_label.bind("<Button-1>", lambda e, t=text: self.on_option_click(t))
-            text_label.bind("<Button-1>", lambda e, t=text: self.on_option_click(t)) # Bind text too
-            card.bind("<Button-1>", lambda e, t=text: self.on_option_click(t)) # Bind card bg too
+            text_lbl.pack(pady=(0, 8))
 
+            # Green underline bar
+            bar_wrap = ctk.CTkFrame(card, fg_color="transparent")
+            bar_wrap.pack(pady=(0, 20))
+            bar = ctk.CTkFrame(bar_wrap, fg_color="#007B43", height=4, corner_radius=2, width=36)
+            bar.pack()
+
+            # Hover / click bindings
+            def on_enter(e, c=card):
+                c.configure(border_color="#007B43", border_width=2)
+
+            def on_leave(e, c=card):
+                c.configure(border_color="#E4E8EE", border_width=1)
+
+            click_cb = lambda e, t=label_text: self.on_option_click(t)
+            for w in (outer, card, icon_lbl, text_lbl, bar, bar_wrap):
+                w.bind("<Button-1>", click_cb)
+                w.bind("<Enter>", on_enter)
+                w.bind("<Leave>", on_leave)
+
+            self.text_labels.append((card, text_lbl))
             return card
 
         # ===========================================================
-        #  CREATE 8 BUTTONS (General uses your image)
+        #  CREATE 7 CARDS  (matches mockup layout)
         # ===========================================================
-        mobile_button(self.machine_icon, "AirGauge Setup", 0, 0, img=True)
-        mobile_button(self.item_icon, "Item Master", 0, 1, img=True)
-        mobile_button(self.general_icon, "Component Setup", 0, 2, img=True)
-        mobile_button(self.operator_icon, "Employee Master", 1, 1, img=True)       
-        mobile_button(self.customer_icon, "Customer Master", 1, 0, img=True)
-        mobile_button(self.process_icon, "Process Master", 1, 2, img=True)
-        mobile_button(self.machine_master_icon, "Machine Master", 2, 0, img=True)
-        # mobile_button("🌓", "Theme", 2, 1, img=False)  <-- Removed
-        
+        make_card(self.machine_icon,        "AirGauge Setup",   0, 0)
+        make_card(self.item_icon,           "Item Master",      0, 1)
+        make_card(self.general_icon,        "Component Setup",  0, 2)
+        make_card(self.customer_icon,       "Customer Master",  1, 0)
+        make_card(self.operator_icon,       "Employee Master",  1, 1)
+        make_card(self.process_icon,        "Process Master",   1, 2)
+        make_card(self.machine_master_icon, "Machine Master",   2, 0)
+
     def on_parent_resized(self):
         """Called by main app window resize to adjust layout if needed."""
-        # Update wraplength based on card width
         try:
             for card, label in self.text_labels:
                 w = card.winfo_width()
                 if w > 20:
-                    # Set wrap to slightly less than card width
                     label.configure(wraplength=w - 20)
         except Exception:
             pass
@@ -4735,19 +4730,8 @@ class SettingsPage(ctk.CTkFrame):
             self.app.load_process_master()
         elif name == "Machine Master":
             self.app.load_machine_master()
-        # elif name == "Theme":
-        #    self.toggle_theme()
-
         else:
             messagebox.showinfo("Settings", f"You selected: {name}")
-
-    # def toggle_theme(self):
-    #     # Check current mode and toggle
-    #     current = ctk.get_appearance_mode()
-    #     if current == "Light":
-    #         ctk.set_appearance_mode("Dark")
-    #     else:
-    #         ctk.set_appearance_mode("Light")
 
 
 # ==========================================================
@@ -18265,4 +18249,3 @@ if __name__ == "__main__":
     app.after(2500, _reveal_app)
 
     app.mainloop()
-
