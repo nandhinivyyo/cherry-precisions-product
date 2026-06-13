@@ -18091,80 +18091,109 @@ class AnalysisPage(ctk.CTkFrame):
 #  Logout Page — Displays confirmation modal card
 # ─────────────────────────────────────────────────────────────────────────────
 class LogoutPage(ctk.CTkFrame):
-    """A beautiful logout confirmation page."""
+    """Clean centered logout confirmation card."""
     def __init__(self, parent, app):
-        super().__init__(parent, fg_color="#F4F6F8", corner_radius=0, border_width=0)
+        super().__init__(parent, fg_color="#F5F5F5", corner_radius=0, border_width=0)
         self.app = app
-        
-        # Outer card container
-        self.card = ctk.CTkFrame(
+
+        import tkinter as _tk
+
+        # ── Centered white card ───────────────────────────────────────────────
+        card = ctk.CTkFrame(
             self,
             fg_color="white",
-            corner_radius=20,
+            corner_radius=16,
             border_width=1,
-            border_color="#E0E0E0"
+            border_color="#E8E8E8",
+            width=360,
+            height=268,
         )
-        self.card.place(relx=0.5, rely=0.5, anchor="center")
-        
-        # Center container
-        container = ctk.CTkFrame(self.card, fg_color="transparent")
-        container.pack(padx=60, pady=50)
-        
-        # Icon
-        icon_label = ctk.CTkLabel(container, text="🚪", font=("Segoe UI", 64))
-        icon_label.pack(pady=(0, 20))
-        
-        # Heading
-        heading = ctk.CTkLabel(
-            container, 
-            text="Confirm Logout", 
-            font=("Segoe UI", 24, "bold"), 
-            text_color="#1B5E20"
-        )
-        heading.pack(pady=(0, 10))
-        
-        # Subheading
-        subheading = ctk.CTkLabel(
-            container, 
-            text="Are you sure you want to log out of the system?", 
-            font=("Segoe UI", 14), 
-            text_color="#757575"
-        )
-        subheading.pack(pady=(0, 30))
-        
-        # Buttons frame
-        btn_frame = ctk.CTkFrame(container, fg_color="transparent")
-        btn_frame.pack()
-        
-        # Yes button
-        yes_btn = ModernButton(
+        card.place(relx=0.5, rely=0.5, anchor="center")
+        card.pack_propagate(False)
+
+        # ── Exit icon in soft green circle ────────────────────────────────────
+        icon_bg = ctk.CTkFrame(card, width=56, height=56,
+                               corner_radius=28, fg_color="#EEF7EE")
+        icon_bg.place(relx=0.5, rely=0.0, anchor="n", y=18)
+        icon_bg.pack_propagate(False)
+
+        icon_cv = _tk.Canvas(icon_bg, width=56, height=56,
+                             bg="#EEF7EE", highlightthickness=0)
+        icon_cv.place(x=0, y=0)
+        # Door body (dark green)
+        icon_cv.create_rectangle(12, 8, 34, 46, outline="#1B5E20", width=2, fill="")
+        # Door inner indent
+        icon_cv.create_rectangle(15, 12, 31, 42, outline="#2E7D32", width=1, fill="")
+        # Door knob
+        icon_cv.create_oval(28, 25, 33, 30, fill="#1B5E20", outline="")
+        # Red exit arrow
+        icon_cv.create_line(28, 27, 44, 27, fill="#C62828", width=2)
+        icon_cv.create_line(37, 21, 44, 27, fill="#C62828", width=2)
+        icon_cv.create_line(37, 33, 44, 27, fill="#C62828", width=2)
+
+        # ── "Confirm Logout" two-tone heading ────────────────────────────────
+        heading_frame = ctk.CTkFrame(card, fg_color="transparent")
+        heading_frame.place(relx=0.5, rely=0.0, anchor="n", y=86)
+        ctk.CTkLabel(
+            heading_frame, text="Confirm ",
+            font=("Segoe UI", 21, "bold"), text_color="#1B5E20"
+        ).pack(side="left")
+        ctk.CTkLabel(
+            heading_frame, text="Logout",
+            font=("Segoe UI", 21, "bold"), text_color="#C62828"
+        ).pack(side="left")
+
+        # ── Divider: green line — red dot — red line ──────────────────────────
+        div_cv = _tk.Canvas(card, width=180, height=8,
+                            bg="white", highlightthickness=0)
+        div_cv.place(relx=0.5, rely=0.0, anchor="n", y=120)
+        div_cv.create_line(0, 4, 78, 4,    fill="#1B5E20", width=2)
+        div_cv.create_oval(80, 1, 90, 9,   fill="#C62828", outline="")
+        div_cv.create_line(92, 4, 180, 4,  fill="#C62828", width=2)
+
+        # ── Subtitle ──────────────────────────────────────────────────────────
+        ctk.CTkLabel(
+            card,
+            text="Are you sure you want to log out of the system?",
+            font=("Segoe UI", 11),
+            text_color="#888888",
+            fg_color="transparent",
+        ).place(relx=0.5, rely=0.0, anchor="n", y=140)
+
+        # ── Buttons ───────────────────────────────────────────────────────────
+        btn_frame = ctk.CTkFrame(card, fg_color="transparent")
+        btn_frame.place(relx=0.5, rely=1.0, anchor="s", y=-20)
+
+        # "Yes, Logout" — white fill, red border
+        ctk.CTkButton(
             btn_frame,
-            text="Yes, Logout",
-            font=("Segoe UI", 13, "bold"),
-            fg_color="#C62828",
-            hover_color="#A91E1E",
-            text_color="white",
-            width=140,
-            height=44,
-            corner_radius=8,
-            command=self.perform_logout
-        )
-        yes_btn.pack(side="left", padx=10)
-        
-        # Cancel button
-        cancel_btn = ModernButton(
+            text="➜  Yes, Logout",
+            font=("Segoe UI", 12, "bold"),
+            fg_color="white",
+            hover_color="#FFF0F0",
+            text_color="#C62828",
+            border_width=2,
+            border_color="#C62828",
+            width=130,
+            height=38,
+            corner_radius=9,
+            command=self.perform_logout,
+        ).pack(side="left", padx=(0, 10))
+
+        # "Cancel" — solid dark green
+        ctk.CTkButton(
             btn_frame,
-            text="Cancel",
-            font=("Segoe UI", 13, "bold"),
-            fg_color="#757575",
-            hover_color="#616161",
+            text="✕  Cancel",
+            font=("Segoe UI", 12, "bold"),
+            fg_color="#1B5E20",
+            hover_color="#2E7D32",
             text_color="white",
-            width=140,
-            height=44,
-            corner_radius=8,
-            command=self.cancel_logout
-        )
-        cancel_btn.pack(side="left", padx=10)
+            border_width=0,
+            width=120,
+            height=38,
+            corner_radius=9,
+            command=self.cancel_logout,
+        ).pack(side="left")
 
     def perform_logout(self):
         # Disconnect serial if connected
