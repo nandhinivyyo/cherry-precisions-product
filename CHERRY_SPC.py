@@ -2768,10 +2768,11 @@ class CherryApp(ctk.CTk):
                             w = self.content_frame.winfo_width()
                             h = self.content_frame.winfo_height()
                             
-                            # Only resize if dimensions are valid and changed significantly
-                            if w > 10 and h > 10:
-                                # Resize original to exact frame size (Stretch to fit)
-                                new_img = self.bg_pil_original.resize((w, h), Image.Resampling.BILINEAR)
+                            # Skip resize if dimensions unchanged (avoid redundant work)
+                            if w > 10 and h > 10 and (w, h) != getattr(self, '_last_bg_size', None):
+                                self._last_bg_size = (w, h)
+                                # NEAREST is ~10x faster than BILINEAR, imperceptible on a bg image
+                                new_img = self.bg_pil_original.resize((w, h), Image.Resampling.NEAREST)
                                 new_ctk_img = ctk.CTkImage(new_img, size=(w, h))
                                 
                                 self.bg_label.configure(image=new_ctk_img)
@@ -2843,14 +2844,17 @@ class CherryApp(ctk.CTk):
         """Continuously read parsed data from queue and update DataManager."""
         if getattr(self, '_closing', False):
             return
-        # Process up to 50 items at once to prevent queue buildup
+        # Process up to 20 items per tick; 80 ms gives smooth UI without queue buildup
         count = 0
-        while not self.data_queue.empty() and count < 50:
-            parsed = self.data_queue.get()
+        while not self.data_queue.empty() and count < 20:
+            try:
+                parsed = self.data_queue.get_nowait()
+            except Exception:
+                break
             self.data_manager.add_parsed(parsed)
             count += 1
         
-        self.after(50, self.update_live_data)
+        self.after(80, self.update_live_data)
 
 
     def verify_password(self):
@@ -3600,11 +3604,11 @@ class CherryApp(ctk.CTk):
                 colors = ["#F44336", "#C62828"]
                 self._pulse_state = (self._pulse_state + 1) % 2
                 self.status_light.configure(text_color=colors[self._pulse_state])
-        except:
+        except Exception:
             pass
         
-        # Continue pulsing
-        self.after(800, self._pulse_status_light)
+        # Continue pulsing (1500ms: less frequent = less UI thread overhead)
+        self.after(1500, self._pulse_status_light)
 
 
     def toggle_sidebar(self):
@@ -3737,8 +3741,12 @@ class CherryApp(ctk.CTk):
             return
             
         try:
-            # Resize image to fill
-            resized = self.bg_pil_original.resize((new_w, new_h), Image.Resampling.BILINEAR)
+            # Skip if dimensions unchanged (avoid redundant CPU work)
+            if (new_w, new_h) == getattr(self, '_last_bg_size', None):
+                return
+            self._last_bg_size = (new_w, new_h)
+            # NEAREST is ~10x faster than BILINEAR, imperceptible on a blurred bg
+            resized = self.bg_pil_original.resize((new_w, new_h), Image.Resampling.NEAREST)
             self.bg_image_ref = ctk.CTkImage(resized, size=(new_w, new_h))
             self.bg_label.configure(image=self.bg_image_ref)
         except Exception as e:
@@ -4076,8 +4084,8 @@ class CherryApp(ctk.CTk):
                                     self.status_label.configure(text="✅ Data streaming started")
                                     first_data = False
 
-                    # prevent CPU overload
-                    time.sleep(0.0005)
+                    # prevent CPU overload (2ms sleep = max 500 iterations/sec)
+                    time.sleep(0.002)
 
                 except serial.SerialException:
                     # 🔥 ESP32 cable removed / port closed
@@ -12123,7 +12131,7 @@ class LiveDataPage(ctk.CTkFrame):
         
         # --- Performance: Batching ---
         self._data_buffer = []
-        self._batch_interval_ms = 200
+        self._batch_interval_ms = 300  # flush every 300ms (was 200ms)
         
         self.serial_no = 0
         self.rows = []
@@ -12135,25 +12143,24 @@ class LiveDataPage(ctk.CTkFrame):
         self.load_existing_data()
         self.app.data_manager.subscribe(self)
         
-        # Start UI loop
+        # Start UI flush loop
         self.after(self._batch_interval_ms, self._ui_update_loop)
 
+        # Background DB writer: keeps SQLite completely off the main/UI thread
+        self._db_write_queue = queue.Queue(maxsize=2000)
+        self._db_writer_thread = threading.Thread(target=self._db_writer_loop, daemon=True)
+        self._db_writer_thread.start()
+
     def _ui_update_loop(self):
-        """Periodically flush buffer to UI to avoid freezing."""
+        """Periodically flush buffer to UI — max 5 rows per tick to stay responsive."""
         if getattr(self.app, '_closing', False):
             return
         if self._data_buffer:
-            # Process a chunk to keep UI responsive
-            # If we have thousands, we don't want to freeze. 
-            # But usually we get 10-50 per 200ms.
-            chunk = self._data_buffer[:]
-            self._data_buffer.clear()
-            
-            if chunk:
-                # Use the internal method that directly updates UI (we will rename add_data_row to this)
-                for parsed in chunk:
-                    self._process_row_visuals(parsed)
-                    
+            # Process at most 5 rows per tick; remaining stay buffered for next tick
+            chunk = self._data_buffer[:5]
+            del self._data_buffer[:5]
+            for parsed in chunk:
+                self._process_row_visuals(parsed)
         self.after(self._batch_interval_ms, self._ui_update_loop)
 
     def _make_header_icon(self, kind, size=24, color="#009A55"):
@@ -12643,104 +12650,117 @@ class LiveDataPage(ctk.CTkFrame):
             print("Save error:", e)
 
     def append_to_all_data(self, parsed_tuple, customer_name):
-        """Append parsed live data tuple permanently securely to production_data.db."""
+        """Queue a DB write to the background thread — never blocks the UI."""
         try:
-            import json, sqlite3
-            data = list(parsed_tuple)
-            
-            # data[3] is formatted_date "DD/MM/YY" from parse_packet
-            # We want "DD/MM/YYYY" for consistency with USB data
-            date_old = str(data[3])
-            if len(date_old.split("/")) == 3:
-                d, m, y = date_old.split("/")
-                if len(y) == 2:
-                    date_val = f"{d}/{m}/20{y}"
+            self._db_write_queue.put_nowait((parsed_tuple, customer_name))
+        except Exception:
+            pass  # Queue full: silently drop (rare; only if disk is extremely slow)
+
+    def _db_writer_loop(self):
+        """Background thread: persist live data rows to production_data.db.
+        Uses a persistent connection + WAL mode for maximum write throughput.
+        """
+        import sqlite3 as _sqlite3
+        db_path = resource_path("production_data.db")
+        CREATE_SQL = '''
+            CREATE TABLE IF NOT EXISTS measurements (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                source TEXT, date TEXT, time TEXT, reading TEXT, offset TEXT,
+                status TEXT, airgauge_id TEXT, channel TEXT, drawing TEXT,
+                user_id TEXT, component_id TEXT, item TEXT, machine_id TEXT,
+                customer TEXT, utl TEXT, ltl TEXT,
+                upload_timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+            )'''
+        INSERT_SQL = '''
+            INSERT INTO measurements (
+                source, date, time, reading, offset, status, airgauge_id, channel,
+                drawing, user_id, component_id, item, machine_id, customer, utl, ltl
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'''
+
+        conn = None
+        while True:
+            try:
+                item = self._db_write_queue.get()  # blocks until item available
+                if item is None:  # shutdown signal
+                    break
+
+                parsed_tuple, customer_name = item
+
+                # --- Prepare insert data ---
+                data = list(parsed_tuple)
+                date_old = str(data[3])
+                parts = date_old.split("/")
+                if len(parts) == 3 and len(parts[2]) == 2:
+                    date_val = f"{parts[0]}/{parts[1]}/20{parts[2]}"
                 else:
                     date_val = date_old
-            else:
-                date_val = date_old
-
-            # Compose time string and item display identical to past logs
-            time_str = f"{data[0]}:{data[1]}:{data[2]}"
-            item_display = f"{data[13]} - {data[12]}".strip(" -")
-            
-            # Attempt to fetch UTL and LTL from self.app.comp_json
-            utl = "0"
-            ltl = "0"
-            try:
-                ag_key_db = str(data[7]).upper()
-                if not ag_key_db.startswith("AG"):
-                    ag_key_db = f"AG{data[7]}"
-                    
-                ch_key_db = str(data[8]).upper()
-                if not ch_key_db.startswith("CH"):
-                    ch_key_db = f"CH{data[8]}"
-                    
-                if hasattr(self, 'app') and hasattr(self.app, 'comp_json'):
-                    if ag_key_db in self.app.comp_json and ch_key_db in self.app.comp_json[ag_key_db]:
-                        utl = self.app.comp_json[ag_key_db][ch_key_db].get("high_tolerance", "0")
-                        ltl = self.app.comp_json[ag_key_db][ch_key_db].get("low_tolerance", "0")
-            except Exception:
-                pass
-
-            insert_data = (
-                "LIVE", 
-                date_val, time_str, str(data[4]), str(data[5]), str(data[6]), 
-                str(data[7]), str(data[8]), str(data[9]), str(data[10]), str(data[11]), 
-                item_display, str(data[14]), customer_name, utl, ltl
-            )
-
-            # Use resource_path for robust absolute path
-            db_path = resource_path("production_data.db")
-            conn = sqlite3.connect(db_path)
-            cursor = conn.cursor()
-            
-            # Ensure table exists (Issue 1 fix)
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS measurements (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    source TEXT,
-                    date TEXT,
-                    time TEXT,
-                    reading TEXT,
-                    offset TEXT,
-                    status TEXT,
-                    airgauge_id TEXT,
-                    channel TEXT,
-                    drawing TEXT,
-                    user_id TEXT,
-                    component_id TEXT,
-                    item TEXT,
-                    machine_id TEXT,
-                    customer TEXT,
-                    utl TEXT,
-                    ltl TEXT,
-                    upload_timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-                )
-            ''')
-            
-            # Add columns if they do not exist
-            try:
-                cursor.execute("SELECT utl, ltl FROM measurements LIMIT 1")
-            except sqlite3.OperationalError:
+                time_str = f"{data[0]}:{data[1]}:{data[2]}"
+                item_display = f"{data[13]} - {data[12]}".strip(" -")
+                utl = ltl = "0"
                 try:
-                    cursor.execute("ALTER TABLE measurements ADD COLUMN utl TEXT")
-                    cursor.execute("ALTER TABLE measurements ADD COLUMN ltl TEXT")
+                    ag_key = str(data[7]).upper()
+                    if not ag_key.startswith("AG"):
+                        ag_key = f"AG{data[7]}"
+                    ch_key = str(data[8]).upper()
+                    if not ch_key.startswith("CH"):
+                        ch_key = f"CH{data[8]}"
+                    if hasattr(self, 'app') and hasattr(self.app, 'comp_json'):
+                        comp = self.app.comp_json.get(ag_key, {}).get(ch_key, {})
+                        utl = comp.get("high_tolerance", "0")
+                        ltl = comp.get("low_tolerance", "0")
                 except Exception:
                     pass
-            
-            insert_stmt = '''
-                INSERT INTO measurements (
-                    source, date, time, reading, offset, status, airgauge_id, channel, 
-                    drawing, user_id, component_id, item, machine_id, customer, utl, ltl
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            '''
-            cursor.execute(insert_stmt, insert_data)
-            conn.commit()
-            conn.close()
-            
-        except Exception as e:
-            print("Permanent SQL save error:", e)
+                insert_data = (
+                    "LIVE", date_val, time_str, str(data[4]), str(data[5]),
+                    str(data[6]), str(data[7]), str(data[8]), str(data[9]),
+                    str(data[10]), str(data[11]), item_display, str(data[14]),
+                    customer_name, utl, ltl
+                )
+
+                # --- Open/reuse persistent connection ---
+                if conn is None:
+                    try:
+                        conn = _sqlite3.connect(db_path, timeout=10, check_same_thread=False)
+                        conn.execute("PRAGMA journal_mode=WAL")  # WAL = much faster writes
+                        conn.execute("PRAGMA synchronous=NORMAL")  # safe but faster than FULL
+                        conn.execute(CREATE_SQL)
+                        conn.commit()
+                        # Add tolerance columns if missing (migration guard)
+                        try:
+                            conn.execute("SELECT utl, ltl FROM measurements LIMIT 1")
+                        except _sqlite3.OperationalError:
+                            try:
+                                conn.execute("ALTER TABLE measurements ADD COLUMN utl TEXT")
+                                conn.execute("ALTER TABLE measurements ADD COLUMN ltl TEXT")
+                                conn.commit()
+                            except Exception:
+                                pass
+                    except Exception as e:
+                        print("DB connect error:", e)
+                        conn = None
+                        continue
+
+                # --- Insert row ---
+                try:
+                    conn.execute(INSERT_SQL, insert_data)
+                    conn.commit()
+                except Exception as e:
+                    print("DB insert error:", e)
+                    try:
+                        conn.close()
+                    except Exception:
+                        pass
+                    conn = None  # reconnect next iteration
+
+            except Exception as e:
+                print("DB writer loop error:", e)
+
+        # Cleanup on shutdown
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
     def add_data_row(self, parsed_tuple):
         """Buffer incoming data. Called by DataManager thread."""
@@ -12852,9 +12872,11 @@ class LiveDataPage(ctk.CTkFrame):
             self.rows.append(display_values)
             self.serial_no += 1
 
-            if self.serial_no % 10 == 0:
-                self.save_to_file()
+            # Save JSON every 100 rows in background thread (was every 10 rows, on main thread)
+            if self.serial_no % 100 == 0:
+                threading.Thread(target=self.save_to_file, daemon=True).start()
 
+            # Queue DB write — non-blocking, handled by _db_writer_loop background thread
             self.append_to_all_data(parsed_tuple, customer_name)
 
         except Exception as e:
@@ -12864,6 +12886,11 @@ class LiveDataPage(ctk.CTkFrame):
     def destroy(self):
         try:
             self.app.data_manager.unsubscribe(self)
+        except Exception:
+            pass
+        # Shutdown background DB writer thread gracefully
+        try:
+            self._db_write_queue.put(None)  # None = shutdown signal
         except Exception:
             pass
         super().destroy()
