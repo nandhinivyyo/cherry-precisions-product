@@ -18381,13 +18381,13 @@ class LogoutPage(ctk.CTkFrame):
             font=("Segoe UI", 21, "bold"), text_color="#C62828"
         ).pack(side="left")
 
-        # ── Divider: green line — red dot — red line ──────────────────────────
-        div_cv = _tk.Canvas(card, width=180, height=8,
-                            bg="white", highlightthickness=0)
-        div_cv.place(relx=0.5, rely=0.0, anchor="n", y=120)
-        div_cv.create_line(0, 4, 78, 4,    fill="#1B5E20", width=2)
-        div_cv.create_oval(80, 1, 90, 9,   fill="#C62828", outline="")
-        div_cv.create_line(92, 4, 180, 4,  fill="#C62828", width=2)
+        # # ── Divider: green line — red dot — red line ──────────────────────────
+        # div_cv = _tk.Canvas(card, width=180, height=8,
+        #                     bg="white", highlightthickness=0)
+        # div_cv.place(relx=0.5, rely=0.0, anchor="n", y=120)
+        # div_cv.create_line(0, 4, 78, 4,    fill="#1B5E20", width=2)
+        # div_cv.create_oval(80, 1, 90, 9,   fill="#C62828", outline="")
+        # div_cv.create_line(92, 4, 180, 4,  fill="#C62828", width=2)
 
         # ── Subtitle ──────────────────────────────────────────────────────────
         ctk.CTkLabel(
