@@ -2857,65 +2857,115 @@ class CherryApp(ctk.CTk):
         """Show professional password overlay with smooth fade-in and fade-out animations."""
         # --- Create overlay window (dark background) ---
         overlay = ctk.CTkToplevel(self)
-        overlay.geometry(f"{self.winfo_width()}x{self.winfo_height()}+{self.winfo_rootx()}+{self.winfo_rooty()}")
+        scale = self._get_window_scaling()
+        w = int(self.winfo_width() / scale)
+        h = int(self.winfo_height() / scale)
+        x = int(self.winfo_rootx() / scale)
+        y = int(self.winfo_rooty() / scale)
+        overlay.geometry(f"{w}x{h}+{x}+{y}")
         overlay.overrideredirect(True)
         overlay.configure(fg_color="black")
-        overlay.attributes("-alpha", 0.0)
+        overlay.attributes("-alpha", 0.95) # instantly fully black backdrop to prevent Windows DWM lag
         overlay.grab_set()
 
         # --- Center white frame ---
-        box = ctk.CTkFrame(overlay, corner_radius=12)
+        box_width = 360
+        box_height = 220
+
+        # --- Center shadow frame (drop shadow) ---
+        shadow = ctk.CTkFrame(overlay, fg_color="#101010", corner_radius=16, border_width=0)
+        shadow.place(relx=0.5, rely=0.5, anchor="center", x=4, y=4)
+        shadow.pack_propagate(False)
+        shadow.configure(width=box_width, height=box_height)
+
+        box = ctk.CTkFrame(overlay, fg_color="#FFFFFF", corner_radius=16)
         box.place(relx=0.5, rely=0.5, anchor="center")
         box.pack_propagate(False)
-        box.configure(width=360, height=220)
+        box.configure(width=box_width, height=box_height)
 
         # --- Title and labels ---
-        title = ctk.CTkLabel(box, text="🔒 Admin Access Required",
-                             font=("Segoe UI", 18, "bold"), text_color="#1976D2")
-        title.pack(pady=(20, 5))
+        title = ctk.CTkLabel(box, text="Admin Authorization Required",
+                             font=("Segoe UI", 16, "bold"), text_color="black")
+        title.pack(pady=(22, 2))
 
-        subtitle = ctk.CTkLabel(box, text="Enter password to access AirGauge Setup",
-                                font=("Segoe UI", 13), text_color="#555")
+        subtitle = ctk.CTkLabel(box, text="Enter password to access AirGauge Setup.",
+                                font=("Segoe UI", 12), text_color="#555555")
         subtitle.pack(pady=(0, 10))
 
-        pwd_entry = ctk.CTkEntry(box, show="*", width=220, placeholder_text="Enter password...")
-        pwd_entry.pack(pady=5)
+        # --- Custom Styled Password Entry directly on Box with Key Icon ---
+        pwd_entry = ctk.CTkEntry(
+            box,
+            show="*",
+            width=280,
+            height=36,
+            corner_radius=8,
+            border_width=1,
+            border_color="#CCCCCC",
+            fg_color="#FFFFFF",
+            text_color="black",
+            placeholder_text="",
+            font=("Segoe UI", 15)
+        )
+        pwd_entry.pack(pady=(10, 2))
 
-        status_lbl = ctk.CTkLabel(box, text="", text_color="red", font=("Segoe UI", 11))
-        status_lbl.pack(pady=(4, 8))
+        # Shift text inside entry to make room for key icon (left) and eye button (right)
+        try:
+            pwd_entry._entry.configure(padx=35)
+        except Exception:
+            pass
 
-        # --- Button Frame ---
-        btn_frame = ctk.CTkFrame(box, fg_color="transparent")
-        btn_frame.pack(pady=(8, 10))
+        try:
+            key_img_path = resource_path("settings/forgot_password_key.png")
+            key_pil = Image.open(key_img_path)
+            key_pil = key_pil.resize((16, 16), Image.Resampling.LANCZOS)
+            key_img = ctk.CTkImage(key_pil, size=(16, 16))
+            key_icon_lbl = ctk.CTkLabel(pwd_entry, text="", image=key_img, fg_color="transparent")
+        except Exception:
+            key_icon_lbl = ctk.CTkLabel(pwd_entry, text="🔑", font=("Segoe UI", 12), fg_color="transparent")
+        key_icon_lbl.place(x=10, rely=0.5, anchor="w")
 
-        # === Animations ===
-        def fade_in_overlay(alpha=0.0):
-            """Fade in dark background overlay."""
-            if alpha < 0.6:
-                alpha += 0.05
-                overlay.attributes("-alpha", alpha)
-                overlay.after(25, lambda: fade_in_overlay(alpha))
+        # Toggle password visibility helper
+        self._show_pwd_setup = False
+        def toggle_pwd():
+            self._show_pwd_setup = not self._show_pwd_setup
+            if self._show_pwd_setup:
+                pwd_entry.configure(show="")
+                eye_btn.configure(text="👁")
             else:
-                overlay.attributes("-alpha", 0.6)
+                pwd_entry.configure(show="*")
+                eye_btn.configure(text="🔒")
 
-        def fade_out_overlay(alpha=0.6):
-            """Fade out background when closing."""
-            if alpha > 0:
-                alpha -= 0.05
-                overlay.attributes("-alpha", alpha)
-                overlay.after(25, lambda: fade_out_overlay(alpha))
-            else:
-                overlay.destroy()
+        eye_btn = ctk.CTkButton(
+            pwd_entry,
+            text="🔒",
+            width=22,
+            height=22,
+            corner_radius=11,
+            fg_color="transparent",
+            hover_color="#EEEEEE",
+            text_color="#666666",
+            font=("Segoe UI", 11),
+            command=toggle_pwd
+        )
+        eye_btn.place(relx=1.0, rely=0.5, x=-10, anchor="e")
 
-        fade_in_overlay()  # start fade animation
+        def on_focus_in(event):
+            pwd_entry.configure(border_color="black")
+        def on_focus_out(event):
+            pwd_entry.configure(border_color="#CCCCCC")
+        pwd_entry.bind("<FocusIn>", on_focus_in)
+        pwd_entry.bind("<FocusOut>", on_focus_out)
+
+        status_lbl = ctk.CTkLabel(box, text="", text_color="red", font=("Segoe UI", 11), height=14)
+        status_lbl.pack(pady=(2, 2))
+
+        def fade_out_overlay():
+            overlay.destroy()
 
         # --- Button Actions ---
         def check_pass():
-            # Logic: Check Master Password OR Stored Admin Password
             input_val = pwd_entry.get().strip()
             stored_pass = SetupDatabase.get_admin_password()
-            
-            # Allow cherry@123 (Master) OR the user-set password
             if input_val == "cherry@123" or input_val == stored_pass:
                 fade_out_overlay()
                 self.load_machine_setup()
@@ -2928,77 +2978,155 @@ class CherryApp(ctk.CTk):
             fade_out_overlay()
             self.status_label.configure(text="Access cancelled")
 
-        ModernButton(btn_frame, text="✔ Submit", width=100,
-                      fg_color="#43A047", hover_color="#388E3C",
-                      command=check_pass).pack(side="left", padx=10)
-        ModernButton(btn_frame, text="✖ Cancel", width=100,
-                      fg_color="#E53935", hover_color="#C62828",
-                      command=cancel_login).pack(side="left", padx=10)
+        # --- Black & Small Submit Button ---
+        submit_btn = ModernButton(
+            box,
+            text="✓ Submit",
+            width=120,
+            height=32,
+            fg_color="black",
+            hover_color="#333333",
+            text_color="white",
+            corner_radius=16,
+            font=("Segoe UI", 12, "bold"),
+            command=check_pass
+        )
+        submit_btn.pack(pady=(12, 15))
+
+        # --- Circular Overlapping Close Button ---
+        close_btn = ctk.CTkButton(
+            box,
+            text="✕",
+            width=24,
+            height=24,
+            corner_radius=12,
+            fg_color="black",
+            hover_color="#333333",
+            text_color="white",
+            bg_color="#FFFFFF",
+            font=("Segoe UI", 10, "bold"),
+            command=cancel_login
+        )
+        close_btn.place(x=box_width - 15, y=15, anchor="ne")
 
         pwd_entry.bind("<Return>", lambda event: check_pass())
         pwd_entry.focus()
+
 
     def verify_settings_password(self):
         """Show professional password overlay with smooth fade-in and fade-out animations."""
         # --- Create overlay window (dark background) ---
         overlay = ctk.CTkToplevel(self)
-        overlay.geometry(f"{self.winfo_width()}x{self.winfo_height()}+{self.winfo_rootx()}+{self.winfo_rooty()}")
+        scale = self._get_window_scaling()
+        w = int(self.winfo_width() / scale)
+        h = int(self.winfo_height() / scale)
+        x = int(self.winfo_rootx() / scale)
+        y = int(self.winfo_rooty() / scale)
+        overlay.geometry(f"{w}x{h}+{x}+{y}")
         overlay.overrideredirect(True)
         overlay.configure(fg_color="black")
-        overlay.attributes("-alpha", 0.0)
+        overlay.attributes("-alpha", 0.95) # instantly fully black backdrop to prevent Windows DWM lag
         overlay.grab_set()
 
         # --- Center white frame ---
-        box = ctk.CTkFrame(overlay, fg_color="#FFFFFF", corner_radius=12)
+        box_width = 360
+        box_height = 220
+
+        # --- Center shadow frame (drop shadow) ---
+        shadow = ctk.CTkFrame(overlay, fg_color="#101010", corner_radius=16, border_width=0)
+        shadow.place(relx=0.5, rely=0.5, anchor="center", x=4, y=4)
+        shadow.pack_propagate(False)
+        shadow.configure(width=box_width, height=box_height)
+
+        box = ctk.CTkFrame(overlay, fg_color="#FFFFFF", corner_radius=16)
         box.place(relx=0.5, rely=0.5, anchor="center")
         box.pack_propagate(False)
-        box.configure(width=360, height=220)
+        box.configure(width=box_width, height=box_height)
 
         # --- Title and labels ---
-        title = ctk.CTkLabel(box, text="🔒 Admin Access Required",
-                             font=("Segoe UI", 18, "bold"), text_color="#1976D2")
-        title.pack(pady=(20, 5))
+        title = ctk.CTkLabel(box, text="Admin Authorization Required",
+                             font=("Segoe UI", 16, "bold"), text_color="black")
+        title.pack(pady=(22, 2))
 
-        subtitle = ctk.CTkLabel(box, text="Enter password to access Settings",
-                                font=("Segoe UI", 13), text_color="#555")
+        subtitle = ctk.CTkLabel(box, text="Enter password to modify system settings.",
+                                font=("Segoe UI", 12), text_color="#555555")
         subtitle.pack(pady=(0, 10))
 
-        pwd_entry = ctk.CTkEntry(box, show="*", width=220, placeholder_text="Enter password...")
-        pwd_entry.pack(pady=5)
+        # --- Custom Styled Password Entry directly on Box with Key Icon ---
+        pwd_entry = ctk.CTkEntry(
+            box,
+            show="*",
+            width=280,
+            height=36,
+            corner_radius=8,
+            border_width=1,
+            border_color="#CCCCCC",
+            fg_color="#FFFFFF",
+            text_color="black",
+            placeholder_text="",
+            font=("Segoe UI", 15)
+        )
+        pwd_entry.pack(pady=(10, 2))
 
-        status_lbl = ctk.CTkLabel(box, text="", text_color="red", font=("Segoe UI", 11))
-        status_lbl.pack(pady=(4, 8))
+        # Shift text inside entry to make room for key icon (left) and eye button (right)
+        try:
+            pwd_entry._entry.configure(padx=35)
+        except Exception:
+            pass
 
-        # --- Button Frame ---
-        btn_frame = ctk.CTkFrame(box, fg_color="transparent")
-        btn_frame.pack(pady=(8, 10))
+        try:
+            key_img_path = resource_path("settings/forgot_password_key.png")
+            key_pil = Image.open(key_img_path)
+            key_pil = key_pil.resize((16, 16), Image.Resampling.LANCZOS)
+            key_img = ctk.CTkImage(key_pil, size=(16, 16))
+            key_icon_lbl = ctk.CTkLabel(pwd_entry, text="", image=key_img, fg_color="transparent")
+        except Exception:
+            key_icon_lbl = ctk.CTkLabel(pwd_entry, text="🔑", font=("Segoe UI", 12), fg_color="transparent")
+        key_icon_lbl.place(x=10, rely=0.5, anchor="w")
 
-        # === Animations ===
-        def fade_in_overlay(alpha=0.0):
-            """Fade in dark background overlay."""
-            if alpha < 0.6:
-                alpha += 0.05
-                overlay.attributes("-alpha", alpha)
-                overlay.after(25, lambda: fade_in_overlay(alpha))
+        # Toggle password visibility helper
+        self._show_pwd_settings = False
+        def toggle_pwd():
+            self._show_pwd_settings = not self._show_pwd_settings
+            if self._show_pwd_settings:
+                pwd_entry.configure(show="")
+                eye_btn.configure(text="👁")
             else:
-                overlay.attributes("-alpha", 0.6)
+                pwd_entry.configure(show="*")
+                eye_btn.configure(text="🔒")
 
-        def fade_out_overlay(alpha=0.6):
-            """Fade out background when closing."""
-            if alpha > 0:
-                alpha -= 0.05
-                overlay.attributes("-alpha", alpha)
-                overlay.after(25, lambda: fade_out_overlay(alpha))
-            else:
-                overlay.destroy()
+        eye_btn = ctk.CTkButton(
+            pwd_entry,
+            text="🔒",
+            width=22,
+            height=22,
+            corner_radius=11,
+            fg_color="transparent",
+            hover_color="#EEEEEE",
+            text_color="#666666",
+            font=("Segoe UI", 11),
+            command=toggle_pwd
+        )
+        eye_btn.place(relx=1.0, rely=0.5, x=-10, anchor="e")
 
-        fade_in_overlay()  # start fade animation
+        def on_focus_in(event):
+            pwd_entry.configure(border_color="black")
+        def on_focus_out(event):
+            pwd_entry.configure(border_color="#CCCCCC")
+        pwd_entry.bind("<FocusIn>", on_focus_in)
+        pwd_entry.bind("<FocusOut>", on_focus_out)
+
+        status_lbl = ctk.CTkLabel(box, text="", text_color="red", font=("Segoe UI", 11), height=14)
+        status_lbl.pack(pady=(2, 2))
+
+        def fade_out_overlay():
+            overlay.destroy()
 
         # --- Button Actions ---
         def check_pass():
-            # Settings - Admin Password OR cherry@123
+            input_val = pwd_entry.get().strip()
             admin_pass = SetupDatabase.get_admin_password()
-            if pwd_entry.get() == admin_pass or pwd_entry.get() == "cherry@123":
+            if input_val == admin_pass or input_val == "cherry@123":
                 fade_out_overlay()
                 self.load_settings_page()
                 self.status_label.configure(text="Settings unlocked ✅")
@@ -3010,12 +3138,36 @@ class CherryApp(ctk.CTk):
             fade_out_overlay()
             self.status_label.configure(text="Access cancelled")
 
-        ModernButton(btn_frame, text="✔ Submit", width=100,
-                      fg_color="#43A047", hover_color="#388E3C",
-                      command=check_pass).pack(side="left", padx=10)
-        ModernButton(btn_frame, text="✖ Cancel", width=100,
-                      fg_color="#E53935", hover_color="#C62828",
-                      command=cancel_login).pack(side="left", padx=10)
+        # --- Black & Small Submit Button ---
+        submit_btn = ModernButton(
+            box,
+            text="✓ Submit",
+            width=120,
+            height=32,
+            fg_color="black",
+            hover_color="#333333",
+            text_color="white",
+            corner_radius=16,
+            font=("Segoe UI", 12, "bold"),
+            command=check_pass
+        )
+        submit_btn.pack(pady=(12, 15))
+
+        # --- Circular Overlapping Close Button ---
+        close_btn = ctk.CTkButton(
+            box,
+            text="✕",
+            width=24,
+            height=24,
+            corner_radius=12,
+            fg_color="black",
+            hover_color="#333333",
+            text_color="white",
+            bg_color="#FFFFFF",
+            font=("Segoe UI", 10, "bold"),
+            command=cancel_login
+        )
+        close_btn.place(x=box_width - 15, y=15, anchor="ne")
 
         pwd_entry.bind("<Return>", lambda event: check_pass())
         pwd_entry.focus()
