@@ -1,0 +1,73 @@
+def _add_date_time_widget(self, parent, date_var, time_var):
+        body = ctk.CTkFrame(parent, fg_color="transparent")
+        body.pack(fill="x", pady=(2, 4))
+        body.grid_columnconfigure(0, weight=1)
+
+        date_wrap = ctk.CTkFrame(
+            body,
+            fg_color="#ffffff",
+            corner_radius=11,
+            border_width=1,
+            border_color="#cbd5f0",
+            height=38
+        )
+        date_wrap.grid(row=0, column=0, sticky="nsew", padx=(0, 6))
+        date_wrap.pack_propagate(False)
+
+        combined_var = tk.StringVar(value=f"{date_var.get()} {time_var.get()[:5]}")
+        
+        def on_combined_change(*args):
+            val = combined_var.get().strip()
+            parts = val.split(" ")
+            if len(parts) >= 1:
+                date_var.set(parts[0])
+            if len(parts) >= 2:
+                time_var.set(parts[1] + ":00")
+        combined_var.trace_add("write", on_combined_change)
+
+        def on_date_change(*args):
+            current_date = combined_var.get().split(" ")[0] if " " in combined_var.get() else combined_var.get()
+            if current_date != date_var.get():
+                parts = combined_var.get().split(" ")
+                time_part = parts[1] if len(parts) > 1 else time_var.get()[:5]
+                combined_var.set(f"{date_var.get()} {time_part}")
+        date_var.trace_add("write", on_date_change)
+
+        entry = tk.Entry(
+            date_wrap,
+            textvariable=combined_var,
+            relief="flat",
+            bd=0,
+            bg="white",
+            fg="#374151",
+            font=("Segoe UI", 12),
+            insertbackground="#374151",
+            state="normal"
+        )
+        entry.pack(side="left", fill="both", expand=True, padx=(12, 4), pady=2)
+
+        cal_btn = ctk.CTkLabel(
+            date_wrap,
+            text="📅",
+            font=("Segoe UI", 12),
+            text_color="#6b7280",
+            cursor="hand2"
+        )
+        cal_btn.pack(side="right", padx=(0, 8))
+
+        def on_entry_focus(e):
+            date_wrap.configure(border_color="#8b5cf6")
+        def on_entry_leave(e):
+            date_wrap.configure(border_color="#cbd5f0")
+
+        entry.bind("<FocusIn>", on_entry_focus)
+        entry.bind("<FocusOut>", on_entry_leave)
+
+        if Calendar is not None:
+            cal_btn.bind("<Button-1>", lambda e: self.open_calendar_popup(date_wrap, date_var))
+
+        # We must return an entry and a spinner, but the spinner is now removed.
+        # Returning None to satisfy the unpacking in _build_filter_grid.
+        return entry, None
+
+    def 

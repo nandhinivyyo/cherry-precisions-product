@@ -1,0 +1,18 @@
+def open_calendar_popup(self, entry_widget, target_var):
+        if Calendar is None:
+            return
+        try:
+            if hasattr(self, "_cal_popup") and self._cal_popup.winfo_exists():
+                self._cal_popup.destroy()
+            if hasattr(self, "_cal_overlay") and self._cal_overlay.winfo_exists():
+                self._cal_overlay.destroy()
+        except:
+            pass
+        root = self.winfo_toplevel()
+        overlay = tk.Toplevel(root)
+        overlay.overrideredirect(True)
+        overlay.geometry(f"{root.winfo_screenwidth()}x{root.winfo_screenheight()}+0+0")
+        overlay.attributes("-alpha", 0.01)
+        overlay.lift()
+        self._cal_overlay = overlay
+        def 
