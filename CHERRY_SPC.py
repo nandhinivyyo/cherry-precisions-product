@@ -13140,8 +13140,24 @@ try:
 except Exception:
     Calendar = None
 
-
 # Paste-replace your existing ReportPage class with this (uses airgauge_component_config.json)
+# UI styled to exactly match the purple glassmorphism HTML reference design
+
+# ─── DESIGN TOKENS (matching HTML reference exactly) ────────────────────────
+# Background gradient: #f5f3ff → #f1f5f9 → #fae8ff  (lavender/purple tint)
+# Glass panel bg:      rgba(253, 244, 255, 0.55) → Python: "#fdf4ff" with transparency sim
+# Glass border:        rgba(167, 139, 250, 0.4)  → "#a78bfa" tint
+# Primary accent:      #7c3aed  (violet)
+# Secondary accent:    #4f46e5  (indigo)
+# Text primary:        #0f172a
+# Text secondary:      #1e293b
+# Text muted:          #64748b
+# Pass badge:          #047857 on rgba(16,185,129,0.1) with #10b981 border
+# Fail badge:          #b91c1c on rgba(239,68,68,0.1)
+# S.No badge:          #6366f1 on rgba(99,102,241,0.1)
+# Font:                Segoe UI (Inter fallback)
+# ────────────────────────────────────────────────────────────────────────────
+
 class ReportPage(ctk.CTkFrame):
     """
     Full ReportPage with:
@@ -13152,19 +13168,20 @@ class ReportPage(ctk.CTkFrame):
       - tksheet or treeview fallback
       - Refresh and Delete buttons (delete requires password every time)
       - exact-file-line deletion by stored file_index
+    UI: Purple glassmorphism matching the HTML reference design exactly.
     """
     def __init__(self, parent, app):
         super().__init__(parent)
         self.app = app
 
-        # Configure premium styling for ttk.Combobox drop-downs
+        # Configure ttk.Combobox drop-downs with purple accent
         style = ttk.Style()
         try:
             style.configure('TCombobox',
                             fieldbackground='white',
                             background='white',
-                            foreground='#374151',
-                            bordercolor='#e5e7eb',
+                            foreground='#1e293b',
+                            bordercolor='#a78bfa',
                             arrowcolor='#7c3aed',
                             arrowsize=12,
                             font=("Segoe UI", 11))
@@ -13195,14 +13212,12 @@ class ReportPage(ctk.CTkFrame):
         self.operator_var = tk.StringVar(value="All")
         self.machine_var = tk.StringVar(value="All")
         self.airgauge_var = tk.StringVar(value="All")
-        self.channel_var = tk.StringVar(value="All") # Default to All
+        self.channel_var = tk.StringVar(value="All")
         self.drawing_var = tk.StringVar(value="All")
         self.customer_var = tk.StringVar(value="All")
+
         # Internal state
-        # all_data_rows: list of tuples -> (row_list, rec_dt_or_None, metadata_dict)
-        # metadata_dict must include 'file_index' (int) and other filter fields
         self.all_data_rows = []
-        # visible mapping after last filter: list of tuples (row_list, file_index)
         self._current_visible = []
         self._visible_file_indices = []
 
@@ -13226,7 +13241,7 @@ class ReportPage(ctk.CTkFrame):
 
         # Build UI
         self._load_filter_data_files()
-        self._build_header()           # includes Export + Delete + Refresh
+        self._build_header()
         self._build_filter_grid()
         self._build_table_area()
         self._wire_traces_and_bindings()
@@ -13236,13 +13251,8 @@ class ReportPage(ctk.CTkFrame):
         self._load_token = 0
         self._load_thread = None
 
-        # --- RESTORE PREVIOUS STATE IF AVAILABLE ---
         self._restore_filter_state()
-
-        # --- INITIAL LOAD ---
         self.after(500, lambda: self._schedule_filter(immediate=True))
-
-
 
     def on_window_resized(self):
         try:
@@ -13251,9 +13261,9 @@ class ReportPage(ctk.CTkFrame):
         except:
             pass
 
-    # ---------------------------
+    # ─────────────────────────────────────────────────────────────────────────
     # Utilities to load config files
-    # ---------------------------
+    # ─────────────────────────────────────────────────────────────────────────
     def _load_filter_data_files(self):
         try:
             conn1 = sqlite3.connect(resource_path("items.db"))
@@ -13289,20 +13299,14 @@ class ReportPage(ctk.CTkFrame):
             cursor.execute("SELECT DISTINCT airgauge_id FROM component_setup")
             ids = [f"AG{r[0]}" for r in cursor.fetchall()]
             conn.close()
-            # 🆕 RESTORE 'All' option
             return ["All"] + sorted(list(set(ids)))
         except Exception:
             return ["All"]
+
     def _load_channels_for_airgauge(self, airgauge_id):
-        """
-        Return channel list for selected airgauge from SQLite.
-        REMOVED "All" - returns specific channels only.
-        """
         out = []
-
         if airgauge_id in ("", "All"):
-            return ["CH1"] 
-
+            return ["CH1"]
         try:
             conn = sqlite3.connect(resource_path("component_setup.db"))
             cursor = conn.cursor()
@@ -13311,237 +13315,122 @@ class ReportPage(ctk.CTkFrame):
             conn.close()
         except Exception:
             pass
-
-        # unique + ordered
         seen = set()
         final = []
         for v in out:
             if v not in seen:
                 final.append(v)
                 seen.add(v)
-        
-        # Sort naturally: CH1, CH2, ... CH10
         def natural_keys(text):
-            # extract int if possible
             import re
             c = re.findall(r'\d+', text)
             return int(c[0]) if c else 0
-
         final.sort(key=natural_keys)
-        
         if not final:
             final = ["CH1"]
-
         return final
 
-    # ---------------------------
-    # Header with Delete + Refresh
-    # ---------------------------
-    # --- PATCH 1: Modify _build_header() to add the PRINT button ---
-    def _build_header_legacy(self):
-        # === Modern Header Card with Glassmorphism ===
-        header = ModernCardFrame(self)
-        header.pack(fill="x", padx=20, pady=(15, 10))
-        
-        header_inner = ctk.CTkFrame(header, fg_color="transparent")
-        header_inner.pack(fill="x", padx=20, pady=15)
-
-        # ---------------------------------------------------------
-        # LEFT SECTION → Report Title + Export
-        # ---------------------------------------------------------
-        left_frame = ctk.CTkFrame(header_inner, fg_color="transparent")
-        left_frame.pack(side="left")
-
-        ctk.CTkLabel(
-            left_frame,
-            text="📊  Report",
-            font=("Segoe UI", 18, "bold"),
-            text_color="#1976D2"
-        ).pack(side="left", padx=(0, 15))
-
-        # Export Excel Button (Deep Green theme)
-        self.excel_btn = ModernButton(
-            left_frame,
-            text="📊 Export Excel",
-            text_color="white",
-            width=120,
-            height=38,
-            font=("Segoe UI", 13, "bold"),
-            fg_color="#1B5E20",
-            hover_color="#154d1a",
-            corner_radius=8,
-            border_width=0,
-            command=lambda: self.export_data("excel")
-        )
-        self.excel_btn.pack(side="left", padx=6)
-
-        # Export PDF Button (Deep Green theme)
-        self.pdf_btn = ModernButton(
-            left_frame,
-            text="📄 Export PDF",
-            text_color="white",
-            width=120,
-            height=38,
-            font=("Segoe UI", 13, "bold"),
-            fg_color="#1B5E20",
-            hover_color="#154d1a",
-            corner_radius=8,
-            border_width=0,
-            command=lambda: self.export_data("pdf")
-        )
-        self.pdf_btn.pack(side="left", padx=6)
-
-        # ---------------------------------------------------------
-        # CENTER SECTION → Analyze Button (Dark Blue theme)
-        # ---------------------------------------------------------
-        center_frame = ctk.CTkFrame(header_inner, fg_color="transparent")
-        center_frame.pack(side="left", expand=True)
-
-        self.analyze_btn = ModernButton(
-            center_frame,
-            text="📈 Analyze",
-            width=130,
-            height=38,
-            font=("Segoe UI", 13, "bold"),
-            fg_color="#0D47A1",
-            hover_color="#0a3c85",
-            corner_radius=8,
-            border_width=0,
-            command=self.open_analyze_page
-        )
-        self.analyze_btn.pack()
-
-        # ---------------------------------------------------------
-        # RIGHT SECTION → Delete + Refresh
-        # ---------------------------------------------------------
-        right_frame = ctk.CTkFrame(header_inner, fg_color="transparent")
-        right_frame.pack(side="right")
-
-        del_btn = ModernButton(
-            right_frame,
-            text="🗑 Delete",
-            width=100,
-            height=38,
-            font=("Segoe UI", 13, "bold"),
-            fg_color="#C62828",
-            hover_color="#a82222",
-            corner_radius=8,
-            border_width=0,
-            command=self._on_delete_clicked
-        )
-        del_btn.pack(side="left", padx=6)
-
-        ref_btn = ModernButton(
-            right_frame,
-            text="🔄 Refresh",
-            width=100,
-            height=38,
-            font=("Segoe UI", 13, "bold"),
-            fg_color="#00695C",
-            hover_color="#00574b",
-            corner_radius=8,
-            border_width=0,
-            command=self.refresh_table_data
-        )
-        ref_btn.pack(side="left", padx=6)
-
+    # ─────────────────────────────────────────────────────────────────────────
+    # HEADER — matches HTML reference: white strip, title left, buttons right
+    # ─────────────────────────────────────────────────────────────────────────
     def _build_header(self):
-        # Configure page background
-        self.configure(fg_color="#f1f5f9")
+        # Page background: simulate gradient with closest flat colour
+        self.configure(fg_color="#f5f3ff")
 
-        # Full-width white header bar (matches reference image)
-        header_strip = ctk.CTkFrame(self, fg_color="#ffffff", corner_radius=0, border_width=0)
+        # Full-width white header bar
+        header_strip = ctk.CTkFrame(
+            self,
+            fg_color="#ffffff",
+            corner_radius=0,
+            border_width=0
+        )
         header_strip.pack(fill="x")
 
         inner = ctk.CTkFrame(header_strip, fg_color="transparent")
         inner.pack(fill="x", padx=24, pady=(18, 16))
 
-        # ── Left: Title block ──────────────────────────────────────
+        # ── Left: Title block ─────────────────────────────────────────────
         title_container = ctk.CTkFrame(inner, fg_color="transparent")
         title_container.pack(side="left", fill="y", anchor="center")
 
-        title_lbl = ctk.CTkLabel(
+        ctk.CTkLabel(
             title_container,
             text="Analytics & Inspection Report",
-            font=("Segoe UI", 22, "bold"),
-            text_color="#111827",
+            font=("Segoe UI", 24, "bold"),
+            text_color="#0f172a",      # --text-primary from design tokens
             anchor="w"
-        )
-        title_lbl.pack(anchor="w")
+        ).pack(anchor="w")
 
-        subtitle_lbl = ctk.CTkLabel(
+        ctk.CTkLabel(
             title_container,
             text="Filter, analyze, and manage your production data.",
-            font=("Segoe UI", 11),
-            text_color="#6b7280",
+            font=("Segoe UI", 13),
+            text_color="#64748b",      # --text-muted
             anchor="w"
-        )
-        subtitle_lbl.pack(anchor="w", pady=(2, 0))
+        ).pack(anchor="w", pady=(3, 0))
 
-        # ── Right: Action buttons ──────────────────────────────────
+        # ── Right: Action buttons (Excel / PDF / Delete) ──────────────────
         btn_container = ctk.CTkFrame(inner, fg_color="transparent")
         btn_container.pack(side="right", fill="y", anchor="center")
 
+        # Export Excel — green accent
         self.excel_btn = ctk.CTkButton(
             btn_container,
             text="📊 Export Excel",
-            text_color="#059669",
-            fg_color="#f8fafc",
-            hover_color="#f1f5f9",
+            text_color="#047857",
+            fg_color="#ffffff",
+            hover_color="#f0fdf4",
             border_width=1,
-            border_color="#cbd5e1",
-            height=36,
-            corner_radius=11,
+            border_color="#10b981",
+            height=38,
+            corner_radius=12,
             font=("Segoe UI", 13, "bold"),
             command=lambda: self.export_data("excel")
         )
         self.excel_btn.pack(side="left", padx=4)
 
+        # Export PDF — red accent
         self.pdf_btn = ctk.CTkButton(
             btn_container,
             text="📄 Export PDF",
             text_color="#dc2626",
-            fg_color="#f8fafc",
+            fg_color="#ffffff",
             hover_color="#fef2f2",
             border_width=1,
-            border_color="#cbd5e1",
-            height=36,
-            corner_radius=11,
+            border_color="#f87171",
+            height=38,
+            corner_radius=12,
             font=("Segoe UI", 13, "bold"),
             command=lambda: self.export_data("pdf")
         )
         self.pdf_btn.pack(side="left", padx=4)
 
+        # Delete — red accent
         del_btn = ctk.CTkButton(
             btn_container,
             text="🗑️ Delete Selected",
-            text_color="#ef4444",
-            fg_color="#fef2f2",
-            hover_color="#fecaca",
+            text_color="#dc2626",
+            fg_color="#ffffff",
+            hover_color="#fef2f2",
             border_width=1,
-            border_color="#fecaca",
-            height=36,
-            corner_radius=11,
+            border_color="#f87171",
+            height=38,
+            corner_radius=12,
             font=("Segoe UI", 13, "bold"),
             command=self._on_delete_clicked
         )
         del_btn.pack(side="left", padx=4)
 
     def _load_logo_base64(self):
-        """Load cherry.png safely (supports EXE and any PC)."""
         import os, base64, sys
         try:
-            # For EXE
             if getattr(sys, 'frozen', False):
                 base_dir = sys._MEIPASS
             else:
                 base_dir = os.path.dirname(os.path.abspath(__file__))
-
-            logo_path = os.path.join(base_dir, "images", "cherry.png")  # << UPDATED PATH
-
+            logo_path = os.path.join(base_dir, "images", "cherry.png")
             with open(logo_path, "rb") as f:
                 return base64.b64encode(f.read()).decode("utf-8")
-
         except Exception as e:
             print("Logo load error:", e)
             return ""
@@ -13556,7 +13445,6 @@ class ReportPage(ctk.CTkFrame):
         try:
             timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 
-            # ── Ask where to save ──────────────────────────────────────
             from tkinter import filedialog
             if fmt == "pdf":
                 pdf_path = filedialog.asksaveasfilename(
@@ -13566,7 +13454,7 @@ class ReportPage(ctk.CTkFrame):
                     filetypes=[("PDF File", "*.pdf")]
                 )
                 if not pdf_path:
-                    return  # user cancelled
+                    return
                 xlsx_path = None
             elif fmt == "excel":
                 xlsx_path = filedialog.asksaveasfilename(
@@ -13576,10 +13464,9 @@ class ReportPage(ctk.CTkFrame):
                     filetypes=[("Excel File", "*.xlsx")]
                 )
                 if not xlsx_path:
-                    return  # user cancelled
+                    return
                 pdf_path = None
             else:
-                # Both — ask separately
                 pdf_path = filedialog.asksaveasfilename(
                     title="Save PDF Report As",
                     initialfile=f"SPC_Report_{timestamp}.pdf",
@@ -13597,35 +13484,20 @@ class ReportPage(ctk.CTkFrame):
                 if not xlsx_path:
                     return
 
-
-            # --- GATHER DATA ---
             header_cols = [
                 "S.No", "Time", "Date", "Reading", "Offset", "Status",
-                "AirGauge ID", "Channel", "Drawing", "User", 
+                "AirGauge ID", "Channel", "Drawing", "User",
                 "CompID", "Item", "CNC ID", "Customer"
             ]
-            
+
             rows = []
             try:
-                # Prefer source of truth (all filtered) or visible
                 source = getattr(self, "_current_visible", [])
-                
                 for i, (r, fi) in enumerate(source):
                     new_r = [
-                        i + 1,          # S.No
-                        r[1],           # Time
-                        r[2],           # Date
-                        r[3],           # Reading
-                        r[4],           # Offset
-                        r[5],           # Status
-                        r[6],           # AirGauge ID
-                        r[7],           # Channel
-                        r[8],           # Drawing
-                        r[9],           # User
-                        r[10],          # CompID
-                        r[11],          # Item
-                        r[12],          # CNC ID
-                        r[13] if len(r) > 13 else "" # Customer
+                        i + 1, r[1], r[2], r[3], r[4], r[5],
+                        r[6], r[7], r[8], r[9], r[10], r[11], r[12],
+                        r[13] if len(r) > 13 else ""
                     ]
                     rows.append(new_r)
             except Exception as e:
@@ -13635,10 +13507,9 @@ class ReportPage(ctk.CTkFrame):
                 messagebox.showwarning("Export", "No data available to export.")
                 self._set_loading_state(False)
                 return
-            
+
             self._set_loading_state(True)
-            
-            # --- PREPARE FILTER SUMMARY TEXT ---
+
             f_from = f"{self.from_date_var.get()} {self.from_time_var.get()}"
             f_to   = f"{self.to_date_var.get()} {self.to_time_var.get()}"
             f_ag   = self.airgauge_var.get()
@@ -13646,69 +13517,46 @@ class ReportPage(ctk.CTkFrame):
             f_item = self.item_var.get()
             f_draw = self.drawing_var.get()
             f_op   = self.operator_var.get()
-            f_IP  = self.machine_var.get()
+            f_IP   = self.machine_var.get()
             f_cust = self.customer_var.get()
 
-            # --- GENERATE EXCEL ---
             if (fmt == "excel" or fmt is None) and openpyxl:
                 wb = openpyxl.Workbook()
                 ws = wb.active
                 ws.title = "SPC Report"
-                
-                # Styles
                 bold_font = Font(bold=True)
                 header_font = Font(bold=True, color="FFFFFF")
-                fill_header = PatternFill(start_color="0D47A1", end_color="0D47A1", fill_type="solid")
+                fill_header = PatternFill(start_color="7C3AED", end_color="7C3AED", fill_type="solid")
                 center_align = Alignment(horizontal="center", vertical="center")
                 thin_border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
 
-                # Title
                 ws.merge_cells('A1:N1')
                 ws['A1'] = "SPC INSPECTION REPORT"
-                ws['A1'].font = Font(bold=True, size=14, color="0D47A1")
+                ws['A1'].font = Font(bold=True, size=14, color="7C3AED")
                 ws['A1'].alignment = center_align
 
-                # Filter Grid (Rows 2-3) using merged cells to simulate layout
-                # Layout:
-                # Row 2: Date From | Date To | AirGauge | Channel | Item
-                # Row 3: Operator | Machine | Customer | Drawing | (Empty)
-                
-                # We'll just list them in pairs for simplicity or spanning
-                # Let's do a strict grid 2 rows.
-                # A2: "Filters:"
-                ws['A2'] = "Date Range:"
-                ws['B2'] = f"{f_from} to {f_to}"
-                ws['D2'] = "AirGauge:"
-                ws['E2'] = f"{f_ag}"
-                ws['F2'] = "Channel:"
-                ws['G2'] = f"{f_ch}"
-                ws['H2'] = "Item:"
-                ws['I2'] = f"{f_item}"
-                
-                ws['A3'] = "Operator:"
-                ws['B3'] = f"{f_op}"
-                ws['D3'] = "Machine:"
-                ws['E3'] = f"{f_IP}"
-                ws['F3'] = "Customer:"
-                ws['G3'] = f"{f_cust}"
-                ws['H3'] = "Drawing:"
-                ws['I3'] = f"{f_draw}"
+                ws['A2'] = "Date Range:";  ws['B2'] = f"{f_from} to {f_to}"
+                ws['D2'] = "AirGauge:";   ws['E2'] = f"{f_ag}"
+                ws['F2'] = "Channel:";    ws['G2'] = f"{f_ch}"
+                ws['H2'] = "Item:";       ws['I2'] = f"{f_item}"
+                ws['A3'] = "Operator:";   ws['B3'] = f"{f_op}"
+                ws['D3'] = "Machine:";    ws['E3'] = f"{f_IP}"
+                ws['F3'] = "Customer:";   ws['G3'] = f"{f_cust}"
+                ws['H3'] = "Drawing:";    ws['I3'] = f"{f_draw}"
 
                 for cell in ['A2','D2','F2','H2', 'A3','D3','F3','H3']:
                     ws[cell].font = bold_font
 
-                # Table Header (Row 5)
-                ws.append([]) # spacer
-                ws.append(header_cols) # Row 5
-                
+                ws.append([])
+                ws.append(header_cols)
+
                 for col_num, val in enumerate(header_cols, 1):
                     cell = ws.cell(row=5, column=col_num)
                     cell.font = header_font
                     cell.fill = fill_header
                     cell.alignment = center_align
                     cell.border = thin_border
-                
-                # Data Rows
+
                 for r_data in rows:
                     ws.append(r_data)
                     for col_num in range(1, len(r_data) + 1):
@@ -13716,26 +13564,22 @@ class ReportPage(ctk.CTkFrame):
                         cell.border = thin_border
                         cell.alignment = center_align
 
-                # Adjust widths
                 from openpyxl.utils import get_column_letter
                 for i, col_cells in enumerate(ws.columns, 1):
                     max_length = 0
                     col_letter = get_column_letter(i)
                     for cell in col_cells:
                         try:
-                            # Skip merged cells logic safety
                             if hasattr(cell, 'value') and cell.value:
                                 s_val = str(cell.value)
                                 if len(s_val) > max_length:
                                     max_length = len(s_val)
                         except:
                             pass
-                    adjusted_width = (max_length + 2)
-                    ws.column_dimensions[col_letter].width = adjusted_width
+                    ws.column_dimensions[col_letter].width = max_length + 2
 
                 wb.save(xlsx_path)
 
-            # --- GENERATE PDF ---
             if (fmt == "pdf" or fmt is None) and 'SimpleDocTemplate' in globals():
                 doc = SimpleDocTemplate(pdf_path, pagesize=landscape(A4),
                                         rightMargin=10*mm, leftMargin=10*mm,
@@ -13743,11 +13587,9 @@ class ReportPage(ctk.CTkFrame):
                 elements = []
                 styles = getSampleStyleSheet()
 
-                # ── Per-page logo callback ─────────────────────────────
                 _logo_path = resource_path(os.path.join("settings", "cherry_full_logo.png"))
 
                 def _draw_page_header(canvas_obj, doc_obj):
-                    """Draw the Cherry logo in the top-left on every page."""
                     canvas_obj.saveState()
                     try:
                         from reportlab.lib.utils import ImageReader
@@ -13760,20 +13602,16 @@ class ReportPage(ctk.CTkFrame):
                         pass
                     canvas_obj.restoreState()
 
-                # Title
                 title_style = ParagraphStyle('Title', parent=styles['Heading1'],
                                              alignment=1,
-                                             textColor=colors.HexColor("#0D47A1"))
+                                             textColor=colors.HexColor("#7C3AED"))
                 elements.append(Paragraph("SPC Inspection Report", title_style))
                 elements.append(Spacer(1, 4*mm))
 
-                # ── Filter table: 8 columns (label | value | label | value …) ──
                 ag_ch = f"{f_ag}  /  CH: {f_ch}"
-
                 lbl_style = ParagraphStyle('lbl', fontName='Helvetica-Bold',
                                            fontSize=8, textColor=colors.white)
                 val_style = ParagraphStyle('val', fontName='Helvetica', fontSize=8)
-
                 def L(text): return Paragraph(text, lbl_style)
                 def V(text): return Paragraph(str(text), val_style)
 
@@ -13788,15 +13626,14 @@ class ReportPage(ctk.CTkFrame):
                 lbl_w = page_w * 0.10
                 val_w = page_w * 0.15
                 col_widths = [lbl_w, val_w, lbl_w, val_w, lbl_w, val_w, lbl_w, val_w]
-
                 f_table = Table(filter_data, colWidths=col_widths)
                 f_table.setStyle(TableStyle([
                     ('GRID',          (0, 0), (-1, -1), 0.4, colors.lightgrey),
                     ('BACKGROUND',    (0, 0), (-1, -1), colors.whitesmoke),
-                    ('BACKGROUND',    (0, 0), (0, -1),  colors.HexColor("#0D47A1")),
-                    ('BACKGROUND',    (2, 0), (2, -1),  colors.HexColor("#0D47A1")),
-                    ('BACKGROUND',    (4, 0), (4, -1),  colors.HexColor("#0D47A1")),
-                    ('BACKGROUND',    (6, 0), (6, -1),  colors.HexColor("#0D47A1")),
+                    ('BACKGROUND',    (0, 0), (0, -1),  colors.HexColor("#7C3AED")),
+                    ('BACKGROUND',    (2, 0), (2, -1),  colors.HexColor("#7C3AED")),
+                    ('BACKGROUND',    (4, 0), (4, -1),  colors.HexColor("#7C3AED")),
+                    ('BACKGROUND',    (6, 0), (6, -1),  colors.HexColor("#7C3AED")),
                     ('FONTSIZE',      (0, 0), (-1, -1), 8),
                     ('TOPPADDING',    (0, 0), (-1, -1), 5),
                     ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
@@ -13807,16 +13644,11 @@ class ReportPage(ctk.CTkFrame):
                 elements.append(f_table)
                 elements.append(Spacer(1, 5*mm))
 
-                # Main Data Table
                 table_data = [header_cols] + rows
-
-                # 14 columns
                 t_col_w = page_w / 14.0
-
                 t = Table(table_data, colWidths=[t_col_w]*14, repeatRows=1)
                 t.setStyle(TableStyle([
-                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#0D47A1")),
-
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#7C3AED")),
                     ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
                     ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
                     ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
@@ -13828,14 +13660,10 @@ class ReportPage(ctk.CTkFrame):
                     ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.whitesmoke])
                 ]))
                 elements.append(t)
-                
-                doc.build(elements,
-                          onFirstPage=_draw_page_header,
-                          onLaterPages=_draw_page_header)
+                doc.build(elements, onFirstPage=_draw_page_header, onLaterPages=_draw_page_header)
 
             self._set_loading_state(False)
 
-            # ── Auto-open the saved file(s) ───────────────────────────
             opened = []
             try:
                 if xlsx_path and os.path.exists(xlsx_path):
@@ -13859,61 +13687,73 @@ class ReportPage(ctk.CTkFrame):
             self._set_loading_state(False)
             messagebox.showerror("Export Error", f"Failed to export: {str(e)}")
 
-
-
-
-    # ---------------------------
-    # Filter grid (2x4)
-    # ---------------------------
+    # ─────────────────────────────────────────────────────────────────────────
+    # FILTER GRID — Glass panel: "🔍 Filter & Sort Parameters"
+    # Matches HTML: glass-panel, label-text (uppercase, #64748b),
+    # glass-select style inputs, btn-secondary + btn-primary
+    # ─────────────────────────────────────────────────────────────────────────
     def _build_filter_grid(self):
-        # Glass card wrapper
-        self.filter_card = ctk.CTkFrame(
+        # Outer ambient-glow-simulating shadow wrapper
+        self.filter_shadow = ctk.CTkFrame(
             self,
-            fg_color="#f3e8ff",
-            corner_radius=20,
-            border_width=2,
-            border_color="#7c3aed"
+            fg_color="#ede9fe",   # lavender tint — ambient glow simulation
+            corner_radius=26
         )
-        self.filter_card.pack(fill="x", padx=24, pady=(16, 8))
+        self.filter_shadow.pack(fill="x", padx=20, pady=(14, 8))
 
-        # Card header row
+        # Glass panel — rgba(253,244,255,0.55) with purple border
+        self.filter_card = ctk.CTkFrame(
+            self.filter_shadow,
+            fg_color="#fdf4ff",   # closest opaque approximation of glass bg
+            corner_radius=24,
+            border_width=1,
+            border_color="#a78bfa"   # rgba(167,139,250,0.4) → #a78bfa
+        )
+        self.filter_card.pack(fill="both", expand=True, padx=(1, 3), pady=(1, 3))
+
+        # Card header
         card_hdr = ctk.CTkFrame(self.filter_card, fg_color="transparent")
-        card_hdr.pack(fill="x", padx=20, pady=(16, 12))
+        card_hdr.pack(fill="x", padx=22, pady=(18, 12))
 
         ctk.CTkLabel(
             card_hdr,
-            text="🔍 Filter & Sort Parameters",
-            font=("Segoe UI", 15, "bold"),
-            text_color="#2e1065",
+            text="🔍  Filter & Sort Parameters",
+            font=("Segoe UI", 16, "bold"),
+            text_color="#1e293b",
             anchor="w"
         ).pack(anchor="w")
 
-        # Thin divider
-        ctk.CTkFrame(self.filter_card, fg_color="#c084fc", height=1, corner_radius=0).pack(fill="x")
+        # Thin divider — rgba(167,139,250,0.25)
+        ctk.CTkFrame(
+            self.filter_card,
+            fg_color="#ddd6fe",
+            height=1,
+            corner_radius=0
+        ).pack(fill="x", padx=0)
 
         # Grid container
         grid_frame = ctk.CTkFrame(self.filter_card, fg_color="transparent")
-        grid_frame.pack(fill="x", padx=20, pady=(16, 0))
+        grid_frame.pack(fill="x", padx=22, pady=(18, 0))
 
         for col in range(4):
             grid_frame.grid_columnconfigure(col, weight=1, uniform="filter_grid")
 
         def make_label(parent, text):
-            """Uppercase small gray label matching reference image."""
+            """Uppercase small label — matches .label-text in HTML ref."""
             ctk.CTkLabel(
                 parent,
                 text=text.upper(),
                 font=("Segoe UI", 10, "bold"),
-                text_color="#5b21b6",
+                text_color="#64748b",   # --text-muted
                 anchor="w"
-            ).pack(anchor="w", pady=(0, 4))
+            ).pack(anchor="w", pady=(0, 5))
 
-        def get_cell(row, col, padx=(0, 16)):
+        def get_cell(row, col, padx=(0, 14)):
             cell = ctk.CTkFrame(grid_frame, fg_color="transparent")
             cell.grid(row=row, column=col, sticky="nsew", padx=padx, pady=(0, 16))
             return cell
 
-        # ── ROW 1 ──────────────────────────────────────────────────
+        # ── ROW 1 ────────────────────────────────────────────────────────────
         c00 = get_cell(0, 0)
         make_label(c00, "From Date & Time")
         self.from_date_entry, self.from_time_spinner = self._add_date_time_widget(
@@ -13926,91 +13766,186 @@ class ReportPage(ctk.CTkFrame):
 
         c02 = get_cell(0, 2)
         make_label(c02, "Item ID / Name")
-        self.item_combo = self._create_searchable_combobox_new(
-            c02, self.item_var, ["Select item...", "Gear Shaft (ITEM-001)", "Piston Ring (ITEM-002)", "Valve Body (ITEM-003)", "Bearing Housing (ITEM-004)", "Cylinder Liner (ITEM-005)", "Camshaft (ITEM-006)", "Crankshaft Pin (ITEM-007)", "Rotor Disc (ITEM-008)"])
+        self.item_combo = self._create_glass_combobox(
+            c02, self.item_var,
+            ["Select item...", "Gear Shaft (ITEM-001)", "Piston Ring (ITEM-002)",
+             "Valve Body (ITEM-003)", "Bearing Housing (ITEM-004)",
+             "Cylinder Liner (ITEM-005)", "Camshaft (ITEM-006)",
+             "Crankshaft Pin (ITEM-007)", "Rotor Disc (ITEM-008)"])
 
         c03 = get_cell(0, 3, padx=(0, 0))
         make_label(c03, "AirGauge ID / Channel")
-        self.airgauge_combo = self._create_searchable_combobox_new(
-            c03, self.airgauge_var, ["Select Airgauge...", "AG-01 (CH-01)", "AG-01 (CH-02)", "AG-02 (CH-01)", "AG-02 (CH-02)", "AG-03 (CH-01)", "AG-03 (CH-02)", "AG-04 (CH-01)"])
+        self.airgauge_combo = self._create_glass_combobox(
+            c03, self.airgauge_var,
+            ["Select Airgauge...", "AG-01 (CH-01)", "AG-01 (CH-02)",
+             "AG-02 (CH-01)", "AG-02 (CH-02)", "AG-03 (CH-01)",
+             "AG-03 (CH-02)", "AG-04 (CH-01)"])
         self.airgauge_combo._base_values = list(self.airgauge_combo.cget("values"))
 
-        # ── ROW 2 ──────────────────────────────────────────────────
+        # ── ROW 2 ────────────────────────────────────────────────────────────
         c10 = get_cell(1, 0)
         make_label(c10, "Drawing Number")
-        self.drawing_combo = self._create_searchable_combobox_new(
-            c10, self.drawing_var, ["Select drawing...", "DRW-REV1", "DRW-REV2", "DRW-REV3", "DRW-REV4", "DRW-REV5"])
+        self.drawing_combo = self._create_glass_combobox(
+            c10, self.drawing_var,
+            ["Select drawing...", "DRW-REV1", "DRW-REV2", "DRW-REV3",
+             "DRW-A100", "DRW-B204", "DRW-C310", "DRW-D445", "DRW-E512"])
 
         c11 = get_cell(1, 1)
         make_label(c11, "Operator Name")
-        self.operator_combo = self._create_searchable_combobox_new(
-            c11, self.operator_var, ["Select operator...", "Alex Mercer", "Ravi Kumar", "Sarah Jenkins", "Michael Chen", "Emma Watson", "David Smith"])
+        self.operator_combo = self._create_glass_combobox(
+            c11, self.operator_var,
+            ["Select operator...", "Alex Mercer", "Ravi Kumar", "Priya Nair",
+             "James Lin", "Sarah Okon", "Mohan Das", "Chen Wei"])
 
         c12 = get_cell(1, 2)
         make_label(c12, "Machine ID")
-        self.machine_combo = self._create_searchable_combobox_new(
-            c12, self.machine_var, ["Select machine...", "CNC-VERT-01", "CNC-VERT-02", "CNC-HORZ-01", "CNC-HORZ-02", "LATHE-01", "LATHE-02"])
+        self.machine_combo = self._create_glass_combobox(
+            c12, self.machine_var,
+            ["Select machine...", "CNC-VERT-01", "CNC-VERT-02", "CNC-HORIZ-01",
+             "CNC-HORIZ-02", "LATHE-01", "LATHE-02", "MILL-01", "GRIND-01"])
 
         c13 = get_cell(1, 3, padx=(0, 0))
         make_label(c13, "Customer")
-        self.customer_combo = self._create_searchable_combobox_new(
-            c13, self.customer_var, ["Select customer...", "Aerospace Dynamics Inc.", "Precision Auto Parts Ltd.", "Global Heavy Machinery", "Defense Systems Corp.", "Marine Engineering Ltd."])
+        self.customer_combo = self._create_glass_combobox(
+            c13, self.customer_var,
+            ["Select customer...", "Aerospace Dynamics Inc.", "Precision Auto Parts Ltd.",
+             "Titan Engineering Co.", "Nova Motors Pvt. Ltd.",
+             "Stellar Defense Systems", "Meridian Pumps & Valves", "Zenith Hydraulics"])
 
-        # ── Action buttons ─────────────────────────────────────────
+        # ── Action buttons row ────────────────────────────────────────────────
+        # Thin divider above buttons
+        ctk.CTkFrame(
+            self.filter_card,
+            fg_color="#ddd6fe",
+            height=1,
+            corner_radius=0
+        ).pack(fill="x")
+
         actions_bar = ctk.CTkFrame(self.filter_card, fg_color="transparent")
-        actions_bar.pack(fill="x", padx=20, pady=(4, 20))
+        actions_bar.pack(fill="x", padx=22, pady=(14, 20))
 
         buttons_wrapper = ctk.CTkFrame(actions_bar, fg_color="transparent")
         buttons_wrapper.pack(side="right")
 
+        # Refresh Sort — btn-secondary style: white glass + violet border
         self.ref_btn = ctk.CTkButton(
             buttons_wrapper,
-            text="🔄 Refresh Sort",
-            text_color="#475569",
-            fg_color="#f8fafc",
-            hover_color="#f1f5f9",
+            text="🔄  Refresh Sort",
+            text_color="#4f46e5",
+            fg_color="#ffffff",
+            hover_color="#ede9fe",
             border_width=1,
-            border_color="#cbd5e1",
-            height=38,
-            width=140,
-            corner_radius=11,
+            border_color="#a78bfa",
+            height=40,
+            width=148,
+            corner_radius=12,
             font=("Segoe UI", 13, "bold"),
             command=self.refresh_table_data
         )
-        self.ref_btn.pack(side="left", padx=6)
+        self.ref_btn.pack(side="left", padx=(0, 8))
 
+        # Analyze Data — btn-primary style: violet gradient (flat sim)
         self.analyze_btn = ctk.CTkButton(
             buttons_wrapper,
-            text="🔍 Analyze Data",
+            text="🔍  Analyze Data",
             text_color="#ffffff",
-            fg_color="#8b5cf6",
-            hover_color="#7c3aed",
-            height=38,
-            width=150,
-            corner_radius=11,
+            fg_color="#7c3aed",
+            hover_color="#6d28d9",
+            height=40,
+            width=158,
+            corner_radius=12,
             font=("Segoe UI", 13, "bold"),
             command=self.open_analyze_page
         )
-        self.analyze_btn.pack(side="left", padx=6)
+        self.analyze_btn.pack(side="left")
 
+    # ─────────────────────────────────────────────────────────────────────────
+    # Glass combobox — matches .glass-select from HTML ref
+    # White bg, #a78bfa border, #7c3aed focus, #1e293b text
+    # ─────────────────────────────────────────────────────────────────────────
+    def _create_glass_combobox(self, parent_cell, tk_var, options_list, pack=True):
+        combo = ctk.CTkComboBox(
+            parent_cell,
+            values=options_list,
+            variable=tk_var,
+            height=40,
+            corner_radius=12,
+            border_width=1,
+            border_color="#a78bfa",      # purple border — matches glass-select
+            fg_color="#ffffff",
+            button_color="#ffffff",
+            button_hover_color="#f5f3ff",
+            dropdown_fg_color="#fdf4ff",
+            dropdown_hover_color="#ede9fe",
+            dropdown_text_color="#1e293b",
+            text_color="#1e293b",
+            font=("Segoe UI", 12),
+            dropdown_font=("Segoe UI", 12)
+        )
+        if pack:
+            combo.pack(fill="x")
+
+        combo._base_values = list(options_list)
+
+        def on_keyrelease(e):
+            if e.keysym in ('Up', 'Down', 'Return', 'Escape', 'Tab'):
+                return
+            typed = combo.get()
+            typed_lower = typed.strip().lower()
+            if typed_lower:
+                filtered = [v for v in combo._base_values if typed_lower in v.lower()]
+            else:
+                filtered = combo._base_values
+            if "All" not in filtered:
+                filtered = ["All"] + filtered
+            try:
+                combo.configure(values=filtered)
+                combo.set(typed)
+                if hasattr(combo, "_entry") and combo._entry:
+                    combo._entry.icursor("end")
+            except Exception:
+                pass
+
+        def on_select(event=None):
+            val = combo.get().strip() or "All"
+            tk_var.set(val)
+            self._schedule_filter()
+
+        combo.configure(command=lambda v: on_select())
+
+        if hasattr(combo, "_entry") and combo._entry:
+            combo._entry.bind("<KeyRelease>", on_keyrelease)
+            combo._entry.bind("<FocusIn>",  lambda e: combo.configure(border_color="#7c3aed"))
+            combo._entry.bind("<FocusOut>", lambda e: [combo.configure(border_color="#a78bfa"), on_select()])
+
+        return combo
+
+    # Kept for backward compatibility — routes to glass variant
+    def _create_searchable_combobox_new(self, parent_cell, tk_var, options_list, pack=True):
+        return self._create_glass_combobox(parent_cell, tk_var, options_list, pack)
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # Date-time widget — glass-input style
+    # ─────────────────────────────────────────────────────────────────────────
     def _add_date_time_widget(self, parent, date_var, time_var):
         body = ctk.CTkFrame(parent, fg_color="transparent")
         body.pack(fill="x", pady=(2, 4))
         body.grid_columnconfigure(0, weight=1)
 
+        # Outer wrapper — glass-input look: white bg, #a78bfa border, radius 12
         date_wrap = ctk.CTkFrame(
             body,
             fg_color="#ffffff",
-            corner_radius=11,
+            corner_radius=12,
             border_width=1,
-            border_color="#c084fc",
-            height=38
+            border_color="#a78bfa",
+            height=40
         )
-        date_wrap.grid(row=0, column=0, sticky="nsew", padx=(0, 6))
+        date_wrap.grid(row=0, column=0, sticky="nsew")
         date_wrap.pack_propagate(False)
 
         combined_var = tk.StringVar(value=f"{date_var.get()} {time_var.get()[:5]}")
-        
+
         def on_combined_change(*args):
             val = combined_var.get().strip()
             parts = val.split(" ")
@@ -14018,6 +13953,7 @@ class ReportPage(ctk.CTkFrame):
                 date_var.set(parts[0])
             if len(parts) >= 2:
                 time_var.set(parts[1] + ":00")
+
         combined_var.trace_add("write", on_combined_change)
 
         def on_date_change(*args):
@@ -14026,6 +13962,7 @@ class ReportPage(ctk.CTkFrame):
                 parts = combined_var.get().split(" ")
                 time_part = parts[1] if len(parts) > 1 else time_var.get()[:5]
                 combined_var.set(f"{date_var.get()} {time_part}")
+
         date_var.trace_add("write", on_date_change)
 
         def on_time_change(*args):
@@ -14038,8 +13975,8 @@ class ReportPage(ctk.CTkFrame):
                     combined_var.set(f"{date_part} {new_time}")
             except:
                 pass
-        time_var.trace_add("write", on_time_change)
 
+        time_var.trace_add("write", on_time_change)
 
         entry = tk.Entry(
             date_wrap,
@@ -14047,59 +13984,61 @@ class ReportPage(ctk.CTkFrame):
             relief="flat",
             bd=0,
             bg="white",
-            fg="#374151",
+            fg="#1e293b",
             font=("Segoe UI", 12),
-            insertbackground="#374151",
+            insertbackground="#7c3aed",
             state="normal"
         )
-        entry.pack(side="left", fill="both", expand=True, padx=(12, 4), pady=2)
+        entry.pack(side="left", fill="both", expand=True, padx=(12, 4), pady=4)
 
         cal_btn = ctk.CTkLabel(
             date_wrap,
             text="📅",
-            font=("Segoe UI", 12),
-            text_color="#6b7280",
+            font=("Segoe UI", 13),
+            text_color="#a78bfa",
             cursor="hand2"
         )
-        cal_btn.pack(side="right", padx=(0, 8))
+        cal_btn.pack(side="right", padx=(0, 10))
 
-        def on_entry_focus(e):
+        def on_focus_in(e):
             date_wrap.configure(border_color="#7c3aed")
-        def on_entry_leave(e):
-            date_wrap.configure(border_color="#c084fc")
 
-        entry.bind("<FocusIn>", on_entry_focus)
-        entry.bind("<FocusOut>", on_entry_leave)
+        def on_focus_out(e):
+            date_wrap.configure(border_color="#a78bfa")
+
+        entry.bind("<FocusIn>", on_focus_in)
+        entry.bind("<FocusOut>", on_focus_out)
 
         if Calendar is not None:
             cal_btn.bind("<Button-1>", lambda e: self.open_calendar_popup(date_wrap, date_var, time_var))
 
-        # We must return an entry and a spinner, but the spinner is now removed.
-        # Returning None to satisfy the unpacking in _build_filter_grid.
         return entry, None
 
     def _create_time_spinner_new(self, parent, time_var):
+        # Delegates to the new glass spinner
+        return self._create_time_spinner(parent, time_var)
+
+    def _create_time_spinner(self, parent, time_var):
         outer = ctk.CTkFrame(
             parent,
-            corner_radius=8,
+            corner_radius=12,
             border_width=1,
-            border_color="#e5e7eb",
+            border_color="#a78bfa",
             fg_color="white",
-            height=38
+            height=40
         )
         outer.grid_columnconfigure(0, weight=1)
         outer.grid_columnconfigure(1, weight=0)
         outer.pack_propagate(False)
-        
+
         display = ctk.CTkFrame(outer, corner_radius=0, border_width=0, fg_color="white")
         display.grid(row=0, column=0, sticky="nsew", padx=(0, 3))
-        
         display.grid_columnconfigure(0, weight=1, uniform="time_col")
         display.grid_columnconfigure(1, weight=0)
         display.grid_columnconfigure(2, weight=1, uniform="time_col")
         display.grid_columnconfigure(3, weight=0)
         display.grid_columnconfigure(4, weight=1, uniform="time_col")
-        
+
         def parse_time(s):
             try:
                 p = s.split(":")
@@ -14110,67 +14049,46 @@ class ReportPage(ctk.CTkFrame):
                 hh, mm, ss = 0, 0, 0
             hh %= 24; mm %= 60; ss %= 60
             return hh, mm, ss
-            
+
         hh_val, mm_val, ss_val = parse_time(time_var.get())
-        NORMAL_BG = "white"; SELECT_BG = "#7c3aed"; NORMAL_TEXT = "#374151"; SELECT_TEXT = "white"
+        NORMAL_BG = "white"; SELECT_BG = "#7c3aed"; NORMAL_TEXT = "#1e293b"; SELECT_TEXT = "white"
         LABEL_FONT = ("Segoe UI", 10, "bold"); COLON_FONT = ("Segoe UI", 10)
-        
-        hh_lbl = ctk.CTkLabel(display, text=f"{hh_val:02d}", font=LABEL_FONT, text_color=NORMAL_TEXT, fg_color=NORMAL_BG, corner_radius=6, anchor="center", width=32)
+
+        hh_lbl = ctk.CTkLabel(display, text=f"{hh_val:02d}", font=LABEL_FONT, text_color=NORMAL_TEXT,
+                               fg_color=NORMAL_BG, corner_radius=6, anchor="center", width=32)
         hh_lbl.grid(row=0, column=0, sticky="nsew", padx=1, pady=3)
-        
-        colon1 = ctk.CTkLabel(display, text=":", font=COLON_FONT, text_color=NORMAL_TEXT)
+        colon1 = ctk.CTkLabel(display, text=":", font=COLON_FONT, text_color="#64748b")
         colon1.grid(row=0, column=1, sticky="nsew")
-        
-        mm_lbl = ctk.CTkLabel(display, text=f"{mm_val:02d}", font=LABEL_FONT, text_color=NORMAL_TEXT, fg_color=NORMAL_BG, corner_radius=6, anchor="center", width=32)
+        mm_lbl = ctk.CTkLabel(display, text=f"{mm_val:02d}", font=LABEL_FONT, text_color=NORMAL_TEXT,
+                               fg_color=NORMAL_BG, corner_radius=6, anchor="center", width=32)
         mm_lbl.grid(row=0, column=2, sticky="nsew", padx=1, pady=3)
-        
-        colon2 = ctk.CTkLabel(display, text=":", font=COLON_FONT, text_color=NORMAL_TEXT)
+        colon2 = ctk.CTkLabel(display, text=":", font=COLON_FONT, text_color="#64748b")
         colon2.grid(row=0, column=3, sticky="nsew")
-        
-        ss_lbl = ctk.CTkLabel(display, text=f"{ss_val:02d}", font=LABEL_FONT, text_color=NORMAL_TEXT, fg_color=NORMAL_BG, corner_radius=6, anchor="center", width=32)
+        ss_lbl = ctk.CTkLabel(display, text=f"{ss_val:02d}", font=LABEL_FONT, text_color=NORMAL_TEXT,
+                               fg_color=NORMAL_BG, corner_radius=6, anchor="center", width=32)
         ss_lbl.grid(row=0, column=4, sticky="nsew", padx=1, pady=3)
-        
+
         arrow_frame = ctk.CTkFrame(outer, corner_radius=0, border_width=0, fg_color="white")
         arrow_frame.grid(row=0, column=1, sticky="ns")
-        
-        up_btn = ModernButton(
-            arrow_frame,
-            text="▲",
-            width=20,
-            height=12,
-            fg_color="#ffffff",
-            text_color="#8b5cf6",
-            hover_color="#f5f7fb",
-            hover=False,
-            corner_radius=4,
-            command=lambda: change_value(1),
-            takefocus=False
-        )
+
+        up_btn = ModernButton(arrow_frame, text="▲", width=20, height=12,
+                              fg_color="#ffffff", text_color="#7c3aed",
+                              hover_color="#f5f3ff", hover=False, corner_radius=4,
+                              command=lambda: change_value(1), takefocus=False)
         up_btn.pack(side="top", padx=0, pady=(2, 2))
-        
-        down_btn = ModernButton(
-            arrow_frame,
-            text="▼",
-            width=20,
-            height=12,
-            fg_color="#ffffff",
-            text_color="#8b5cf6",
-            hover_color="#f5f7fb",
-            hover=False,
-            corner_radius=4,
-            command=lambda: change_value(-1),
-            takefocus=False
-        )
+        down_btn = ModernButton(arrow_frame, text="▼", width=20, height=12,
+                                fg_color="#ffffff", text_color="#7c3aed",
+                                hover_color="#f5f3ff", hover=False, corner_radius=4,
+                                command=lambda: change_value(-1), takefocus=False)
         down_btn.pack(side="top", padx=0, pady=(0, 2))
-        
+
         selected = {"field": "hour"}
         typed_buffer = []
-        
+
         def update_visual():
             hh_lbl.configure(fg_color=NORMAL_BG, text_color=NORMAL_TEXT)
             mm_lbl.configure(fg_color=NORMAL_BG, text_color=NORMAL_TEXT)
             ss_lbl.configure(fg_color=NORMAL_BG, text_color=NORMAL_TEXT)
-            
             if selected["field"] == "hour":
                 hh_lbl.configure(fg_color=SELECT_BG, text_color=SELECT_TEXT)
             elif selected["field"] == "minute":
@@ -14188,11 +14106,11 @@ class ReportPage(ctk.CTkFrame):
                 root.focus_set()
             except:
                 pass
-            
+
         hh_lbl.bind("<Button-1>", lambda e: select_field("hour"))
         mm_lbl.bind("<Button-1>", lambda e: select_field("minute"))
         ss_lbl.bind("<Button-1>", lambda e: select_field("second"))
-        
+
         def write_time(h, m, s):
             hh_lbl.configure(text=f"{h:02d}")
             mm_lbl.configure(text=f"{m:02d}")
@@ -14203,23 +14121,17 @@ class ReportPage(ctk.CTkFrame):
         def change_value(delta):
             nonlocal hh_val, mm_val, ss_val
             typed_buffer.clear()
-            if selected["field"] == "hour":
-                hh_val = (hh_val + delta) % 24
-            elif selected["field"] == "minute":
-                mm_val = (mm_val + delta) % 60
-            else:
-                ss_val = (ss_val + delta) % 60
+            if selected["field"] == "hour": hh_val = (hh_val + delta) % 24
+            elif selected["field"] == "minute": mm_val = (mm_val + delta) % 60
+            else: ss_val = (ss_val + delta) % 60
             write_time(hh_val, mm_val, ss_val)
 
         def on_wheel(e):
-            d = 1 if (e.delta > 0) else -1
-            change_value(d)
-        
+            change_value(1 if e.delta > 0 else -1)
+
         for w in [outer, hh_lbl, mm_lbl, ss_lbl, up_btn, down_btn, arrow_frame, colon1, colon2]:
-            try:
-                w.bind("<MouseWheel>", on_wheel)
-            except:
-                pass
+            try: w.bind("<MouseWheel>", on_wheel)
+            except: pass
 
         def is_typing_elsewhere():
             try:
@@ -14229,96 +14141,58 @@ class ReportPage(ctk.CTkFrame):
                     cls = focused.winfo_class()
                     if cls in ("Entry", "Text", "TEntry", "TCombobox", "Listbox"):
                         return True
-            except:
-                pass
+            except: pass
             return False
 
         def handle_digit(digit):
-            if is_typing_elsewhere():
-                return
+            if is_typing_elsewhere(): return
             nonlocal hh_val, mm_val, ss_val
             val = int(digit)
-            
-            if len(typed_buffer) >= 2:
-                typed_buffer.clear()
+            if len(typed_buffer) >= 2: typed_buffer.clear()
             typed_buffer.append(digit)
-            
             if len(typed_buffer) == 1:
                 limit = 3 if selected["field"] == "hour" else 6
                 if val >= limit:
-                    if selected["field"] == "hour":
-                        hh_val = val
-                        write_time(hh_val, mm_val, ss_val)
-                        select_field("minute")
-                    elif selected["field"] == "minute":
-                        mm_val = val
-                        write_time(hh_val, mm_val, ss_val)
-                        select_field("second")
-                    else:
-                        ss_val = val
-                        write_time(hh_val, mm_val, ss_val)
+                    if selected["field"] == "hour": hh_val = val; write_time(hh_val, mm_val, ss_val); select_field("minute")
+                    elif selected["field"] == "minute": mm_val = val; write_time(hh_val, mm_val, ss_val); select_field("second")
+                    else: ss_val = val; write_time(hh_val, mm_val, ss_val)
                     typed_buffer.clear()
                 else:
-                    if selected["field"] == "hour":
-                        hh_val = val
-                    elif selected["field"] == "minute":
-                        mm_val = val
-                    else:
-                        ss_val = val
+                    if selected["field"] == "hour": hh_val = val
+                    elif selected["field"] == "minute": mm_val = val
+                    else: ss_val = val
                     write_time(hh_val, mm_val, ss_val)
             else:
                 first = typed_buffer[0]
                 combined = int(first + digit)
-                
                 if selected["field"] == "hour":
-                    if combined > 23:
-                        combined = 23
-                    hh_val = combined
-                    write_time(hh_val, mm_val, ss_val)
-                    select_field("minute")
+                    hh_val = min(combined, 23); write_time(hh_val, mm_val, ss_val); select_field("minute")
                 elif selected["field"] == "minute":
-                    if combined > 59:
-                        combined = 59
-                    mm_val = combined
-                    write_time(hh_val, mm_val, ss_val)
-                    select_field("second")
+                    mm_val = min(combined, 59); write_time(hh_val, mm_val, ss_val); select_field("second")
                 else:
-                    if combined > 59:
-                        combined = 59
-                    ss_val = combined
-                    write_time(hh_val, mm_val, ss_val)
+                    ss_val = min(combined, 59); write_time(hh_val, mm_val, ss_val)
                 typed_buffer.clear()
 
         def handle_backspace():
-            if is_typing_elsewhere():
-                return
+            if is_typing_elsewhere(): return
             nonlocal hh_val, mm_val, ss_val
-            if selected["field"] == "hour":
-                hh_val = 0
-            elif selected["field"] == "minute":
-                mm_val = 0
-            else:
-                ss_val = 0
+            if selected["field"] == "hour": hh_val = 0
+            elif selected["field"] == "minute": mm_val = 0
+            else: ss_val = 0
             typed_buffer.clear()
             write_time(hh_val, mm_val, ss_val)
 
         def navigate_fields(direction):
-            if is_typing_elsewhere():
-                return
+            if is_typing_elsewhere(): return
             if direction == -1:
-                if selected["field"] == "second":
-                    select_field("minute")
-                elif selected["field"] == "minute":
-                    select_field("hour")
+                if selected["field"] == "second": select_field("minute")
+                elif selected["field"] == "minute": select_field("hour")
             else:
-                if selected["field"] == "hour":
-                    select_field("minute")
-                elif selected["field"] == "minute":
-                    select_field("second")
+                if selected["field"] == "hour": select_field("minute")
+                elif selected["field"] == "minute": select_field("second")
 
         def change_value_key(direction):
-            if is_typing_elsewhere():
-                return
+            if is_typing_elsewhere(): return
             change_value(direction)
 
         def on_enter(e):
@@ -14331,460 +14205,27 @@ class ReportPage(ctk.CTkFrame):
                 root.bind("<BackSpace>", lambda ev: handle_backspace())
                 for digit in "0123456789":
                     root.bind(digit, lambda ev, d=digit: handle_digit(d))
-            except:
-                pass
+            except: pass
 
         def on_leave(e):
-            outer.configure(border_color="#e5e7eb")
+            outer.configure(border_color="#a78bfa")
             try:
                 root = outer.winfo_toplevel()
-                root.unbind("<Up>")
-                root.unbind("<Down>")
-                root.unbind("<Left>")
-                root.unbind("<Right>")
+                root.unbind("<Up>"); root.unbind("<Down>")
+                root.unbind("<Left>"); root.unbind("<Right>")
                 root.unbind("<BackSpace>")
-                for digit in "0123456789":
-                    root.unbind(digit)
-            except:
-                pass
+                for digit in "0123456789": root.unbind(digit)
+            except: pass
 
         outer.bind("<Enter>", on_enter)
         outer.bind("<Leave>", on_leave)
-        
         select_field("hour")
         write_time(hh_val, mm_val, ss_val)
         return outer
 
-    def _create_searchable_combobox_new(self, parent_cell, tk_var, options_list, pack=True):
-        combo = ctk.CTkComboBox(
-            parent_cell,
-            values=options_list,
-            variable=tk_var,
-            height=38,
-            corner_radius=11,
-            border_width=1,
-            border_color="#c084fc",
-            fg_color="#ffffff",
-            button_color="#ffffff",
-            button_hover_color="#f8fafc",
-            dropdown_fg_color="#f8fafc",
-            dropdown_hover_color="#f1f5f9",
-            dropdown_text_color="#1e293b",
-            text_color="#1e293b",
-            font=("Segoe UI", 11),
-            dropdown_font=("Segoe UI", 11)
-        )
-        if pack:
-            combo.pack(fill="x", padx=0, pady=(0, 0))
-
-        combo._base_values = list(options_list)
-
-        def on_keyrelease(e):
-            # Ignore navigation keys to not interfere with dropdown interaction
-            if e.keysym in ('Up', 'Down', 'Return', 'Escape', 'Tab'):
-                return
-            
-            typed = combo.get()
-            typed_lower = typed.strip().lower()
-            if typed_lower:
-                filtered = [v for v in combo._base_values if typed_lower in v.lower()]
-            else:
-                filtered = combo._base_values
-            if "All" not in filtered:
-                filtered = ["All"] + filtered
-            try:
-                combo.configure(values=filtered)
-                # Restore the typed text because configure(values=...) resets it
-                combo.set(typed)
-                
-                # Keep cursor at the end
-                if hasattr(combo, "_entry") and combo._entry:
-                    combo._entry.icursor("end")
-            except Exception:
-                pass
-
-        def on_select(event=None):
-            val = combo.get().strip() or "All"
-            tk_var.set(val)
-            self._schedule_filter()
-
-        combo.configure(command=lambda v: on_select())
-
-        if hasattr(combo, "_entry") and combo._entry:
-            combo._entry.bind("<KeyRelease>", on_keyrelease)
-            combo._entry.bind("<FocusIn>", lambda e: combo.configure(border_color="#7c3aed"))
-            combo._entry.bind("<FocusOut>", lambda e: [combo.configure(border_color="#c084fc"), on_select()])
-
-        return combo
-
-    def _items_display_list(self):
-        out = ["All"]
-        for it in self.items_list:
-            code = str(it.get("code", "")).strip()
-            name = str(it.get("name", "")).strip()
-            display = f"{code} - {name}" if code else name
-            out.append(display)
-        return out
-    
-    def _on_airgauge_changed(self, *_):
-        ag = self.airgauge_var.get().strip()
-
-        channels = self._load_channels_for_airgauge(ag)
-
-        self.channel_combo._base_values = channels
-        if hasattr(self.channel_combo, "configure"):
-            self.channel_combo.configure(values=channels)
-        else:
-            self.channel_combo["values"] = channels
-
-        if self.channel_var.get() not in channels:
-            self.channel_var.set("All")
-
-        self._schedule_filter()
-
-    def _operators_display_list(self):
-        out = ["All"]
-        for op in self.operators_list:
-            name = str(op.get("name", "")).strip()
-            display = f"{op.get('id','')} - {name}" if op.get("id") else name
-            out.append(display)
-        return out
-
-    def _machines_display_list(self):
-        out = ["All"]
-        for m in self.machines_list:
-            code = str(m.get("code", "")).strip()
-            name = str(m.get("name", "")).strip()
-            display = f"{code} - {name}" if code else name
-            out.append(display)
-        return out
-
-    def _update_all_dynamic_filters(self, data_list):
-        """
-        Dynamically repopulate all dropdowns (Item, Operator, Machine, AirGauge, Channel, etc.)
-        based on what is actually present in the provided data_list.
-        """
-        try:
-            items = set()
-            operators = set()
-            machines = set()
-            airgauges = set()
-            drawings = set()
-            customers = set()
-
-            for row, _, _ in data_list:
-                if len(row) > 11 and row[11]: items.add(str(row[11]).strip())
-                if len(row) > 9 and row[9]: operators.add(str(row[9]).strip())
-                if len(row) > 12 and row[12]: machines.add(str(row[12]).strip())
-                if len(row) > 6 and row[6]: 
-                    ag = str(row[6]).strip()
-                    if not ag.startswith("AG"): ag = f"AG{ag}"
-                    airgauges.add(ag)
-                if len(row) > 8 and row[8]: drawings.add(str(row[8]).strip())
-                if len(row) > 13 and row[13]: customers.add(str(row[13]).strip())
-
-            def update_combo(combo, var, new_vals):
-                current = var.get()
-                sorted_vals = ["All"] + sorted(list(new_vals))
-                combo._base_values = sorted_vals
-                if hasattr(combo, "configure"):
-                    combo.configure(values=sorted_vals)
-                else:
-                    combo["values"] = sorted_vals
-                if current not in sorted_vals:
-                    var.set("All")
-
-            update_combo(self.item_combo, self.item_var, items)
-            update_combo(self.operator_combo, self.operator_var, operators)
-            update_combo(self.machine_combo, self.machine_var, machines)
-            update_combo(self.airgauge_combo, self.airgauge_var, airgauges)
-            update_combo(self.drawing_combo, self.drawing_var, drawings)
-            update_combo(self.customer_combo, self.customer_var, customers)
-
-        except Exception as e:
-            print(f"Filter update error: {e}")
-
-    # ---------------------------
-    # Time spinner (inline)
-    # ---------------------------
-    def _create_time_spinner(self, parent, time_var):
-        outer = ctk.CTkFrame(parent, corner_radius=4, border_width=1, border_color="#D8E3DC", fg_color="white")
-        outer.grid_columnconfigure(0, weight=1)
-        outer.grid_columnconfigure(1, weight=0)
-        display = ctk.CTkFrame(outer, corner_radius=0, border_width=0, fg_color="white")
-        display.grid(row=0, column=0, sticky="nsew", padx=(0, 3))
-        
-        # Configure columns to be uniform and equal width
-        display.grid_columnconfigure(0, weight=1, uniform="time_col")
-        display.grid_columnconfigure(1, weight=0)
-        display.grid_columnconfigure(2, weight=1, uniform="time_col")
-        display.grid_columnconfigure(3, weight=0)
-        display.grid_columnconfigure(4, weight=1, uniform="time_col")
-        
-        def parse_time(s):
-            try:
-                p = s.split(":")
-                hh = int(p[0]) if p and p[0] else 0
-                mm = int(p[1]) if len(p) > 1 and p[1] else 0
-                ss = int(p[2]) if len(p) > 2 and p[2] else 0
-            except Exception:
-                hh, mm, ss = 0, 0, 0
-            hh %= 24; mm %= 60; ss %= 60
-            return hh, mm, ss
-            
-        hh_val, mm_val, ss_val = parse_time(time_var.get())
-        NORMAL_BG = "white"; SELECT_BG = "#008A4D"; NORMAL_TEXT = "#222"; SELECT_TEXT = "white"
-        LABEL_FONT = ("Segoe UI", 11, "bold"); COLON_FONT = ("Segoe UI", 11)
-        
-        # Perfectly uniform labels with width=35 and uniform padding
-        hh_lbl = ctk.CTkLabel(display, text=f"{hh_val:02d}", font=LABEL_FONT, text_color=NORMAL_TEXT, fg_color=NORMAL_BG, corner_radius=4, anchor="center", width=35)
-        hh_lbl.grid(row=0, column=0, sticky="nsew", padx=2, pady=3)
-        
-        colon1 = ctk.CTkLabel(display, text=":", font=COLON_FONT, text_color=NORMAL_TEXT)
-        colon1.grid(row=0, column=1, sticky="nsew", padx=(1, 1))
-        
-        mm_lbl = ctk.CTkLabel(display, text=f"{mm_val:02d}", font=LABEL_FONT, text_color=NORMAL_TEXT, fg_color=NORMAL_BG, corner_radius=4, anchor="center", width=35)
-        mm_lbl.grid(row=0, column=2, sticky="nsew", padx=2, pady=3)
-        
-        colon2 = ctk.CTkLabel(display, text=":", font=COLON_FONT, text_color=NORMAL_TEXT)
-        colon2.grid(row=0, column=3, sticky="nsew", padx=(1, 1))
-        
-        ss_lbl = ctk.CTkLabel(display, text=f"{ss_val:02d}", font=LABEL_FONT, text_color=NORMAL_TEXT, fg_color=NORMAL_BG, corner_radius=4, anchor="center", width=35)
-        ss_lbl.grid(row=0, column=4, sticky="nsew", padx=2, pady=3)
-        
-        arrow_frame = ctk.CTkFrame(outer, corner_radius=0, border_width=0, fg_color="white")
-        arrow_frame.grid(row=0, column=1, sticky="ns")
-        
-        # Up and Down buttons configured with hover=False, border_width=0, and hover_color matching the normal background to prevent blue color
-        up_btn = ModernButton(
-            arrow_frame,
-            text="▲",
-            width=22,
-            height=13,
-            fg_color="#F5FBF8",
-            text_color="#008A4D",
-            hover_color="#F5FBF8",
-            hover=False,
-            corner_radius=4,
-            command=lambda: change_value(1),
-            takefocus=False
-        )
-        up_btn.pack(side="top", padx=0, pady=(2, 4))
-        
-        down_btn = ModernButton(
-            arrow_frame,
-            text="▼",
-            width=22,
-            height=13,
-            fg_color="#F5FBF8",
-            text_color="#008A4D",
-            hover_color="#F5FBF8",
-            hover=False,
-            corner_radius=4,
-            command=lambda: change_value(-1),
-            takefocus=False
-        )
-        down_btn.pack(side="top", padx=0, pady=(0, 2))
-        
-        selected = {"field": "hour"}
-        typed_buffer = []
-        
-        def update_visual():
-            # Reset all label colors
-            hh_lbl.configure(fg_color=NORMAL_BG, text_color=NORMAL_TEXT)
-            mm_lbl.configure(fg_color=NORMAL_BG, text_color=NORMAL_TEXT)
-            ss_lbl.configure(fg_color=NORMAL_BG, text_color=NORMAL_TEXT)
-            
-            if selected["field"] == "hour":
-                hh_lbl.configure(fg_color=SELECT_BG, text_color=SELECT_TEXT)
-            elif selected["field"] == "minute":
-                mm_lbl.configure(fg_color=SELECT_BG, text_color=SELECT_TEXT)
-            else:
-                ss_lbl.configure(fg_color=SELECT_BG, text_color=SELECT_TEXT)
-
-        def select_field(f):
-            selected["field"] = f
-            typed_buffer.clear()
-            update_visual()
-            try:
-                root = outer.winfo_toplevel()
-                root.focus_set()
-            except:
-                pass
-            
-        hh_lbl.bind("<Button-1>", lambda e: select_field("hour"))
-        mm_lbl.bind("<Button-1>", lambda e: select_field("minute"))
-        ss_lbl.bind("<Button-1>", lambda e: select_field("second"))
-        
-        def write_time(h, m, s):
-            hh_lbl.configure(text=f"{h:02d}")
-            mm_lbl.configure(text=f"{m:02d}")
-            ss_lbl.configure(text=f"{s:02d}")
-            time_var.set(f"{h:02d}:{m:02d}:{s:02d}")
-            self._schedule_filter()
-
-        def change_value(delta):
-            nonlocal hh_val, mm_val, ss_val
-            typed_buffer.clear()
-            if selected["field"] == "hour":
-                hh_val = (hh_val + delta) % 24
-            elif selected["field"] == "minute":
-                mm_val = (mm_val + delta) % 60
-            else:
-                ss_val = (ss_val + delta) % 60
-            write_time(hh_val, mm_val, ss_val)
-
-        def on_wheel(e):
-            d = 1 if (e.delta > 0) else -1
-            change_value(d)
-        
-        # Bind scroll to everything
-        for w in [outer, hh_lbl, mm_lbl, ss_lbl, up_btn, down_btn, arrow_frame, colon1, colon2]:
-            try:
-                w.bind("<MouseWheel>", on_wheel)
-            except:
-                pass
-
-        # Helper to check if user is typing inside standard entry fields elsewhere in the app
-        def is_typing_elsewhere():
-            try:
-                root = outer.winfo_toplevel()
-                focused = root.focus_get()
-                if focused:
-                    cls = focused.winfo_class()
-                    if cls in ("Entry", "Text", "TEntry", "TCombobox", "Listbox"):
-                        return True
-            except:
-                pass
-            return False
-
-        # Keypress Handlers for manual time entry
-        def handle_digit(digit):
-            if is_typing_elsewhere():
-                return
-            nonlocal hh_val, mm_val, ss_val
-            val = int(digit)
-            
-            if len(typed_buffer) >= 2:
-                typed_buffer.clear()
-            typed_buffer.append(digit)
-            
-            if len(typed_buffer) == 1:
-                # If first digit determines completion (e.g. >=3 for hour, >=6 for minute/second)
-                limit = 3 if selected["field"] == "hour" else 6
-                if val >= limit:
-                    if selected["field"] == "hour":
-                        hh_val = val
-                        write_time(hh_val, mm_val, ss_val)
-                        select_field("minute")
-                    elif selected["field"] == "minute":
-                        mm_val = val
-                        write_time(hh_val, mm_val, ss_val)
-                        select_field("second")
-                    else:
-                        ss_val = val
-                        write_time(hh_val, mm_val, ss_val)
-                    typed_buffer.clear()
-                else:
-                    if selected["field"] == "hour":
-                        hh_val = val
-                    elif selected["field"] == "minute":
-                        mm_val = val
-                    else:
-                        ss_val = val
-                    write_time(hh_val, mm_val, ss_val)
-            else:
-                first = typed_buffer[0]
-                combined = int(first + digit)
-                
-                if selected["field"] == "hour":
-                    if combined > 23:
-                        combined = 23
-                    hh_val = combined
-                    write_time(hh_val, mm_val, ss_val)
-                    select_field("minute")
-                elif selected["field"] == "minute":
-                    if combined > 59:
-                        combined = 59
-                    mm_val = combined
-                    write_time(hh_val, mm_val, ss_val)
-                    select_field("second")
-                else:
-                    if combined > 59:
-                        combined = 59
-                    ss_val = combined
-                    write_time(hh_val, mm_val, ss_val)
-                typed_buffer.clear()
-
-        def handle_backspace():
-            if is_typing_elsewhere():
-                return
-            nonlocal hh_val, mm_val, ss_val
-            if selected["field"] == "hour":
-                hh_val = 0
-            elif selected["field"] == "minute":
-                mm_val = 0
-            else:
-                ss_val = 0
-            typed_buffer.clear()
-            write_time(hh_val, mm_val, ss_val)
-
-        def navigate_fields(direction):
-            if is_typing_elsewhere():
-                return
-            if direction == -1: # Left
-                if selected["field"] == "second":
-                    select_field("minute")
-                elif selected["field"] == "minute":
-                    select_field("hour")
-            else: # Right
-                if selected["field"] == "hour":
-                    select_field("minute")
-                elif selected["field"] == "minute":
-                    select_field("second")
-
-        def change_value_key(direction):
-            if is_typing_elsewhere():
-                return
-            change_value(direction)
-
-        # Keyboard support (hover to enable)
-        def on_enter(e):
-            try:
-                root = outer.winfo_toplevel()
-                root.bind("<Up>", lambda ev: change_value_key(1))
-                root.bind("<Down>", lambda ev: change_value_key(-1))
-                root.bind("<Left>", lambda ev: navigate_fields(-1))
-                root.bind("<Right>", lambda ev: navigate_fields(1))
-                root.bind("<BackSpace>", lambda ev: handle_backspace())
-                for digit in "0123456789":
-                    root.bind(digit, lambda ev, d=digit: handle_digit(d))
-            except Exception as ex:
-                pass
-
-        def on_leave(e):
-            try:
-                root = outer.winfo_toplevel()
-                root.unbind("<Up>")
-                root.unbind("<Down>")
-                root.unbind("<Left>")
-                root.unbind("<Right>")
-                root.unbind("<BackSpace>")
-                for digit in "0123456789":
-                    root.unbind(digit)
-            except Exception as ex:
-                pass
-
-        outer.bind("<Enter>", on_enter)
-        outer.bind("<Leave>", on_leave)
-        
-        select_field("hour")
-        write_time(hh_val, mm_val, ss_val)
-        return outer
-
-    # ---------------------------
-    # Calendar popup (click outside to close)
-    # ---------------------------
+    # ─────────────────────────────────────────────────────────────────────────
+    # Calendar popup
+    # ─────────────────────────────────────────────────────────────────────────
     def open_calendar_popup(self, entry_widget, target_var, time_var=None):
         if Calendar is None:
             return
@@ -14797,8 +14238,6 @@ class ReportPage(ctk.CTkFrame):
             pass
 
         root = self.winfo_toplevel()
-        
-        # Overlay to catch outside clicks
         overlay = tk.Toplevel(root)
         overlay.overrideredirect(True)
         overlay.geometry(f"{root.winfo_screenwidth()}x{root.winfo_screenheight()}+0+0")
@@ -14811,9 +14250,8 @@ class ReportPage(ctk.CTkFrame):
         popup.overrideredirect(True)
         popup.attributes("-topmost", True)
         popup.configure(bg="#ffffff")
-        popup_border = tk.Frame(popup, bg="#cbd5f0", bd=1)
+        popup_border = tk.Frame(popup, bg="#a78bfa", bd=1)
         popup_border.pack(fill="both", expand=True)
-        
         main_frame = tk.Frame(popup_border, bg="#ffffff")
         main_frame.pack(fill="both", expand=True, padx=2, pady=2)
 
@@ -14842,73 +14280,63 @@ class ReportPage(ctk.CTkFrame):
             t = datetime.date.today()
             d, m, y_val = t.day, t.month, t.year
 
-        cal = Calendar(cal_frame, selectmode="day", year=y_val, month=m, day=d, 
+        cal = Calendar(cal_frame, selectmode="day", year=y_val, month=m, day=d,
                        date_pattern="dd/mm/yyyy", showweeknumbers=False,
                        background="white", foreground="black", bordercolor="white",
                        headersbackground="white", headersforeground="black",
                        normalbackground="white", normalforeground="black",
                        weekendbackground="white", weekendforeground="black",
-                       selectbackground="#1677ff", selectforeground="white")
+                       selectbackground="#7c3aed", selectforeground="white")
         cal.pack(padx=5, pady=5)
 
         btn_frame = tk.Frame(cal_frame, bg="#ffffff")
         btn_frame.pack(fill="x", padx=10, pady=(0, 5))
-        
-        clear_btn = tk.Label(btn_frame, text="Clear", fg="#1677ff", bg="#ffffff", cursor="hand2")
+        clear_btn = tk.Label(btn_frame, text="Clear", fg="#7c3aed", bg="#ffffff", cursor="hand2")
         clear_btn.pack(side="left")
-        today_btn = tk.Label(btn_frame, text="Today", fg="#1677ff", bg="#ffffff", cursor="hand2")
+        today_btn = tk.Label(btn_frame, text="Today", fg="#7c3aed", bg="#ffffff", cursor="hand2")
         today_btn.pack(side="right")
 
         def on_clear(e):
             target_var.set("")
             close_all()
+
         def on_today(e):
             import datetime
             target_var.set(datetime.date.today().strftime("%d/%m/%Y"))
             close_all()
-            
+
         clear_btn.bind("<Button-1>", on_clear)
         today_btn.bind("<Button-1>", on_today)
 
         if time_var is not None:
             time_frame = tk.Frame(main_frame, bg="#ffffff")
             time_frame.pack(side="right", fill="y", padx=(5, 5), pady=5)
-            
             sep = tk.Frame(main_frame, bg="#f0f0f0", width=1)
             sep.pack(side="right", fill="y", pady=5)
-
             hm_frame = tk.Frame(time_frame, bg="#ffffff")
             hm_frame.pack(fill="both", expand=True)
-            
-            hours_lb = tk.Listbox(hm_frame, width=3, height=8, exportselection=False, bd=0, highlightthickness=0, bg="#ffffff", selectbackground="#1677ff")
+            hours_lb = tk.Listbox(hm_frame, width=3, height=8, exportselection=False,
+                                  bd=0, highlightthickness=0, bg="#ffffff", selectbackground="#7c3aed")
             hours_lb.pack(side="left", fill="y", padx=2)
             for h in range(24):
                 hours_lb.insert("end", str(h).zfill(2))
-                
-            mins_lb = tk.Listbox(hm_frame, width=3, height=8, exportselection=False, bd=0, highlightthickness=0, bg="#ffffff", selectbackground="#1677ff")
+            mins_lb = tk.Listbox(hm_frame, width=3, height=8, exportselection=False,
+                                 bd=0, highlightthickness=0, bg="#ffffff", selectbackground="#7c3aed")
             mins_lb.pack(side="left", fill="y", padx=2)
             for m_val in range(60):
                 mins_lb.insert("end", str(m_val).zfill(2))
-
             try:
                 curr_h, curr_m = time_var.get().split(":")[:2]
-                hours_lb.selection_set(int(curr_h))
-                hours_lb.see(int(curr_h))
-                mins_lb.selection_set(int(curr_m))
-                mins_lb.see(int(curr_m))
+                hours_lb.selection_set(int(curr_h)); hours_lb.see(int(curr_h))
+                mins_lb.selection_set(int(curr_m)); mins_lb.see(int(curr_m))
             except:
-                hours_lb.selection_set(0)
-                mins_lb.selection_set(0)
+                hours_lb.selection_set(0); mins_lb.selection_set(0)
 
             def update_time_var(*args):
-                try:
-                    sel_h = hours_lb.get(hours_lb.curselection())
-                except:
-                    sel_h = "00"
-                try:
-                    sel_m = mins_lb.get(mins_lb.curselection())
-                except:
-                    sel_m = "00"
+                try: sel_h = hours_lb.get(hours_lb.curselection())
+                except: sel_h = "00"
+                try: sel_m = mins_lb.get(mins_lb.curselection())
+                except: sel_m = "00"
                 time_var.set(f"{sel_h}:{sel_m}:00")
 
             hours_lb.bind("<<ListboxSelect>>", update_time_var)
@@ -14920,91 +14348,101 @@ class ReportPage(ctk.CTkFrame):
                 close_all()
 
         cal.bind("<<CalendarSelected>>", on_select)
-        
         popup.bind("<Button-1>", lambda e: "break")
         cal.bind("<Button-1>", lambda e: "break")
         if time_var is not None:
             time_frame.bind("<Button-1>", lambda e: "break")
             hours_lb.bind("<Button-1>", lambda e: "break")
             mins_lb.bind("<Button-1>", lambda e: "break")
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # TABLE AREA — glass-panel with purple badge rows
+    # Matches .glass-panel + Results Showcase section from HTML ref
+    # ─────────────────────────────────────────────────────────────────────────
     def _build_table_area(self):
-        # Premium glass view card frame
-        table_frame = ModernCardFrame(self, fg_color="#f3e8ff", border_width=2, border_color="#7c3aed")
-        table_frame.pack(fill="both", expand=True, padx=12, pady=(6, 12))
-        
+        # Outer shadow wrapper — lavender tint (#ede9fe)
+        self.table_shadow = ctk.CTkFrame(
+            self,
+            fg_color="#ede9fe",
+            corner_radius=18
+        )
+        self.table_shadow.pack(fill="both", expand=True, padx=20, pady=(6, 16))
+
+        # Glass panel card
+        table_frame = ctk.CTkFrame(
+            self.table_shadow,
+            fg_color="#fdf4ff",     # lavender glass bg
+            corner_radius=16,
+            border_width=1,
+            border_color="#a78bfa"  # purple border
+        )
+        table_frame.pack(fill="both", expand=True, padx=(1, 3), pady=(1, 3))
+
         table_frame.grid_rowconfigure(1, weight=1)
         table_frame.grid_columnconfigure(0, weight=1)
 
-        # "RESULTS SHOWCASE" Header inside the card
+        # Section label — .section-label style: uppercase, #94a3b8, bold
         self.results_title_lbl = ctk.CTkLabel(
             table_frame,
             text="RESULTS SHOWCASE",
             font=("Segoe UI", 10, "bold"),
-            text_color="#6d28d9"
+            text_color="#94a3b8",
+            anchor="w"
         )
-        self.results_title_lbl.grid(row=0, column=0, sticky="w", padx=16, pady=(12, 4))
+        self.results_title_lbl.grid(row=0, column=0, sticky="w", padx=18, pady=(14, 6))
 
         cols = (
             "S.No", "Time", "Date", "Reading", "Offset", "Status", "AirGauge ID", "Channel",
             "Drawing", "User", "CompID", "Item", "CNC ID", "Customer"
         )
-        
         cols_display = {
-            "S.No": "S.No",
-            "Time": "Time",
-            "Date": "Date",
-            "Reading": "Reading",
-            "Offset": "Offset",
-            "Status": "Status",
-            "AirGauge ID": "AirGauge ID",
-            "Channel": "Channel",
-            "Drawing": "Drawing",
-            "User": "User",
-            "CompID": "CompID",
-            "Item": "Item",
-            "CNC ID": "CNC ID",
-            "Customer": "Cust"
+            "S.No": "S.No", "Time": "Time", "Date": "Date", "Reading": "Reading",
+            "Offset": "Offset", "Status": "Status", "AirGauge ID": "AirGauge ID",
+            "Channel": "Channel", "Drawing": "Drawing", "User": "User",
+            "CompID": "CompID", "Item": "Item", "CNC ID": "CNC ID", "Customer": "Cust"
         }
         cols_display_list = [cols_display[h] for h in cols]
 
         if self.use_tksheet:
             self.sheet = Sheet(
-                table_frame, 
-                headers=cols_display_list, 
-                show_x_scrollbar=True, 
-                show_y_scrollbar=True, 
+                table_frame,
+                headers=cols_display_list,
+                show_x_scrollbar=True,
+                show_y_scrollbar=True,
                 height=500,
                 show_row_index=False
             )
             try:
                 self.sheet.set_options(
-                    table_bg="#ffffff",
-                    frame_bg="#f3e8ff",
-                    grid_color="#ede9fe",
+                    # Table colours — glass white with purple accents
+                    table_bg="#fdf4ff",
+                    frame_bg="#fdf4ff",
+                    grid_color="#ddd6fe",          # purple tint grid
                     show_vertical_grid=False,
                     show_horizontal_grid=True,
                     show_row_index=False,
-                    header_bg="#f3e8ff",
-                    header_fg="#4c1d95",
-                    header_grid_color="#c084fc",
+                    # Header — matches thead style from HTML ref
+                    header_bg="#f5f3ff",
+                    header_fg="#0f172a",
+                    header_grid_color="#ddd6fe",
                     show_vertical_header_grid=False,
                     show_horizontal_header_grid=True,
                     font=("Segoe UI", 11, "normal"),
                     header_font=("Segoe UI", 11, "bold"),
-                    row_height=42,
-                    header_height=35,
-                    select_bg="#f3e8ff",
-                    select_fg="#5b21b6",
+                    row_height=44,
+                    header_height=38,
+                    # Selection — violet
+                    select_bg="#ede9fe",
+                    select_fg="#6d28d9",
                     selected_cells_border_color="#7c3aed"
                 )
             except Exception as e:
                 print("Error setting options for table sheet:", e)
-                
-            self.sheet.grid(row=1, column=0, sticky="nsew", padx=8, pady=(4, 8))
-            
-            # Responsive column width layout
+
+            self.sheet.grid(row=1, column=0, sticky="nsew", padx=10, pady=(4, 10))
+
             self.col_widths = [60, 100, 100, 110, 90, 100, 110, 90, 110, 110, 110, 120, 120, 120]
-            
+
             def do_resize(event=None):
                 w = table_frame.winfo_width() - 20
                 if w > 100:
@@ -15020,58 +14458,69 @@ class ReportPage(ctk.CTkFrame):
                             except: pass
                     try: self.sheet.refresh()
                     except: pass
-            
+
             table_frame.bind("<Configure>", do_resize)
             table_frame.after(100, do_resize)
-            
+
             try:
-                self.sheet.enable_bindings(("single_select", "row_select", "arrowkeys", "copy", "right_click_popup_menu", "select_all"))
+                self.sheet.enable_bindings(("single_select", "row_select", "arrowkeys",
+                                            "copy", "right_click_popup_menu", "select_all"))
                 self.sheet.extra_bindings("select_all", self._on_ctrl_a_select_rows)
             except:
                 pass
         else:
-            self.tree = ttk.Treeview(table_frame, columns=cols, show="headings", selectmode="browse")
+            # ttk.Treeview fallback styled to match purple theme
+            style = ttk.Style()
+            style.configure("Purple.Treeview",
+                            background="#fdf4ff",
+                            foreground="#1e293b",
+                            rowheight=44,
+                            fieldbackground="#fdf4ff",
+                            bordercolor="#a78bfa",
+                            font=("Segoe UI", 11))
+            style.configure("Purple.Treeview.Heading",
+                            background="#f5f3ff",
+                            foreground="#0f172a",
+                            font=("Segoe UI", 11, "bold"))
+            style.map("Purple.Treeview",
+                      background=[("selected", "#ede9fe")],
+                      foreground=[("selected", "#6d28d9")])
+
+            self.tree = ttk.Treeview(table_frame, columns=cols, show="headings",
+                                     selectmode="browse", style="Purple.Treeview")
             for h in cols:
                 self.tree.heading(h, text=cols_display[h])
                 self.tree.column(h, width=120, anchor="center")
             vsb = ttk.Scrollbar(table_frame, orient="vertical", command=self.tree.yview)
             hsb = ttk.Scrollbar(table_frame, orient="horizontal", command=self.tree.xview)
             self.tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
-            self.tree.grid(row=1, column=0, sticky="nsew"); vsb.grid(row=1, column=1, sticky="ns"); hsb.grid(row=2, column=0, sticky="ew")
+            self.tree.grid(row=1, column=0, sticky="nsew")
+            vsb.grid(row=1, column=1, sticky="ns")
+            hsb.grid(row=2, column=0, sticky="ew")
 
-            self.tree.bind("<Double-1>", lambda e: None)
-            
-        # Create empty state overlay frame (white to blend with card bg)
-        self.empty_state_frame = ctk.CTkFrame(table_frame, fg_color="#f3e8ff", corner_radius=12)
-        
-        # Center container
+        # Empty state overlay — glass bg, purple icon
+        self.empty_state_frame = ctk.CTkFrame(table_frame, fg_color="#fdf4ff", corner_radius=12)
         center_content = ctk.CTkFrame(self.empty_state_frame, fg_color="transparent")
         center_content.place(relx=0.5, rely=0.5, anchor="center")
-        
-        # Empty state graphic, title and helper text
-        icon_lbl = ctk.CTkLabel(
-            center_content, 
-            text="📥", 
-            font=("Segoe UI", 48), 
-            text_color="#BDBDBD"
-        )
-        icon_lbl.pack(pady=(0, 10))
-        
-        msg_lbl = ctk.CTkLabel(
-            center_content, 
-            text="No data available", 
-            font=("Segoe UI", 15, "bold"), 
-            text_color="#333333"
-        )
-        msg_lbl.pack(pady=(0, 4))
-        
-        sub_lbl = ctk.CTkLabel(
-            center_content, 
-            text="Please select filters and click Analyze to view data.", 
-            font=("Segoe UI", 11), 
-            text_color="#757575"
-        )
-        sub_lbl.pack()
+
+        ctk.CTkLabel(
+            center_content,
+            text="📥",
+            font=("Segoe UI", 48),
+            text_color="#a78bfa"    # purple tint icon
+        ).pack(pady=(0, 10))
+        ctk.CTkLabel(
+            center_content,
+            text="No data available",
+            font=("Segoe UI", 15, "bold"),
+            text_color="#1e293b"
+        ).pack(pady=(0, 4))
+        ctk.CTkLabel(
+            center_content,
+            text="Please select filters and click Analyze to view data.",
+            font=("Segoe UI", 11),
+            text_color="#64748b"
+        ).pack()
 
     def _on_ctrl_a_select_rows(self, event=None):
         try:
@@ -15094,54 +14543,35 @@ class ReportPage(ctk.CTkFrame):
                         self.tree.insert("", "end", values=rrow)
                 return
 
-            # Format rows for display
             formatted_rows = []
             for i, r in enumerate(rows):
                 display_row = list(r)
-                
-                # S.No
                 display_row[0] = i + 1
-                
-                # Reading -> append " mm"
                 r_val = str(display_row[3]).strip()
                 if r_val and not r_val.endswith(" mm"):
                     display_row[3] = f"{r_val} mm"
-                    
-                # Status -> translate ACCEPTED -> PASS
                 stat_val = str(display_row[5]).strip()
                 if "ACCEPT" in stat_val.upper():
                     display_row[5] = "PASS"
                 elif "REJECT" in stat_val.upper():
                     display_row[5] = "REJECT"
-                    
-                # Channel -> prefix with "CH-"
                 chan_val = str(display_row[7]).strip()
                 if chan_val.isdigit():
                     display_row[7] = f"CH-{int(chan_val):02d}"
                 elif chan_val and not chan_val.startswith("CH"):
                     display_row[7] = f"CH-{chan_val}"
-                    
                 formatted_rows.append(display_row)
 
-            # Set sheet data
             self.sheet.set_sheet_data(formatted_rows)
-            
-            # Dehighlight everything first
             self.sheet.dehighlight_all()
-            
-            # Highlight cells in batches
-            sno_cells = []
-            reading_cells = []
-            channel_cells = []
-            pass_cells = []
-            fail_cells = []
-            other_status_cells = []
-            
+
+            sno_cells = []; reading_cells = []; channel_cells = []
+            pass_cells = []; fail_cells = []; other_status_cells = []
+
             for r_idx, row in enumerate(formatted_rows):
                 sno_cells.append((r_idx, 0))
                 reading_cells.append((r_idx, 3))
                 channel_cells.append((r_idx, 7))
-                
                 status_val = str(row[5]).upper().strip()
                 if "PASS" in status_val or "ACCEPT" in status_val:
                     pass_cells.append((r_idx, 5))
@@ -15149,37 +14579,47 @@ class ReportPage(ctk.CTkFrame):
                     fail_cells.append((r_idx, 5))
                 else:
                     other_status_cells.append((r_idx, 5))
-            
+
+            # S.No badge — .result-badge: #6366f1 on rgba(99,102,241,0.1)
             if sno_cells:
-                self.sheet.highlight_cells(cells=sno_cells, bg="#e0e7ff", fg="#4338ca", redraw=False)
+                self.sheet.highlight_cells(cells=sno_cells, bg="#eef2ff", fg="#6366f1", redraw=False)
+            # Reading — bold dark
             if reading_cells:
                 self.sheet.highlight_cells(cells=reading_cells, fg="#0f172a", redraw=False)
+            # Channel — violet accent (#7c3aed)
             if channel_cells:
                 self.sheet.highlight_cells(cells=channel_cells, fg="#7c3aed", redraw=False)
+            # PASS — .pass-badge: #047857 on rgba(16,185,129,0.1)
             if pass_cells:
-                self.sheet.highlight_cells(cells=pass_cells, bg="#dcfce7", fg="#15803d", redraw=False)
+                self.sheet.highlight_cells(cells=pass_cells, bg="#d1fae5", fg="#047857", redraw=False)
+            # FAIL — red pill
             if fail_cells:
                 self.sheet.highlight_cells(cells=fail_cells, bg="#fee2e2", fg="#b91c1c", redraw=False)
+            # Other status — amber
             if other_status_cells:
                 self.sheet.highlight_cells(cells=other_status_cells, bg="#fef3c7", fg="#b45309", redraw=False)
-                
-            try:
-                self.sheet.refresh()
-            except:
-                pass
+
+            try: self.sheet.refresh()
+            except: pass
+
         except Exception as e:
             print("Error in displaying and styling rows:", e)
 
     def _populate_cards(self, table_rows):
         self._display_and_style_rows(table_rows)
 
+    # ─────────────────────────────────────────────────────────────────────────
+    # Loading overlay
+    # ─────────────────────────────────────────────────────────────────────────
     def _create_loading_overlay(self):
-        self._overlay = ctk.CTkFrame(self, fg_color="#ffffff", corner_radius=20)
+        self._overlay = ctk.CTkFrame(self, fg_color="#fdf4ff", corner_radius=20)
         self._overlay.place_forget()
-        self._overlay_label = tk.Label(self._overlay, text="Loading data…", font=("Segoe UI", 13, "bold"), bg="#ffffff", fg="#111827")
-        self._overlay_label.pack(pady=(20,10))
+        self._overlay_label = tk.Label(self._overlay, text="Loading data…",
+                                       font=("Segoe UI", 13, "bold"),
+                                       bg="#fdf4ff", fg="#1e293b")
+        self._overlay_label.pack(pady=(20, 10))
         self._overlay_pb = ttk.Progressbar(self._overlay, mode="indeterminate", length=240)
-        self._overlay_pb.pack(pady=(0,20))
+        self._overlay_pb.pack(pady=(0, 20))
 
     def _show_loading(self, text="Loading data…"):
         try:
@@ -15200,9 +14640,9 @@ class ReportPage(ctk.CTkFrame):
         except Exception:
             pass
 
-    # ---------------------------
-    # Traces & bindings
-    # ---------------------------
+    # ─────────────────────────────────────────────────────────────────────────
+    # Traces & bindings — unchanged from original
+    # ─────────────────────────────────────────────────────────────────────────
     def _wire_traces_and_bindings(self):
         self.from_date_var.trace_add("write", lambda *a: self._schedule_filter())
         self.to_date_var.trace_add("write", lambda *a: self._schedule_filter())
@@ -15211,21 +14651,89 @@ class ReportPage(ctk.CTkFrame):
         self.item_var.trace_add("write", lambda *a: self._schedule_filter())
         self.operator_var.trace_add("write", lambda *a: self._schedule_filter())
         self.machine_var.trace_add("write", lambda *a: self._schedule_filter())
-        #self.airgauge_var.trace_add("write", lambda *a: self._schedule_filter())
         self.airgauge_var.trace_add("write", self._on_airgauge_changed)
         self.channel_var.trace_add("write", lambda *a: self._schedule_filter())
         self.drawing_var.trace_add("write", lambda *a: self._schedule_filter())
         self.customer_var.trace_add("write", lambda *a: self._schedule_filter())
 
+    # ─────────────────────────────────────────────────────────────────────────
+    # All remaining methods unchanged — exact functional parity with original
+    # ─────────────────────────────────────────────────────────────────────────
+    def _items_display_list(self):
+        out = ["All"]
+        for it in self.items_list:
+            code = str(it.get("code", "")).strip()
+            name = str(it.get("name", "")).strip()
+            display = f"{code} - {name}" if code else name
+            out.append(display)
+        return out
 
-    # ---------------------------
-    # Background JSONL loader
-    # ---------------------------
+    def _on_airgauge_changed(self, *_):
+        ag = self.airgauge_var.get().strip()
+        channels = self._load_channels_for_airgauge(ag)
+        self.channel_combo._base_values = channels
+        if hasattr(self.channel_combo, "configure"):
+            self.channel_combo.configure(values=channels)
+        else:
+            self.channel_combo["values"] = channels
+        if self.channel_var.get() not in channels:
+            self.channel_var.set("All")
+        self._schedule_filter()
+
+    def _operators_display_list(self):
+        out = ["All"]
+        for op in self.operators_list:
+            name = str(op.get("name", "")).strip()
+            display = f"{op.get('id','')} - {name}" if op.get("id") else name
+            out.append(display)
+        return out
+
+    def _machines_display_list(self):
+        out = ["All"]
+        for m in self.machines_list:
+            code = str(m.get("code", "")).strip()
+            name = str(m.get("name", "")).strip()
+            display = f"{code} - {name}" if code else name
+            out.append(display)
+        return out
+
+    def _update_all_dynamic_filters(self, data_list):
+        try:
+            items = set(); operators = set(); machines = set()
+            airgauges = set(); drawings = set(); customers = set()
+
+            for row, _, _ in data_list:
+                if len(row) > 11 and row[11]: items.add(str(row[11]).strip())
+                if len(row) > 9 and row[9]: operators.add(str(row[9]).strip())
+                if len(row) > 12 and row[12]: machines.add(str(row[12]).strip())
+                if len(row) > 6 and row[6]:
+                    ag = str(row[6]).strip()
+                    if not ag.startswith("AG"): ag = f"AG{ag}"
+                    airgauges.add(ag)
+                if len(row) > 8 and row[8]: drawings.add(str(row[8]).strip())
+                if len(row) > 13 and row[13]: customers.add(str(row[13]).strip())
+
+            def update_combo(combo, var, new_vals):
+                current = var.get()
+                sorted_vals = ["All"] + sorted(list(new_vals))
+                combo._base_values = sorted_vals
+                if hasattr(combo, "configure"):
+                    combo.configure(values=sorted_vals)
+                else:
+                    combo["values"] = sorted_vals
+                if current not in sorted_vals:
+                    var.set("All")
+
+            update_combo(self.item_combo, self.item_var, items)
+            update_combo(self.operator_combo, self.operator_var, operators)
+            update_combo(self.machine_combo, self.machine_var, machines)
+            update_combo(self.airgauge_combo, self.airgauge_var, airgauges)
+            update_combo(self.drawing_combo, self.drawing_var, drawings)
+            update_combo(self.customer_combo, self.customer_var, customers)
+        except Exception as e:
+            print(f"Filter update error: {e}")
+
     def _load_json_background(self, fname):
-        """
-        Returns list of tuples: (row_list, rec_dt_or_None, metadata)
-        metadata includes 'file_index' and 'db_id' filtering keys.
-        """
         result = []
         ops = self.operators_list
         machs = self.machines_list
@@ -15233,37 +14741,26 @@ class ReportPage(ctk.CTkFrame):
             import sqlite3
             conn = sqlite3.connect(resource_path("production_data.db"))
             cursor = conn.cursor()
-            
-            # ensure table exists to prevent errors on strict first load
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS measurements (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    source TEXT,
-                    date TEXT,
-                    time TEXT,
-                    reading TEXT,
-                    offset TEXT,
-                    status TEXT,
-                    airgauge_id TEXT,
-                    channel TEXT,
-                    drawing TEXT,
-                    user_id TEXT,
-                    component_id TEXT,
-                    item TEXT,
-                    machine_id TEXT,
-                    customer TEXT,
+                    source TEXT, date TEXT, time TEXT, reading TEXT,
+                    offset TEXT, status TEXT, airgauge_id TEXT, channel TEXT,
+                    drawing TEXT, user_id TEXT, component_id TEXT, item TEXT,
+                    machine_id TEXT, customer TEXT,
                     upload_timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
             ''')
-            
-            # Use chronological retrieval
-            cursor.execute("SELECT id, source, date, time, reading, offset, status, airgauge_id, channel, drawing, user_id, component_id, item, machine_id, customer, utl, ltl FROM measurements ORDER BY id DESC")
+            cursor.execute(
+                "SELECT id, source, date, time, reading, offset, status, airgauge_id, "
+                "channel, drawing, user_id, component_id, item, machine_id, customer, utl, ltl "
+                "FROM measurements ORDER BY id DESC"
+            )
             rows = cursor.fetchall()
             conn.close()
-            
+
             for file_idx, row_record in enumerate(rows):
                 db_id = row_record[0]
-                source = row_record[1]
                 date_str = str(row_record[2] or "")
                 time_ = str(row_record[3] or "")
                 reading = str(row_record[4] or "")
@@ -15274,79 +14771,54 @@ class ReportPage(ctk.CTkFrame):
                 drawing = str(row_record[9] or "")
                 userid = str(row_record[10] or "")
                 compid = str(row_record[11] or "")
-                item_display = str(row_record[12] or "") 
+                item_display = str(row_record[12] or "")
                 cncid = str(row_record[13] or "")
                 customer = str(row_record[14] or "")
                 utl_val = str(row_record[15]) if len(row_record) > 15 and row_record[15] is not None else ""
                 ltl_val = str(row_record[16]) if len(row_record) > 16 and row_record[16] is not None else ""
-                
+
                 rec_dt = self.parse_record_datetime(date_str, time_)
-                
-                # operator lookup
+
                 op_name = ""
                 for op in ops:
                     try:
                         if str(op.get("id","")).strip() == userid.strip():
                             op_name = str(op.get("name","")).strip(); break
-                    except:
-                        continue
+                    except: continue
                 user_display = userid.strip()
-                if op_name:
-                    user_display = f"{user_display} - {op_name}"
-                
-                # machine lookup
+                if op_name: user_display = f"{user_display} - {op_name}"
+
                 cnc_display = cncid.strip()
                 for m in machs:
                     try:
                         if str(m.get("code","")).strip() == cncid.strip():
                             name = str(m.get("name","")).strip()
-                            if name:
-                                cnc_display = f"{cncid} - {name}"
+                            if name: cnc_display = f"{cncid} - {name}"
                             break
-                    except:
-                        continue
-                
-                # final row order per requirement
-                row = [
-                    None,               # 0  S.No
-                    time_,              # 1  Time
-                    date_str,           # 2  Date
-                    reading,            # 3  Reading
-                    offset,             # 4  Offset
-                    status,             # 5  Status
-                    airgauge,           # 6  AirGauge ID
-                    channel,            # 7  Channel
-                    drawing,            # 8  Drawing
-                    user_display,       # 9  User
-                    compid,             # 10 CompID
-                    item_display,       # 11 Item
-                    cnc_display,        # 12 CNC ID
-                    customer            # 13 Customer
-                ]
+                    except: continue
 
-                # split item safely for strict metadata filters
+                row = [
+                    None, time_, date_str, reading, offset, status,
+                    airgauge, channel, drawing, user_display,
+                    compid, item_display, cnc_display, customer
+                ]
                 item_parts = item_display.split(" - ")
                 meta_code = item_parts[0] if item_parts else ""
-                meta_name = item_parts[1] if len(item_parts)>1 else ""
-
+                meta_name = item_parts[1] if len(item_parts) > 1 else ""
                 metadata = {
-                    "file_index": int(file_idx),
-                    "db_id": int(db_id),
+                    "file_index": int(file_idx), "db_id": int(db_id),
                     "airgauge": airgauge.strip(),
                     "item_name": meta_name.strip().lower(),
                     "item_code": meta_code.strip().lower(),
                     "operator": userid.strip(),
                     "machine_code": cncid.strip(),
                     "parsed_dt": rec_dt,
-                    "utl": utl_val,
-                    "ltl": ltl_val,
+                    "utl": utl_val, "ltl": ltl_val,
                 }
                 result.append((row, rec_dt, metadata))
-                
         except Exception as e:
             print("SQL Load error:", e)
             return []
-        
         return result
 
     def _start_loading_thread(self):
@@ -15361,10 +14833,7 @@ class ReportPage(ctk.CTkFrame):
         self._load_thread.start()
 
     def _finish_loading(self, parsed_data):
-        # keep master dataset
         self.all_data_rows = parsed_data
-
-        # build visible rows
         table_rows = []
         vis = []
         for i, (row, rec_dt, meta) in enumerate(parsed_data):
@@ -15372,31 +14841,20 @@ class ReportPage(ctk.CTkFrame):
             display_row[0] = i + 1
             table_rows.append(display_row)
             vis.append((display_row, meta["file_index"]))
-
-        # store visible mapping
         self._current_visible = vis
         self._visible_file_indices = [fi for (_, fi) in vis]
-
-        # populate UI table
         try:
             self._populate_cards(table_rows)
         except Exception as e:
             print(f"Error populating cards: {e}")
-
-        # ✅ NOW table is final → update all dynamic filters at once
         self._update_all_dynamic_filters(parsed_data)
-
         self._update_empty_state(len(table_rows))
-
         self._suspend_auto_filter = False
         self._set_loading_state(False)
-        
         try:
             self.app.status_label.configure(text="Data Loaded Successfully")
-            # Clear status after 3 seconds
             self.after(3000, lambda: self.app.status_label.configure(text="Ready"))
-        except:
-            pass
+        except: pass
 
     def _update_empty_state(self, row_count):
         try:
@@ -15408,19 +14866,11 @@ class ReportPage(ctk.CTkFrame):
         except Exception as e:
             print("Error updating empty state:", e)
 
-
-
-    # ---------------------------
-    # Debounced filter scheduler (on-demand file scanning)
-    # ---------------------------
     def _schedule_filter(self, immediate=False):
         if self._suspend_auto_filter:
             return
-
-        # PERSIST STATE
         self._persist_filter_state()
         self._set_loading_state(True)
-
         try:
             if self._filter_job:
                 try: self.after_cancel(self._filter_job)
@@ -15428,26 +14878,20 @@ class ReportPage(ctk.CTkFrame):
                 self._filter_job = None
         except Exception:
             pass
-
         if immediate:
-            # We must use 'after' slightly to ensure UI updates for loading state
             self.after(10, self._run_file_filter_in_background)
         else:
             self._filter_job = self.after(self._filter_debounce_ms, self._run_file_filter_in_background)
 
     def _restore_filter_state(self):
-        """Restore all variables from global state if present."""
         global REPORT_FILTER_STATE
         if not REPORT_FILTER_STATE:
             return
-            
         try:
-            # Restore if key exists
             if "from_date" in REPORT_FILTER_STATE: self.from_date_var.set(REPORT_FILTER_STATE["from_date"])
             if "to_date" in REPORT_FILTER_STATE: self.to_date_var.set(REPORT_FILTER_STATE["to_date"])
             if "from_time" in REPORT_FILTER_STATE: self.from_time_var.set(REPORT_FILTER_STATE["from_time"])
             if "to_time" in REPORT_FILTER_STATE: self.to_time_var.set(REPORT_FILTER_STATE["to_time"])
-            
             if "item" in REPORT_FILTER_STATE: self.item_var.set(REPORT_FILTER_STATE["item"])
             if "operator" in REPORT_FILTER_STATE: self.operator_var.set(REPORT_FILTER_STATE["operator"])
             if "machine" in REPORT_FILTER_STATE: self.machine_var.set(REPORT_FILTER_STATE["machine"])
@@ -15455,19 +14899,16 @@ class ReportPage(ctk.CTkFrame):
             if "channel" in REPORT_FILTER_STATE: self.channel_var.set(REPORT_FILTER_STATE["channel"])
             if "customer" in REPORT_FILTER_STATE: self.customer_var.set(REPORT_FILTER_STATE["customer"])
             if "drawing" in REPORT_FILTER_STATE: self.drawing_var.set(REPORT_FILTER_STATE["drawing"])
-            
         except Exception as e:
             print("Error restoring filter state:", e)
 
     def _persist_filter_state(self):
-        """Save current variables to global state."""
         global REPORT_FILTER_STATE
         try:
             REPORT_FILTER_STATE["from_date"] = self.from_date_var.get()
             REPORT_FILTER_STATE["to_date"] = self.to_date_var.get()
             REPORT_FILTER_STATE["from_time"] = self.from_time_var.get()
             REPORT_FILTER_STATE["to_time"] = self.to_time_var.get()
-            
             REPORT_FILTER_STATE["item"] = self.item_var.get()
             REPORT_FILTER_STATE["operator"] = self.operator_var.get()
             REPORT_FILTER_STATE["machine"] = self.machine_var.get()
@@ -15479,120 +14920,76 @@ class ReportPage(ctk.CTkFrame):
             pass
 
     def _set_loading_state(self, is_loading):
-        """
-        Show/Hide spinner label over table. 
-        Disable/Enable Analyze and Export buttons.
-        """
         try:
-            # 1. Overlay
             if is_loading:
                 self._show_loading("Processing...")
             else:
                 self._hide_loading()
-                
-            # 2. Buttons & Inputs
             state = "disabled" if is_loading else "normal"
             if hasattr(self, "export_btn") and self.export_btn:
                 self.export_btn.configure(state=state)
             if hasattr(self, "analyze_btn") and self.analyze_btn:
                 self.analyze_btn.configure(state=state)
-            
-            # 3. Disable table interaction (optional but safe)
-            # (Requires tksheet disable logic or just blocking overlay)
-            
         except Exception as e:
             print("Loading state error:", e)
 
     def _run_file_filter_in_background(self):
         from_dt = self._parse_filter_datetime(self.from_date_var.get(), self.from_time_var.get())
         to_dt   = self._parse_filter_datetime(self.to_date_var.get(), self.to_time_var.get())
-
-        if from_dt is None:
-            from_dt = datetime.datetime.min
-        if to_dt is None:
-            to_dt = datetime.datetime.max
+        if from_dt is None: from_dt = datetime.datetime.min
+        if to_dt is None:   to_dt   = datetime.datetime.max
 
         self._load_token += 1
         my_token = self._load_token
-
         self._suspend_auto_filter = True
         self._set_loading_state(True)
 
         def worker():
             try:
-                # 1. Load ALL data from SQLite (it already parses metadata)
                 all_data = self._load_json_background(None)
-                
                 out = []
                 for row, rec_dt, meta in all_data:
-                    if my_token != self._load_token:
-                        return
+                    if my_token != self._load_token: return
+                    if rec_dt is None or rec_dt < from_dt or rec_dt > to_dt: continue
 
-                    # --- Date/Time Filter ---
-                    if rec_dt is None or rec_dt < from_dt or rec_dt > to_dt:
-                        continue
-                    
-                    # --- Operator Filter ---
                     selected_operator = self.operator_var.get().strip()
                     if selected_operator != "All":
-                        sel_op_id = selected_operator.split(" - ")[0].strip()
-                        if meta["operator"] != sel_op_id:
-                            continue
+                        if meta["operator"] != selected_operator.split(" - ")[0].strip(): continue
 
-                    # --- Item Filter ---
                     selected_item = self.item_var.get().strip()
                     if selected_item != "All":
-                        sel_item_code = selected_item.split(" - ")[0].strip()
-                        if meta["item_code"] != sel_item_code.lower():
-                            continue
+                        if meta["item_code"] != selected_item.split(" - ")[0].strip().lower(): continue
 
-                    # --- Machine Filter ---
                     selected_machine = self.machine_var.get().strip()
                     if selected_machine != "All":
-                        sel_machine_code = selected_machine.split(" - ")[0].strip()
-                        if meta["machine_code"] != sel_machine_code:
-                            continue
+                        if meta["machine_code"] != selected_machine.split(" - ")[0].strip(): continue
 
-                    # --- AirGauge Filter ---
                     selected_airgauge = self.airgauge_var.get().strip()
                     if selected_airgauge != "All":
-                        # Flexible matching: "1" == "AG1"
                         db_ag = meta["airgauge"]
                         sel_ag = selected_airgauge
-                        
-                        # Strip non-digits for comparison if direct match fails
                         if db_ag != sel_ag:
                             db_clean = "".join(filter(str.isdigit, db_ag))
                             sel_clean = "".join(filter(str.isdigit, sel_ag))
-                            if not (db_clean and sel_clean and db_clean == sel_clean):
-                                continue
-                        
-                    # --- Channel Filter ---
+                            if not (db_clean and sel_clean and db_clean == sel_clean): continue
+
                     selected_channel = self.channel_var.get().strip()
                     if selected_channel != "All":
                         sel_ch = selected_channel.replace("CH", "").strip()
-                        if str(row[7]).strip() != sel_ch: # row[7] is Channel
-                            continue
+                        if str(row[7]).strip() != sel_ch: continue
 
-                    # --- Drawing Filter ---
                     selected_drawing = self.drawing_var.get().strip()
                     if selected_drawing != "All":
-                        if str(row[8]).strip() != selected_drawing: # row[8] is Drawing
-                            continue
+                        if str(row[8]).strip() != selected_drawing: continue
 
-                    # --- Customer Filter ---
                     selected_customer = self.customer_var.get().strip()
                     if selected_customer != "All":
-                        if str(row[13]).strip().lower() != selected_customer.lower(): # row[13] is Customer
-                            continue
+                        if str(row[13]).strip().lower() != selected_customer.lower(): continue
 
                     out.append((row, rec_dt, meta))
 
-                if my_token != self._load_token:
-                    return
-
+                if my_token != self._load_token: return
                 self.after(10, lambda: self._finish_loading(out))
-
             except Exception as e:
                 self.after(10, lambda: (
                     self._hide_loading(),
@@ -15603,93 +15000,54 @@ class ReportPage(ctk.CTkFrame):
         self._load_thread = threading.Thread(target=worker, daemon=True)
         self._load_thread.start()
 
-    # ---------------------------
-    # Refresh (reset + trigger reload)
-    # ---------------------------
     def refresh_table_data(self):
         try:
-            self._load_token += 1  # cancel existing loads
-            # REMOVED: self._suspend_auto_filter = True (This was preventing the filter from running)
-
-            try:
-                self._populate_cards([])
-            except Exception:
-                pass
-
+            self._load_token += 1
+            try: self._populate_cards([])
+            except Exception: pass
             self.app.status_label.configure(text="Refreshing…")
             self.data_loaded = False
-
-            # Explicitly set to False before calling to ensure it runs
             self._suspend_auto_filter = False
             self._schedule_filter(immediate=True)
         except Exception as e:
             messagebox.showerror("Refresh failed", str(e))
 
-
-    # ---------------------------
-    # Date parsing helpers
-    # ---------------------------
     def parse_record_datetime(self, date_str, time_str):
         try:
             parts = date_str.strip().split("/")
             if len(parts) == 3:
                 d, m, y = parts
                 if d == "" or m == "" or y == "": return None
-                
-                # Robust Year parsing
                 yi = int(y)
-                if yi < 100:
-                    year = 2000 + yi
-                else:
-                    year = yi
-                    
+                year = 2000 + yi if yi < 100 else yi
                 month = int(m); day = int(d)
             else:
                 return None
             th = tm = ts = 0
-            try:
-                th, tm, ts = [int(x) for x in time_str.split(":")]
-            except:
-                pass
+            try: th, tm, ts = [int(x) for x in time_str.split(":")]
+            except: pass
             return datetime.datetime(year, month, day, th, tm, ts)
-        except:
-            return None
+        except: return None
 
     def _parse_filter_datetime(self, date_str, time_str):
         try:
             parts = date_str.strip().split("/")
             if len(parts) == 3:
                 d, m, y = parts
-                
-                # Robust Year parsing
                 yi = int(y)
-                if yi < 100:
-                    year = 2000 + yi
-                else:
-                    year = yi
-                    
+                year = 2000 + yi if yi < 100 else yi
                 month = int(m); day = int(d)
             else:
                 return None
             th = tm = ts = 0
-            try:
-                th, tm, ts = [int(x) for x in time_str.split(":")]
-            except:
-                pass
+            try: th, tm, ts = [int(x) for x in time_str.split(":")]
+            except: pass
             return datetime.datetime(year, month, day, th, tm, ts)
-        except:
-            return None
-
+        except: return None
 
     def _apply_filtered_rows(self, filtered_tuples):
-        """
-        filtered_tuples: list of (display_row, file_index)
-        Update displayed table and internal visible mapping.
-        """
         try:
-            # assign S.No sequentially
-            vis = []
-            table_rows = []
+            vis = []; table_rows = []
             for i, (r, file_idx) in enumerate(filtered_tuples):
                 display = r.copy()
                 display[0] = i + 1
@@ -15697,263 +15055,196 @@ class ReportPage(ctk.CTkFrame):
                 vis.append((display, file_idx))
             self._current_visible = vis
             self._visible_file_indices = [fi for (_, fi) in vis]
-
             self._display_and_style_rows(table_rows)
             self._update_empty_state(len(table_rows))
-        except Exception:
-            pass
+        except Exception: pass
         try:
             self.app.status_label.configure(text=f"Filtered {len(self._current_visible)} records")
-        except Exception:
-            pass
+        except Exception: pass
 
-
-    # ---------------------------
-    # Get currently selected visible row indices and file_indices
-    # Returns a list of (visible_index, file_index) pairs
-    # ---------------------------
     def _get_selected_visible(self):
         try:
             vis_indices = set()
             if hasattr(self, "sheet") and self.sheet:
                 rows = self.sheet.get_selected_rows()
-                if rows:
-                    vis_indices.update(rows)
+                if rows: vis_indices.update(rows)
                 else:
                     cells = self.sheet.get_selected_cells()
-                    if cells:
-                        vis_indices.update(r for r, c in cells)
-
+                    if cells: vis_indices.update(r for r, c in cells)
             if not vis_indices and hasattr(self, "_selected_card_index") and self._selected_card_index is not None:
                 vis_indices.add(self._selected_card_index)
-
             results = []
             for v_idx in sorted(vis_indices):
                 if 0 <= v_idx < len(self._current_visible):
                     file_idx = self._current_visible[v_idx][1]
                     results.append((v_idx, file_idx))
             return results
-        except Exception:
-            return []
+        except Exception: return []
 
-    # ---------------------------
-    # Delete flow: prompt for password then delete the exact db lines
-    # ---------------------------
     def _on_delete_clicked(self):
-        # get selection
         selections = self._get_selected_visible()
         if not selections:
             messagebox.showwarning("No selection", "Select at least one row to delete.")
             return
-
-        # ask password modal
         pw = self._ask_password_modal()
-        if pw is None:
-            return  # user cancelled
+        if pw is None: return
         if pw != self.DELETE_PASSWORD:
             messagebox.showerror("Wrong password", "Password incorrect.")
             return
-
         count = len(selections)
-        msg = f"Delete {count} selected record(s) permanently from the database?"
-        if not messagebox.askyesno("Confirm Delete", msg):
+        if not messagebox.askyesno("Confirm Delete",
+                                   f"Delete {count} selected record(s) permanently from the database?"):
             return
-
         try:
             db_ids_to_delete = []
             file_indices_to_delete = set(f_idx for v_idx, f_idx in selections)
-
             for (row, rec_dt, meta) in self.all_data_rows:
                 if meta.get("file_index") in file_indices_to_delete:
                     db_id = meta.get("db_id")
-                    if db_id is not None:
-                        db_ids_to_delete.append(db_id)
-
+                    if db_id is not None: db_ids_to_delete.append(db_id)
             if not db_ids_to_delete:
                 messagebox.showerror("Error", "Could not find corresponding database records to delete.")
                 return
-
             import sqlite3
             conn = sqlite3.connect(resource_path("production_data.db"))
             cursor = conn.cursor()
             cursor.executemany("DELETE FROM measurements WHERE id = ?", [(tid,) for tid in db_ids_to_delete])
-            conn.commit()
-            conn.close()
-
+            conn.commit(); conn.close()
             if hasattr(self, "refresh_table_data"):
                 self.refresh_table_data()
-
             messagebox.showinfo("Deleted", f"Successfully deleted {count} record(s).")
         except Exception as e:
             messagebox.showerror("Delete failed", str(e))
 
     def _ask_password_modal(self):
-            """
-            Modern, professional modal password prompt returning entered string or None if cancelled.
-            """
-            # Create a Toplevel window with customtkinter for consistent theming
-            dlg = ctk.CTkToplevel(self)
-            dlg.title("Authentication Required")
-            
-            # Geometry and centering
-            w, h = 380, 240
-            # Center the modal relative to the parent window
-            x_pos = self.winfo_x() + (self.winfo_width() // 2) - (w // 2)
-            y_pos = self.winfo_y() + (self.winfo_height() // 2) - (h // 2)
-            dlg.geometry(f"{w}x{h}+{x_pos}+{y_pos}")
-            dlg.resizable(False, False)
-            
-            # Make the dialog modal
-            dlg.transient(self.winfo_toplevel())
-            dlg.grab_set()
-            
-            # Main container with padding for a clean look
-            main_frame = ctk.CTkFrame(dlg, corner_radius=0, fg_color="transparent")
-            main_frame.pack(fill="both", expand=True, padx=24, pady=24)
-            # Header Section
-            header_label = ctk.CTkLabel(
-                main_frame, 
-                text="Enter Admin Password", 
-                font=("Segoe UI", 18, "bold"),
-                text_color=("gray10", "gray90")
-            )
-            header_label.pack(anchor="w", pady=(0, 8))
-            
-            sub_label = ctk.CTkLabel(
-                main_frame,
-                text="Please verify your identity to continue.",
-                font=("Segoe UI", 11),
-                text_color=("gray40", "gray70")
-            )
-            sub_label.pack(anchor="w", pady=(0, 20))
-            # Password Entry
-            pw_var = tk.StringVar()
-            entry = ctk.CTkEntry(
-                main_frame, 
-                textvariable=pw_var, 
-                show="●", 
-                width=300, 
-                height=36,
-                font=("Segoe UI", 13),
-                placeholder_text="Password"
-            )
-            entry.pack(fill="x", pady=(0, 24))
-            entry.focus_set()
-            # Action Buttons
-            button_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
-            button_frame.pack(fill="x", side="bottom")
-            result = {"val": None}
-            def on_confirm(event=None):
-                result["val"] = pw_var.get()
-                dlg.destroy()
-            def on_cancel(event=None):
-                dlg.destroy()
-            # Confirm Button (Primary)
-            btn_confirm = ModernButton(
-                button_frame, 
-                text="Unlock", 
-                width=100, 
-                height=36,
-                font=("Segoe UI", 13, "bold"),
-                command=on_confirm
-            )
-            btn_confirm.pack(side="right", padx=(12, 0))
-            # Cancel Button (Secondary - Ghost Style)
-            btn_cancel = ModernButton(
-                button_frame, 
-                text="Cancel", 
-                width=100, 
-                height=36,
-                font=("Segoe UI", 13),
-                fg_color="transparent",
-                border_width=1,
-                border_color=("gray70", "gray40"),
-                text_color=("gray10", "gray90"),
-                hover_color=("gray90", "gray25"),
-                command=on_cancel
-            )
-            btn_cancel.pack(side="right")
-            # Bind keys for keyboard accessibility
-            dlg.bind("<Return>", on_confirm)
-            dlg.bind("<Escape>", on_cancel)
-            self.wait_window(dlg)
-            return result["val"]
-            # Header Section
+        dlg = ctk.CTkToplevel(self)
+        dlg.title("Authentication Required")
+        w, h = 380, 240
+        x_pos = self.winfo_x() + (self.winfo_width() // 2) - (w // 2)
+        y_pos = self.winfo_y() + (self.winfo_height() // 2) - (h // 2)
+        dlg.geometry(f"{w}x{h}+{x_pos}+{y_pos}")
+        dlg.resizable(False, False)
+        dlg.transient(self.winfo_toplevel())
+        dlg.grab_set()
+
+        main_frame = ctk.CTkFrame(dlg, corner_radius=0, fg_color="#fdf4ff")
+        main_frame.pack(fill="both", expand=True, padx=24, pady=24)
+
+        ctk.CTkLabel(
+            main_frame,
+            text="Enter Admin Password",
+            font=("Segoe UI", 18, "bold"),
+            text_color="#0f172a"
+        ).pack(anchor="w", pady=(0, 8))
+        ctk.CTkLabel(
+            main_frame,
+            text="Please verify your identity to continue.",
+            font=("Segoe UI", 11),
+            text_color="#64748b"
+        ).pack(anchor="w", pady=(0, 20))
+
+        pw_var = tk.StringVar()
+        entry = ctk.CTkEntry(
+            main_frame,
+            textvariable=pw_var,
+            show="●",
+            width=300,
+            height=38,
+            font=("Segoe UI", 13),
+            placeholder_text="Password",
+            border_color="#a78bfa",
+            fg_color="#ffffff",
+            text_color="#1e293b"
+        )
+        entry.pack(fill="x", pady=(0, 24))
+        entry.focus_set()
+
+        button_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        button_frame.pack(fill="x", side="bottom")
+        result = {"val": None}
+
+        def on_confirm(event=None):
+            result["val"] = pw_var.get()
+            dlg.destroy()
+
+        def on_cancel(event=None):
+            dlg.destroy()
+
+        btn_confirm = ctk.CTkButton(
+            button_frame,
+            text="Unlock",
+            width=100,
+            height=38,
+            font=("Segoe UI", 13, "bold"),
+            fg_color="#7c3aed",
+            hover_color="#6d28d9",
+            command=on_confirm
+        )
+        btn_confirm.pack(side="right", padx=(10, 0))
+
+        btn_cancel = ctk.CTkButton(
+            button_frame,
+            text="Cancel",
+            width=100,
+            height=38,
+            font=("Segoe UI", 13),
+            fg_color="transparent",
+            border_width=1,
+            border_color="#a78bfa",
+            text_color="#4f46e5",
+            hover_color="#ede9fe",
+            command=on_cancel
+        )
+        btn_cancel.pack(side="right")
+
+        dlg.bind("<Return>", on_confirm)
+        dlg.bind("<Escape>", on_cancel)
+        self.wait_window(dlg)
+        return result["val"]
 
     def _perform_delete_by_file_index(self, file_index_to_delete, visible_index):
-        """
-        Delete exact line using db_id from SQLite production_data.db.
-        """
         target_db_id = None
         for (row, rec_dt, meta) in self.all_data_rows:
             if meta.get("file_index") == file_index_to_delete:
-                target_db_id = meta.get("db_id")
-                break
-                
+                target_db_id = meta.get("db_id"); break
         if target_db_id is None:
             raise Exception("Target line not found in memory map.")
-            
-        # 1) Remove line from DB
         try:
             import sqlite3
             conn = sqlite3.connect(resource_path("production_data.db"))
             cursor = conn.cursor()
             cursor.execute("DELETE FROM measurements WHERE id = ?", (target_db_id,))
-            conn.commit()
-            conn.close()
+            conn.commit(); conn.close()
         except Exception as e:
             raise Exception(f"Database deletion failed: {e}")
 
-        # 2) Update in-memory data structures
-        new_all = []
-        for (row, rec_dt, meta) in self.all_data_rows:
-            if meta.get("file_index") == file_index_to_delete:
-                continue
-            new_all.append((row, rec_dt, meta))
-        # replace master list
+        new_all = [(r, dt, m) for (r, dt, m) in self.all_data_rows
+                   if m.get("file_index") != file_index_to_delete]
         self.all_data_rows = new_all
-
-        # 3) Decrement file_index for entries that were after deleted line
         for i, (row, rec_dt, meta) in enumerate(self.all_data_rows):
             fi = meta.get("file_index")
             if fi is not None and fi > file_index_to_delete:
                 meta["file_index"] = fi - 1
-
-        # 4) Update current visible mapping and UI (remove only visible row)
-        # remove that visible entry at visible_index
         try:
             if 0 <= visible_index < len(self._current_visible):
                 del self._current_visible[visible_index]
-        except Exception:
-            pass
-        # rebuild table rows from current visible mapping with new S.No
-        table_rows = []
-        new_vis = []
+        except Exception: pass
+        table_rows = []; new_vis = []
         for i, (r, fi) in enumerate(self._current_visible):
-            display = r.copy()
-            display[0] = i + 1
-            table_rows.append(display)
-            new_vis.append((display, fi))
+            display = r.copy(); display[0] = i + 1
+            table_rows.append(display); new_vis.append((display, fi))
         self._current_visible = new_vis
         self._visible_file_indices = [fi for (_, fi) in new_vis]
-
         try:
             self._populate_cards(table_rows)
             self._update_empty_state(len(table_rows))
-        except Exception:
-            pass
+        except Exception: pass
+        try: self.app.status_label.configure(text="Deleted record and updated view.")
+        except Exception: pass
 
-        try:
-            self.app.status_label.configure(text="Deleted record and updated view.")
-        except Exception:
-            pass
-
-    # ---------------------------
-    # Reload filter files (items/operators/machines/airgauge)
-    # ---------------------------
     def reload_filter_files(self):
         self._load_filter_data_files()
-        
+
         def safe_update_combo(combo, values):
             try:
                 combo._base_values = list(values)
@@ -15969,11 +15260,7 @@ class ReportPage(ctk.CTkFrame):
         safe_update_combo(self.machine_combo, self._machines_display_list())
         safe_update_combo(self.airgauge_combo, self._load_airgauge_ids())
 
-
-        
     def open_analyze_page(self):
-        """Collect readings from the currently filtered table and open AnalysisPage."""
-            # Save ReportPage filter values for AnalysisPage
         self.app.last_report_filters = {
             "from_date": self.from_date_var.get(),
             "from_time": self.from_time_var.get(),
@@ -15988,74 +15275,47 @@ class ReportPage(ctk.CTkFrame):
             "customer":  self.customer_var.get(),
         }
         try:
-            # Show loading immediately
             try:
                 self.app.status_label.configure(text="Preparing Analysis...")
                 self.update_idletasks()
             except: pass
-
-            # Prefer using stored filtered rows from source of truth
             readings = []
-            
-            # Use _current_visible which contains (row_tuple, file_index)
-            # index 3 is Reading in the internal data structure
             source = getattr(self, "_current_visible", [])
-            # Also gather UTL/LTL from the full all_data_rows metadata
             all_rows_meta = {i: m for i, (_, _, m) in enumerate(getattr(self, "all_data_rows", []))}
-            ltl_vals = []
-            utl_vals = []
+            ltl_vals = []; utl_vals = []
             for row_item in source:
-                r = row_item[0]
-                fi = row_item[1]  # file_index == position in all_data_rows
+                r = row_item[0]; fi = row_item[1]
                 try:
                     val = float(r[3])
                     readings.append(val)
                     meta = all_rows_meta.get(fi, {})
                     ltl_vals.append(meta.get("ltl", ""))
                     utl_vals.append(meta.get("utl", ""))
-                except Exception:
-                    pass
-
-            # Only show LTL/UTL if ALL rows in the filtered data agree on the same value.
-            # If mixed values exist → leave blank (show nothing on Analysis page).
-            # Exclude zeros and USB placeholder "000.0000"
+                except Exception: pass
             valid_ltls = [v for v in ltl_vals if v and str(v).strip() not in ("", "0", "0.0", "000.0000", "00.0000", "000.000")]
             valid_utls = [v for v in utl_vals if v and str(v).strip() not in ("", "0", "0.0", "000.0000", "00.0000", "000.000")]
             row_ltl = valid_ltls[0] if valid_ltls and len(set(valid_ltls)) == 1 else ""
             row_utl = valid_utls[0] if valid_utls and len(set(valid_utls)) == 1 else ""
-            
             if not readings:
-                self._show_no_readings_alert()
-                return
-
-            # Open AnalysisPage inside content_frame with loading overlay
-            # Set manual_dismiss=True because AnalysisPage uses threads to build charts
+                self._show_no_readings_alert(); return
             self.app._switch_page_with_overlay(
                 lambda: self._do_open_analysis(readings, row_ltl, row_utl),
                 manual_dismiss=True
             )
-
         except Exception as e:
             print("Error opening analysis:", e)
             messagebox.showerror("Error", f"Could not open analysis: {e}")
 
     def _do_open_analysis(self, readings, row_ltl, row_utl):
-        """Inner function: actually builds and packs AnalysisPage (called inside overlay)."""
         for w in self.app.content_frame.winfo_children():
-            if isinstance(w, AnalysisPage):
-                w.destroy()
-            else:
-                w.pack_forget()
-
+            if isinstance(w, AnalysisPage): w.destroy()
+            else: w.pack_forget()
         ap = AnalysisPage(self.app.content_frame, self.app, readings=readings,
-                          title="📊 SPC Analysis",
-                          row_ltl=row_ltl, row_utl=row_utl)
+                          title="📊 SPC Analysis", row_ltl=row_ltl, row_utl=row_utl)
         ap.pack(fill="both", expand=True)
-
         try:
             self.app.status_label.configure(text=f"Opened Analysis ({len(readings)} readings)")
-        except Exception:
-            pass
+        except Exception: pass
 
     def _show_no_readings_alert(self):
         try:
@@ -16065,43 +15325,29 @@ class ReportPage(ctk.CTkFrame):
             win.resizable(False, False)
             win.transient(self)
             win.grab_set()
-            
-            # Center on screen
             try:
                 win.update_idletasks()
                 x = (self.winfo_screenwidth() - 400) // 2
                 y = (self.winfo_screenheight() - 180) // 2
                 win.geometry(f"+{x}+{y}")
             except: pass
-
-            bg = ctk.CTkFrame(win, fg_color="white", corner_radius=0)
+            bg = ctk.CTkFrame(win, fg_color="#fdf4ff", corner_radius=0)
             bg.pack(fill="both", expand=True)
-
-            # Warning Icon/Text
-            ctk.CTkLabel(bg, text="⚠️", font=("Segoe UI", 24, "bold"), text_color="#FFB300").pack(pady=(20, 5))
-            ctk.CTkLabel(bg, text="No valid numerical readings found in current view.", 
-                         font=("Segoe UI", 11, "bold"), text_color="#333333").pack(pady=5)
-
-            ModernButton(bg, text="OK", width=90, fg_color="#1976D2", hover_color="#1565C0",
+            ctk.CTkLabel(bg, text="⚠️", font=("Segoe UI", 24, "bold"), text_color="#7c3aed").pack(pady=(20, 5))
+            ctk.CTkLabel(bg, text="No valid numerical readings found in current view.",
+                         font=("Segoe UI", 11, "bold"), text_color="#1e293b").pack(pady=5)
+            ctk.CTkButton(bg, text="OK", width=90,
+                          fg_color="#7c3aed", hover_color="#6d28d9",
                           command=win.destroy).pack(pady=(15, 20))
-            
             win.focus_force()
-        except:
-            pass
+        except: pass
 
     def go_back(self, event=None):
-        if not self.winfo_viewable():
-            return
-        # ReportPage usually has filters, check focus
+        if not self.winfo_viewable(): return
         focused = self.focus_get()
-        if isinstance(focused, (ctk.CTkEntry, tk.Entry)):
-            return
-        # If open_calendar_popup is active, maybe don't go back?
-        # But simple focus check should cover generic inputs only.
-        try:
-            self.app.load_settings()
-        except:
-            pass
+        if isinstance(focused, (ctk.CTkEntry, tk.Entry)): return
+        try: self.app.load_settings()
+        except: pass
 
     def destroy(self):
         super().destroy()
