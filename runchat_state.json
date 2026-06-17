@@ -1,28 +1,8 @@
 {
-  "chart_count": 6,
+  "chart_count": 1,
   "saved_selections": [
     {
-      "air_id": "34",
-      "channel": "None"
-    },
-    {
-      "air_id": "233",
-      "channel": "None"
-    },
-    {
       "air_id": "432235",
-      "channel": "None"
-    },
-    {
-      "air_id": "45634563464543",
-      "channel": "None"
-    },
-    {
-      "air_id": "34",
-      "channel": "None"
-    },
-    {
-      "air_id": "233",
       "channel": "None"
     }
   ]

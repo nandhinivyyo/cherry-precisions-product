@@ -10546,8 +10546,9 @@ class RunChatPage(ctk.CTkFrame):
         self.scrollable_frame.grid_columnconfigure(0, weight=1)
         self.scrollable_frame.grid_columnconfigure(1, weight=1)
 
-        self.add_button = ModernButton(self.scrollable_frame, text="+", font=("Segoe UI", 18, "bold"),
-                                    width=5, command=self.add_chart)
+        self.add_button = ctk.CTkButton(self.scrollable_frame, text="+", font=("Segoe UI", 24, "bold"),
+                                        fg_color="#9b82d4", hover_color="#8b5cf6", text_color="#ffffff",
+                                        corner_radius=8, height=48, command=self.add_chart)
         self.add_button.grid(row=0, column=0, columnspan=2, pady=10, sticky="ew")
 
         # === Load previous layout ===
@@ -10635,9 +10636,12 @@ class RunChatPage(ctk.CTkFrame):
         for f in self.chart_frames:
             f.grid_forget()
 
-        # Ensure all frames have consistent appearance
+        # Ensure all frames have consistent appearance (no harsh borders)
         for f in self.chart_frames:
-            f.configure(bg="#fff", bd=1, relief="solid")
+            if isinstance(f, ctk.CTkFrame):
+                f.configure(fg_color="#f8f7fb")
+            else:
+                f.configure(bg="#f8f7fb", bd=0, highlightthickness=0)
 
         # Calculate number of rows needed
         cols = 2
@@ -10679,48 +10683,47 @@ class RunChatPage(ctk.CTkFrame):
     # ------------------------------------------------------
     def add_chart(self):
         idx = len(self.chart_frames)
-        frame = tk.Frame(
-            self.scrollable_frame,
-            bg="#fff",
-            bd=1,
-            relief="solid",
-            highlightbackground="#CCCCCC",
-            highlightthickness=1,
-            height=280  # slightly taller
-        )
+        # Main container with a fixed height and a very light purple border
+        frame = ctk.CTkFrame(self.scrollable_frame, fg_color="#f8f7fb", corner_radius=12, border_width=2, border_color="#f3e8ff", height=420)
         frame.pack_propagate(False)
-        frame._chart_index = idx   # IMPORTANT: store index on frame
+        frame._chart_index = idx
 
+        # Card 1: Header
+        header_card = ctk.CTkFrame(frame, fg_color="#ffffff", corner_radius=12, border_width=1, border_color="#e2e8f0")
+        header_card.pack(fill="x", padx=16, pady=(16, 8))
 
         # --- Add internal scrollable area (for chart + table) ---
-        inner_canvas = tk.Canvas(frame, bg="#fff", highlightthickness=0)
+        inner_canvas = tk.Canvas(frame, bg="#f8f7fb", highlightthickness=0)
         inner_scrollbar = ttk.Scrollbar(frame, orient="vertical", command=inner_canvas.yview)
-        scrollable_inner = tk.Frame(inner_canvas, bg="#fff")
+        scrollable_inner = tk.Frame(inner_canvas, bg="#f8f7fb")
 
         inner_canvas.configure(yscrollcommand=inner_scrollbar.set)
-        inner_canvas.pack(side="left", fill="both", expand=True)
-        inner_scrollbar.pack(side="right", fill="y")
-
+        # Pack canvas with padding to avoid overlapping the rounded corners of 'frame'
+        inner_canvas.pack(side="left", fill="both", expand=True, padx=(16, 0), pady=(0, 16))
+        # The scrollbar is hidden to match the pristine UI look, but mouse scrolling works flawlessly
+        
         inner_window = inner_canvas.create_window((0, 0), window=scrollable_inner, anchor="nw")
 
-        # Update scroll region dynamically
         def update_inner_scroll(_=None):
             inner_canvas.configure(scrollregion=inner_canvas.bbox("all"))
             inner_canvas.itemconfig(inner_window, width=inner_canvas.winfo_width())
-        # Enable mouse wheel scrolling
+            
         def _on_mousewheel(event):
             inner_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
 
         inner_canvas.bind("<Enter>", lambda e: inner_canvas.bind_all("<MouseWheel>", _on_mousewheel))
         inner_canvas.bind("<Leave>", lambda e: inner_canvas.unbind_all("<MouseWheel>"))
 
-
         scrollable_inner.bind("<Configure>", update_inner_scroll)
         inner_canvas.bind("<Configure>", update_inner_scroll)
 
-        # Use scrollable_inner as the actual parent for chart content
-        content_parent = scrollable_inner
+        # Card 2: Chart (inside scrollable)
+        chart_card = ctk.CTkFrame(scrollable_inner, fg_color="#ffffff", corner_radius=12, border_width=1, border_color="#e2e8f0")
+        chart_card.pack(fill="x", padx=(0, 16), pady=8)
 
+        # Card 3: Table (inside scrollable)
+        table_card = ctk.CTkFrame(scrollable_inner, fg_color="#ffffff", corner_radius=12, border_width=1, border_color="#e2e8f0")
+        table_card.pack(fill="x", padx=(0, 16), pady=(8, 16))
 
         self.chart_frames.append(frame)
 
@@ -10730,7 +10733,7 @@ class RunChatPage(ctk.CTkFrame):
             self.saved_selections.append({'air_id': None, 'channel': None})
 
         chart_info = {'win_size': 10, 'start': 0, 'auto_follow': True}
-        self.build_chart_panel(content_parent, idx, chart_info, frame)
+        self.build_chart_panel(idx, chart_info, frame, header_card, chart_card, table_card)
         self.chart_info.append(chart_info)
 
         self.fix_grid_layout()
@@ -10739,225 +10742,241 @@ class RunChatPage(ctk.CTkFrame):
     # ------------------------------------------------------
     # Core chart builder
     # ------------------------------------------------------
-    def build_chart_panel(self, parent, idx, chart_info, outer_frame):
-        # === Top control row (selectors on left, buttons on right) ===
-        control = tk.Frame(parent, bg="#f8f9fa", highlightbackground="#d0d0d0", highlightthickness=1)
-        control.pack(fill="x", pady=(4, 4), padx=5)
+    def build_chart_panel(self, idx, chart_info, outer_frame, header_card, chart_card, table_card):
+        # === Header Card ===
+        control = tk.Frame(header_card, bg="#ffffff")
+        control.pack(fill="x", pady=12, padx=16)
 
         expanded = False
+        def toggle_expand():
+            nonlocal expanded
+            if not expanded:
+                for f in list(self.chart_frames):
+                    if f is not outer_frame:
+                        f.grid_remove()
+                outer_frame.configure(height=800)
+                outer_frame.grid(row=0, column=0, columnspan=2, sticky="nsew", padx=8, pady=8)
+                try: self.add_button.grid_forget()
+                except: pass
+                expand_btn.configure(text="🗗")
+                cpk_label.pack(side="right", padx=(0, 24))
+                op_label.pack(side="right", padx=(0, 24))
+                expanded = True
+            else:
+                outer_frame.configure(height=420)
+                self.fix_grid_layout()
+                expand_btn.configure(text="□")
+                op_label.pack_forget()
+                cpk_label.pack_forget()
+                expanded = False
+                try: self.reposition_add_button()
+                except: pass
 
         def close_chart():
             try:
                 removed_index = getattr(outer_frame, "_chart_index", None)
                 if outer_frame in self.chart_frames:
                     self.chart_frames.remove(outer_frame)
-                outer_frame.destroy()
-
+                
                 if removed_index is not None:
                     if removed_index < len(self.chart_info):
-                        del self.chart_info[removed_index]
+                        try: del self.chart_info[removed_index]
+                        except: pass
                     if removed_index < len(self.chart_sections):
-                        del self.chart_sections[removed_index]
+                        try: del self.chart_sections[removed_index]
+                        except: pass
                     if removed_index in self.global_data:
-                        del self.global_data[removed_index]
+                        try: del self.global_data[removed_index]
+                        except: pass
+                
+                try: outer_frame.destroy()
+                except: pass
 
                 self.reindex_after_removal(removed_index)
             except Exception as e:
                 print("Close chart error:", e)
-        
-        def toggle_expand():
-            nonlocal expanded
-            if not expanded:
-                outer_frame.configure(height=600)
-                for f in list(self.chart_frames):
-                    if f is not outer_frame:
-                        f.grid_remove()
-                outer_frame.grid(row=0, column=0, columnspan=2, sticky="nsew", padx=8, pady=8)
-                try:
-                    self.add_button.grid_forget()
-                except Exception:
-                    pass
-                expand_btn.config(text="🗗")
-                
-                # Show extended info (initially just show last known or Guest)
-                # It will update on next data packet in update_with_parsed
-                op_label.pack(side="left", padx=10)
-                cpk_label.pack(side="left", padx=10)
-                
-                expanded = True
-            else:
-                outer_frame.configure(height=260)
-                self.fix_grid_layout()
-                expand_btn.config(text="🗖")
-                
-                # Hide extended info
-                op_label.pack_forget()
-                cpk_label.pack_forget()
-                
-                expanded = False
-                try:
-                    self.reposition_add_button()
-                except Exception:
-                    pass
 
-        # --- AirGauge selector (left side)
-        tk.Label(control, text="AirGauge:", bg="#f8f9fa", font=("Segoe UI", 11)).pack(side="left", padx=(8, 0))
+        # ─── Right Frame (Packed FIRST so it never gets clipped) ───
+        right_frame = tk.Frame(control, bg="#ffffff")
+        right_frame.pack(side="right")
+
+        close_btn = ctk.CTkButton(
+            right_frame, text="✖", font=("Segoe UI", 16, "bold"),
+            width=36, height=36, corner_radius=8,
+            fg_color="#ffffff", text_color="#ef4444", hover_color="#fee2e2",
+            border_width=1, border_color="#e2e8f0",
+            command=close_chart
+        )
+        close_btn.pack(side="right", padx=(10, 0))
+
+        expand_btn = ctk.CTkButton(
+            right_frame, text="□", font=("Segoe UI", 20, "bold"),
+            width=36, height=36, corner_radius=8,
+            fg_color="#ffffff", text_color="#1e293b", hover_color="#f1f5f9",
+            border_width=1, border_color="#e2e8f0",
+            command=toggle_expand
+        )
+        expand_btn.pack(side="right", padx=(10, 0))
+
+        cpk_var = tk.StringVar(value="CpK: waiting (0/50)")
+        cpk_label = tk.Label(right_frame, textvariable=cpk_var, bg="#ffffff", fg="#9333ea", font=("Segoe UI", 11, "bold"))
+        
+        op_var = tk.StringVar(value="Operator: --")
+        op_label = tk.Label(right_frame, textvariable=op_var, bg="#ffffff", fg="#2563eb", font=("Segoe UI", 11, "bold"))
+
+        # ─── Left Frame (Takes up remaining space) ───
+        left_frame = tk.Frame(control, bg="#ffffff")
+        left_frame.pack(side="left", fill="x", expand=True)
+
+        # --- AirGauge selector ---
+        tk.Label(left_frame, text="AirGauge:", bg="#ffffff", font=("Segoe UI", 11, "bold"), fg="#1e293b").pack(side="left", padx=(0, 6))
         air_var = tk.StringVar()
-        air_box = ttk.Combobox(control, textvariable=air_var,
-                               values=sorted(list(self.comp_map.keys())), state="readonly", width=12)
-        air_box.pack(side="left", padx=(5, 10))
+        air_box = ttk.Combobox(left_frame, textvariable=air_var,
+                               values=sorted(list(self.comp_map.keys())), state="readonly", width=8, font=("Segoe UI", 11))
+        air_box.pack(side="left", padx=(0, 20))
 
         # --- Channel selector ---
-        tk.Label(control, text="Channel:", bg="#f8f9fa", font=("Segoe UI", 11)).pack(side="left", padx=(5, 0))
+        tk.Label(left_frame, text="Channel:", bg="#ffffff", font=("Segoe UI", 11, "bold"), fg="#1e293b").pack(side="left", padx=(0, 6))
         ch_var = tk.StringVar()
-        ch_box = ttk.Combobox(control, textvariable=ch_var,
-                              values=[], state="readonly", width=8)
-        ch_box.pack(side="left", padx=(5, 10))
-
+        ch_box = ttk.Combobox(left_frame, textvariable=ch_var,
+                              values=[], state="readonly", width=8, font=("Segoe UI", 11))
+        ch_box.pack(side="left", padx=(0, 20))
 
         # --- Latest value box ---
-        val_frame = tk.Frame(control, bg="#ffffff", bd=1, relief="solid")
-        val_frame.pack(side="left", padx=(15, 5))
+        val_frame = tk.Frame(left_frame, bg="#ffffff", bd=1, relief="solid", highlightbackground="#e2e8f0", highlightthickness=1)
+        val_frame.pack(side="left", padx=0)
         latest_var = tk.StringVar(value="--")
-        latest_label = tk.Label(val_frame, textvariable=latest_var, bg="#fff",
-                                fg="navy", font=("Segoe UI", 13, "bold"), width=10)
-        latest_label.pack(padx=3, pady=2)
+        latest_label = tk.Label(val_frame, textvariable=latest_var, bg="#ffffff",
+                                fg="#1e293b", font=("Segoe UI", 12), width=6)
+        latest_label.pack(padx=8, pady=2)
 
-        # --- Spacer (to push buttons to right) ---
-        tk.Label(control, text="", bg="#f8f9fa").pack(side="left", expand=True)
-
-        # --- Buttons (rightmost side) ---
-        expand_btn = tk.Button(control, text="🗖", font=("Segoe UI", 11, "bold"),
-                               bg="#E0E0E0", width=3, relief="flat", command=toggle_expand)
-        expand_btn.pack(side="right", padx=(5, 3))
-
-        close_btn = tk.Button(control, text="✖", font=("Segoe UI", 11, "bold"),
-                              bg="#FFCDD2", width=3, relief="flat", command=close_chart)
-        close_btn.pack(side="right", padx=(0, 5))
-
-        # --- Expanded View Labels (Operator & CpK) ---
-        # Only visible when expanded
-        op_var = tk.StringVar(value="Operator: --")
-        op_label = tk.Label(control, textvariable=op_var, bg="#f8f9fa", fg="blue", font=("Segoe UI", 11, "bold"))
-        
-        cpk_var = tk.StringVar(value="CpK: --")
-        cpk_label = tk.Label(control, textvariable=cpk_var, bg="#f8f9fa", fg="purple", font=("Segoe UI", 11, "bold"))
-
-
-        # matplotlib chart
-        fig, ax = plt.subplots(figsize=(5.2, 2))
+        # === Chart Card ===
+        fig, ax = plt.subplots(figsize=(6.0, 2.6))
+        fig.patch.set_facecolor('#ffffff')
+        ax.set_facecolor('#ffffff')
         chart_info.update({'ax': ax, 'fig': fig})
-        chart_info['canvas'] = FigureCanvasTkAgg(fig, master=parent)
-        chart_info['canvas'].get_tk_widget().pack(fill="x")
-        # === Move Left / Right Buttons (scroll window) ===
-        nav_frame = tk.Frame(parent, bg="#fff")
-        nav_frame.pack(fill="x", pady=(0, 5))
+        chart_info['canvas'] = FigureCanvasTkAgg(fig, master=chart_card)
+        chart_info['canvas'].get_tk_widget().pack(fill="x", pady=(10, 0), padx=20)
+
+        nav_frame = tk.Frame(chart_card, bg="#ffffff")
+        nav_frame.pack(fill="x", pady=10, padx=20)
 
         def move_left():
             data_len = len(self.global_data[idx]["x"])
-            if data_len == 0:
-                return
+            if data_len == 0: return
             chart_info["auto_follow"] = False
             chart_info["start"] = max(0, chart_info["start"] - 1)
             chart_info["update_visible"]()
 
         def move_right():
             data_len = len(self.global_data[idx]["x"])
-            if data_len == 0:
-                return
+            if data_len == 0: return
             max_start = max(0, data_len - chart_info["win_size"])
             chart_info["start"] = min(max_start, chart_info["start"] + 1)
             if chart_info["start"] >= max_start:
                 chart_info["auto_follow"] = True
             chart_info["update_visible"]()
 
-        ModernButton(nav_frame, text="◀", font=("Segoe UI", 11, "bold"), fg_color="#E0E0E0", text_color="black", hover_color="#BDBDBD", width=30, command=move_left).pack(side="left", padx=5)
-        ModernButton(nav_frame, text="▶", font=("Segoe UI", 11, "bold"), fg_color="#E0E0E0", text_color="black", hover_color="#BDBDBD", width=30, command=move_right).pack(side="right", padx=5)
+        l_btn = ctk.CTkButton(nav_frame, text="◀", font=("Segoe UI", 16), width=32, height=32, corner_radius=8, fg_color="#ffffff", text_color="#5b21b6", border_width=1, border_color="#e2e8f0", hover_color="#f3f0f8", command=move_left)
+        l_btn.pack(side="left")
+        
+        r_btn = ctk.CTkButton(nav_frame, text="▶", font=("Segoe UI", 16), width=32, height=32, corner_radius=8, fg_color="#ffffff", text_color="#5b21b6", border_width=1, border_color="#e2e8f0", hover_color="#f3f0f8", command=move_right)
+        r_btn.pack(side="right")
+
+        chart_info["limit_annotations"] = []
 
         # style setup
         def setup_chart():
             ax.clear()
+            for ann in chart_info.get("limit_annotations", []):
+                try: ann.remove()
+                except: pass
+            chart_info["limit_annotations"] = []
+
+            ax.set_facecolor("#ffffff")
+            ax.spines['top'].set_visible(False)
+            ax.spines['right'].set_visible(False)
+            ax.spines['bottom'].set_visible(True)
+            ax.spines['left'].set_visible(True)
+            ax.spines['bottom'].set_color('#1e293b')
+            ax.spines['left'].set_color('#1e293b')
+
+            ax.grid(True, axis="both", linestyle="--", linewidth=0.6, color="#e2e8f0", zorder=0)
+
             try:
                 ag, ch = air_var.get(), ch_var.get()
                 spec = self.comp_map.get(ag, {}).get(ch, {})
                 
-                # Robust guard: Ensure basic tolerance keys exist
                 if spec and "drawing_value" in spec and "low_tolerance" in spec and "high_tolerance" in spec:
                     c = float(spec["drawing_value"])
                     lo = float(spec["low_tolerance"])
                     hi = float(spec["high_tolerance"])
                     diff = hi - lo
-                    m = diff * 0.5 if diff >= 1e-9 else 1.0
+                    pad = diff * 1.0 if diff >= 1e-9 else 1.0
 
-                    ax.axhline(c, color="black", linewidth=1, alpha=0.5)
-                    
-                    # --- Determine Colors based on Type ---
-                    comp_type = spec.get("type", "Shaft")
-                    if comp_type == "Hole":
-                        # Hole: Low=Orange (Rework), High=Red (Reject)
-                        low_color, high_color = "#D4700A", "#C0392B"
-                        low_bg, high_bg = "#F5C98A", "#F4A8A8"
-                    else:
-                        # Shaft: Low=Red (Reject), High=Orange (Rework)
-                        low_color, high_color = "#C0392B", "#D4700A"
-                        low_bg, high_bg = "#F4A8A8", "#F5C98A"
+                    c_high = "#ef4444" # red
+                    c_targ = "#3b82f6" # blue
+                    c_low  = "#f59e0b" # orange
+                    bg_high = "#fff5f5" # very pale red
+                    bg_mid  = "#f0fdf4" # very pale green
+                    bg_low  = "#fffbeb" # very pale orange
 
-                    ax.axhspan(lo - m, lo, color=low_bg)
-                    ax.axhspan(lo, hi, color="#AADDAA") # Moderate green for safe zone
-                    ax.axhspan(hi, hi + m, color=high_bg)
+                    ax.axhspan(hi, hi + pad, color=bg_high, alpha=0.6, zorder=1)
+                    ax.axhspan(lo, hi,       color=bg_mid,  alpha=0.6, zorder=1)
+                    ax.axhspan(lo - pad, lo, color=bg_low,  alpha=0.6, zorder=1)
 
-                    ax.axhline(lo, color=low_color, ls="--", linewidth=1.8)
-                    ax.axhline(hi, color=high_color, ls="--", linewidth=1.8)
-                    
-                    # Set explicit limits based on tolerances
-                    ax.set_ylim(lo - m, hi + m)
-                    ax.set_yticks([lo, c, hi])
-                    ax.set_yticklabels([f"{lo:.3f}", f"{c:.3f}", f"{hi:.3f}"])
-                    ax.tick_params(axis='y', labelsize=7)
+                    ax.axhline(hi, color=c_high, linewidth=1.2, linestyle="--", zorder=2)
+                    ax.axhline(c,  color=c_targ, linewidth=1.2, linestyle="--", zorder=2)
+                    ax.axhline(lo, color=c_low,  linewidth=1.2, linestyle="--", zorder=2)
+
+                    ax.set_ylim(lo - pad, hi + pad)
+                    ax.tick_params(axis='y', labelsize=10, colors="#1e293b", pad=8)
+                    ax.tick_params(axis='x', labelsize=10, colors="#1e293b", pad=8)
                 else:
-                    # Clear fallback when no spec
                     ax.set_ylim(0, 1)
                     ax.set_yticks([0, 0.5, 1])
                     ax.set_yticklabels(["0.000", "No Spec", "1.000"])
-                    ax.text(0.5, 0.5, "Please Select Valid Configuration", ha='center', va='center', alpha=0.5)
+                    
+                    # Draw subtle line at 0.5
+                    ax.axhline(0.5, color="#cbd5e1", linewidth=1.2, linestyle="--", zorder=2)
+                    ann = ax.annotate("Valid Configuration", xy=(0.05, 0.5), xycoords=("axes fraction", "data"),
+                                      fontsize=10, color="#94a3b8", va="center", ha="left", clip_on=False, annotation_clip=False)
+                    chart_info["limit_annotations"].append(ann)
+
+                    ax.tick_params(axis='x', labelsize=10, colors="#1e293b", pad=8)
+                    ax.tick_params(axis='y', labelsize=10, colors="#1e293b", pad=8)
 
             except Exception as e:
                 print(f"Setup chart error: {e}")
                 ax.set_ylim(0, 100)
 
-            ax.grid(True, linestyle="--", alpha=0.5)
-            chart_info["line"], = ax.plot([], [], marker="o", color="black", markersize=4, linewidth=1.5)
+            chart_info["line"], = ax.plot([], [], marker="o", color="#10b981", markersize=4, 
+                                          linestyle="", zorder=3)
             chart_info["texts"] = [] 
-
-
 
         setup_chart()
         try:
-            fig.tight_layout(pad=0.8)
+            fig.tight_layout(pad=0.5, rect=[0.02, 0, 0.98, 1])
         except Exception:
             pass
 
         # === Enhanced Data Table ===
         # === Bordered Data Table using Canvas ===
         # Colors
-        ROW_COLORS  = ["#F0F4FF", "#FFFFFF"]   # alternate: light blue-white, pure white
-        HEADER_BG   = "#1565C0"                 # same blue as USB page header
-        HEADER_FG   = "white"
-        BORDER_CLR  = "#BDBDBD"
-        CELL_FG     = "#212121"
-        LABEL_W     = 72    # px width of the row-label column
-        MIN_COL_W   = 75    # minimum px per value column
-        ROW_H       = 22    # px per row
-        WIN         = chart_info["win_size"]   # number of value columns = 10
+        ROW_COLORS  = ["#f8fafc", "#ffffff"]
+        HEADER_BG   = "#f1f5f9"
+        HEADER_FG   = "#1e293b"
+        BORDER_CLR  = "#e2e8f0"
+        CELL_FG     = "#1e293b"
+        LABEL_W     = 90
+        MIN_COL_W   = 75
+        ROW_H       = 28
+        WIN         = chart_info["win_size"]
 
-        # outer frame — gives us the border around the whole table
-        table_frame = tk.Frame(parent, bg=BORDER_CLR, bd=1, relief="flat")
-        table_frame.pack(pady=(4, 4), fill="x", padx=5)
-
-        # canvas + horizontal scrollbar (in case very narrow screen)
-        tbl_canvas  = tk.Canvas(table_frame, bg="white", highlightthickness=0,
-                                height=(ROW_H * 6 + 1))  # 1 header + 5 data rows
-        tbl_canvas.pack(side="top", fill="x", expand=True)
+        # Outer frame removed, we pack directly to table_card with rounded corners
+        tbl_canvas  = tk.Canvas(table_card, bg="#ffffff", highlightthickness=0,
+                                height=(ROW_H * 6 + 1))
+        tbl_canvas.pack(side="top", fill="x", expand=True, padx=2, pady=2)
 
         # We'll draw everything on the canvas as text + rectangles.
         # Store column label widget references so update_visible can refresh them.
@@ -11031,7 +11050,7 @@ class RunChatPage(ctk.CTkFrame):
         # initial draw after geometry settles
         self.after(80, lambda: _draw_table(tbl_canvas.winfo_width() or 700))
 
-        chart_info['table_frame']         = table_frame
+        chart_info['table_frame']         = table_card
         chart_info['tbl_canvas']          = tbl_canvas
         chart_info['cell_vars']           = cell_vars
         chart_info['_refresh_cells']      = _refresh_cells
@@ -11086,33 +11105,27 @@ class RunChatPage(ctk.CTkFrame):
             chart_info["texts"] = []
 
             if xw:
-                ax.set_xlim(min(xw) - 0.1, max(xw) + 0.1)
+                ax.set_xlim(min(xw) - 0.2, max(xw) + 0.2)
                 chart_info["line"].set_data(xw, yw)
                 
-                # Add text labels for points
-                # Re-calculate color logic for text to match point status
                 try:
                     spec = self.comp_map.get(air_var.get(), {}).get(ch_var.get(), {})
                     lo = float(spec.get("low_tolerance", 0))
                     hi = float(spec.get("high_tolerance", 0))
-                    c_type = spec.get("type", "Shaft")
                 except:
                     lo, hi = 0, 0
-                    c_type = "Shaft"
 
                 for xi, yi in zip(xw, yw):
-                    # Determine color
-                    color = "green"
-                    if yi < lo:
-                        color = "red" if c_type == "Shaft" else "orange"
-                    elif yi > hi:
-                        color = "orange" if c_type == "Shaft" else "red"
+                    color = "#10b981"
+                    if yi < lo or yi > hi:
+                        color = "#ef4444"
                     
-                    # Add offset to y for label position
-                    offset_y = (hi - lo) * 0.05 if (hi - lo) > 0 else 0.001
+                    offset_y = (hi - lo) * 0.08 if (hi - lo) > 0 else 0.002
                     
-                    t_obj = ax.text(xi, yi + offset_y, f"{yi:.3f}", 
-                                    color=color, fontsize=8, ha='center', va='bottom', fontweight='bold')
+                    t_obj = ax.text(
+                        xi, yi - offset_y, f"{yi:.3f}", 
+                        color=color, fontsize=8, ha='center', va='top', fontweight='bold'
+                    )
                     chart_info["texts"].append(t_obj)
 
                 chart_info["canvas"].draw()
