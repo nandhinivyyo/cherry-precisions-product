@@ -13447,7 +13447,7 @@ class ReportPage(ctk.CTkFrame):
 
     def _build_header(self):
         # Configure page background
-        self.configure(fg_color="#f8fafc")
+        self.configure(fg_color="#f1f5f9")
 
         # Full-width white header bar (matches reference image)
         header_strip = ctk.CTkFrame(self, fg_color="#ffffff", corner_radius=0, border_width=0)
@@ -13869,10 +13869,10 @@ class ReportPage(ctk.CTkFrame):
         # Glass card wrapper
         self.filter_card = ctk.CTkFrame(
             self,
-            fg_color="#f8faff",
+            fg_color="#f3e8ff",
             corner_radius=20,
-            border_width=1,
-            border_color="#cbd5f0"
+            border_width=2,
+            border_color="#7c3aed"
         )
         self.filter_card.pack(fill="x", padx=24, pady=(16, 8))
 
@@ -13884,12 +13884,12 @@ class ReportPage(ctk.CTkFrame):
             card_hdr,
             text="🔍 Filter & Sort Parameters",
             font=("Segoe UI", 15, "bold"),
-            text_color="#1e293b",
+            text_color="#2e1065",
             anchor="w"
         ).pack(anchor="w")
 
         # Thin divider
-        ctk.CTkFrame(self.filter_card, fg_color="#f3f4f6", height=1, corner_radius=0).pack(fill="x")
+        ctk.CTkFrame(self.filter_card, fg_color="#c084fc", height=1, corner_radius=0).pack(fill="x")
 
         # Grid container
         grid_frame = ctk.CTkFrame(self.filter_card, fg_color="transparent")
@@ -13904,7 +13904,7 @@ class ReportPage(ctk.CTkFrame):
                 parent,
                 text=text.upper(),
                 font=("Segoe UI", 10, "bold"),
-                text_color="#64748b",
+                text_color="#5b21b6",
                 anchor="w"
             ).pack(anchor="w", pady=(0, 4))
 
@@ -14003,7 +14003,7 @@ class ReportPage(ctk.CTkFrame):
             fg_color="#ffffff",
             corner_radius=11,
             border_width=1,
-            border_color="#cbd5f0",
+            border_color="#c084fc",
             height=38
         )
         date_wrap.grid(row=0, column=0, sticky="nsew", padx=(0, 6))
@@ -14064,9 +14064,9 @@ class ReportPage(ctk.CTkFrame):
         cal_btn.pack(side="right", padx=(0, 8))
 
         def on_entry_focus(e):
-            date_wrap.configure(border_color="#8b5cf6")
+            date_wrap.configure(border_color="#7c3aed")
         def on_entry_leave(e):
-            date_wrap.configure(border_color="#cbd5f0")
+            date_wrap.configure(border_color="#c084fc")
 
         entry.bind("<FocusIn>", on_entry_focus)
         entry.bind("<FocusOut>", on_entry_leave)
@@ -14363,7 +14363,7 @@ class ReportPage(ctk.CTkFrame):
             height=38,
             corner_radius=11,
             border_width=1,
-            border_color="#cbd5f0",
+            border_color="#c084fc",
             fg_color="#ffffff",
             button_color="#ffffff",
             button_hover_color="#f8fafc",
@@ -14412,8 +14412,8 @@ class ReportPage(ctk.CTkFrame):
 
         if hasattr(combo, "_entry") and combo._entry:
             combo._entry.bind("<KeyRelease>", on_keyrelease)
-            combo._entry.bind("<FocusIn>", lambda e: combo.configure(border_color="#8b5cf6"))
-            combo._entry.bind("<FocusOut>", lambda e: [combo.configure(border_color="#cbd5f0"), on_select()])
+            combo._entry.bind("<FocusIn>", lambda e: combo.configure(border_color="#7c3aed"))
+            combo._entry.bind("<FocusOut>", lambda e: [combo.configure(border_color="#c084fc"), on_select()])
 
         return combo
 
@@ -14929,7 +14929,7 @@ class ReportPage(ctk.CTkFrame):
             mins_lb.bind("<Button-1>", lambda e: "break")
     def _build_table_area(self):
         # Premium glass view card frame
-        table_frame = ModernCardFrame(self, fg_color="white", border_width=1, border_color="#e2e8f0")
+        table_frame = ModernCardFrame(self, fg_color="#f3e8ff", border_width=2, border_color="#7c3aed")
         table_frame.pack(fill="both", expand=True, padx=12, pady=(6, 12))
         
         table_frame.grid_rowconfigure(1, weight=1)
@@ -14940,7 +14940,7 @@ class ReportPage(ctk.CTkFrame):
             table_frame,
             text="RESULTS SHOWCASE",
             font=("Segoe UI", 10, "bold"),
-            text_color="#94a3b8"
+            text_color="#6d28d9"
         )
         self.results_title_lbl.grid(row=0, column=0, sticky="w", padx=16, pady=(12, 4))
 
@@ -14979,23 +14979,23 @@ class ReportPage(ctk.CTkFrame):
             try:
                 self.sheet.set_options(
                     table_bg="#ffffff",
-                    frame_bg="#ffffff",
-                    grid_color="#f1f5f9",
+                    frame_bg="#f3e8ff",
+                    grid_color="#ede9fe",
                     show_vertical_grid=False,
                     show_horizontal_grid=True,
                     show_row_index=False,
-                    header_bg="#ffffff",
-                    header_fg="#64748b",
-                    header_grid_color="#e2e8f0",
+                    header_bg="#f3e8ff",
+                    header_fg="#4c1d95",
+                    header_grid_color="#c084fc",
                     show_vertical_header_grid=False,
                     show_horizontal_header_grid=True,
                     font=("Segoe UI", 11, "normal"),
                     header_font=("Segoe UI", 11, "bold"),
                     row_height=42,
                     header_height=35,
-                    select_bg="#eff6ff",
-                    select_fg="#1e3a8a",
-                    selected_cells_border_color="#3b82f6"
+                    select_bg="#f3e8ff",
+                    select_fg="#5b21b6",
+                    selected_cells_border_color="#7c3aed"
                 )
             except Exception as e:
                 print("Error setting options for table sheet:", e)
@@ -15042,7 +15042,7 @@ class ReportPage(ctk.CTkFrame):
             self.tree.bind("<Double-1>", lambda e: None)
             
         # Create empty state overlay frame (white to blend with card bg)
-        self.empty_state_frame = ctk.CTkFrame(table_frame, fg_color="white", corner_radius=12)
+        self.empty_state_frame = ctk.CTkFrame(table_frame, fg_color="#f3e8ff", corner_radius=12)
         
         # Center container
         center_content = ctk.CTkFrame(self.empty_state_frame, fg_color="transparent")
