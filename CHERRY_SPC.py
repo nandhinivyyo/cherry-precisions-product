@@ -10722,7 +10722,7 @@ class RunChatPage(ctk.CTkFrame):
         chart_card.pack(fill="x", padx=(0, 16), pady=8)
 
         # Card 3: Table (inside scrollable)
-        table_card = ctk.CTkFrame(scrollable_inner, fg_color="#ffffff", corner_radius=12, border_width=1, border_color="#e2e8f0")
+        table_card = ctk.CTkFrame(scrollable_inner, fg_color="#fdf4ff", corner_radius=12, border_width=1, border_color="#a78bfa")
         table_card.pack(fill="x", padx=(0, 16), pady=(8, 16))
 
         self.chart_frames.append(frame)
@@ -10963,10 +10963,10 @@ class RunChatPage(ctk.CTkFrame):
         # === Enhanced Data Table ===
         # === Bordered Data Table using Canvas ===
         # Colors
-        ROW_COLORS  = ["#f8fafc", "#ffffff"]
-        HEADER_BG   = "#f1f5f9"
-        HEADER_FG   = "#1e293b"
-        BORDER_CLR  = "#e2e8f0"
+        ROW_COLORS  = ["#fdf4ff", "#faf5ff"]
+        HEADER_BG   = "#f5f3ff"
+        HEADER_FG   = "#5b21b6"
+        BORDER_CLR  = "#e9d5ff"
         CELL_FG     = "#1e293b"
         LABEL_W     = 90
         MIN_COL_W   = 75
@@ -10974,7 +10974,7 @@ class RunChatPage(ctk.CTkFrame):
         WIN         = chart_info["win_size"]
 
         # Outer frame removed, we pack directly to table_card with rounded corners
-        tbl_canvas  = tk.Canvas(table_card, bg="#ffffff", highlightthickness=0,
+        tbl_canvas  = tk.Canvas(table_card, bg="#fdf4ff", highlightthickness=0,
                                 height=(ROW_H * 6 + 1))
         tbl_canvas.pack(side="top", fill="x", expand=True, padx=2, pady=2)
 
@@ -11012,9 +11012,10 @@ class RunChatPage(ctk.CTkFrame):
                         x1 = LABEL_W
 
                     bg  = ROW_COLORS[r_idx % 2]
-                    fg  = CELL_FG
+                    fg  = HEADER_FG if c_idx == 0 else CELL_FG
                     anc = "w" if c_idx == 0 else "center"
-                    tx  = x0 + 4 if c_idx == 0 else (x0 + x1) // 2
+                    tx  = x0 + 12 if c_idx == 0 else (x0 + x1) // 2
+                    fnt = ("Segoe UI", 10, "bold") if c_idx == 0 else ("Segoe UI", 9)
 
                     rid = tbl_canvas.create_rectangle(
                         x0, y0, x1, y1,
@@ -11023,7 +11024,7 @@ class RunChatPage(ctk.CTkFrame):
                     tid = tbl_canvas.create_text(
                         tx, (y0 + y1) // 2,
                         text=cell_vars[r_idx][c_idx].get(),
-                        fill=fg, font=("Segoe UI", 9),
+                        fill=fg, font=fnt,
                         anchor=anc
                     )
                     rect_items[(r_idx, c_idx)] = rid
