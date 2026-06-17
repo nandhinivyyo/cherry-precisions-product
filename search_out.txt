@@ -1,0 +1,95 @@
+574: Step 2 of Installer setup: License File upload.
+637: # ── Drop-zone: Canvas with dashed border + PIL upload-tray icon ──────
+666: # Upload button embedded in canvas
+669: text="⬆  CLICK TO UPLOAD LICENSE",
+675: command=self.upload_license
+707: command=self.upload_license
+715: def upload_license(self):
+1886: upload_timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+3615: def load_usb_data(self):
+3616: """Show the USB Data page."""
+3617: self._switch_page_with_overlay(self._do_load_usb_data,
+3618: page_attr="usb_data_page")
+3620: def _do_load_usb_data(self):
+3628: if hasattr(self, "usb_data_page") and self.usb_data_page.winfo_exists():
+3629: self.usb_data_page.pack(fill="both", expand=True)
+3631: self.usb_data_page = UsbDataPage(self.content_frame, self)
+3632: self.usb_data_page.pack(fill="both", expand=True)
+3633: self.active_page = "UsbData"
+3942: ("🔌", "USB", self.load_usb_data, "usbdata"),
+4086: elif name == "USB Upload" and hasattr(self, "usb_page"):
+4087: new_page = self.usb_page
+4107: elif name == "USB Upload": self.usb_page = new_page
+4189: Detects based on VID/PID of all common USB-UART bridges.
+4193: ESP_USB_IDS = [
+4199: ("303A", "1001"),  # ESP32-S3 / C3 native USB CDC
+4200: ("303A", "0002"),  # Espressif USB JTAG / UART
+4208: if (vid, pid) in ESP_USB_IDS:
+10944: HEADER_BG   = "#1565C0"                 # same blue as USB page header
+11448: # USB Data Assignment Popup
+11450: class UsbAssignmentPopup(ctk.CTkToplevel):
+11453: self.title("USB Data Assignment")
+11464: ctk.CTkLabel(self, text="Assign Customer & Item to New USB Data", font=("Segoe UI", 18, "bold")).pack(pady=10)
+11532: class UsbDataPage(ctk.CTkFrame):
+11546: self.loaded_usb_rows = []
+11547: self.saved_usb_indices = set()
+11584: # Helper to dynamically generate a clean white-on-transparent USB trident logo
+11585: def create_usb_icon():
+11593: # USB Trident Bottom Circle
+11634: text="USB Data Upload",
+11652: command=self.save_usb_data_to_db,
+11669: command=self.edit_usb_assignments
+11682: command=self.refresh_usb_data
+11695: command=self.clear_usb_data
+11699: # Upload Button
+11700: upload_btn = ModernButton(
+11702: text="📤 Upload USB Files",
+11708: command=self.upload_usb_file
+11710: upload_btn.pack(side="left", padx=8)
+11889: print("=== USB create_table failed ===")
+11966: def edit_usb_assignments(self):
+11968: if not hasattr(self, "loaded_usb_rows") or not self.loaded_usb_rows:
+11969: messagebox.showinfo("Edit", "No USB data is currently loaded to edit.")
+11973: for row_data in self.loaded_usb_rows:
+11981: UsbAssignmentPopup(
+11992: for i, row_data in enumerate(self.loaded_usb_rows):
+12004: self.loaded_usb_rows[i][0][10] = new_item
+12005: self.loaded_usb_rows[i][0][12] = new_cust
+12017: def save_usb_data_to_db(self):
+12019: if not hasattr(self, "loaded_usb_rows") or not self.loaded_usb_rows:
+12020: messagebox.showinfo("Save", "No USB data loaded to save.")
+12023: unsaved_indices = [i for i in range(len(self.loaded_usb_rows)) if i not in self.saved_usb_indices]
+12056: upload_timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+12079: ["USB"] + self.loaded_usb_rows[idx][0] for idx in unsaved_indices
+12087: self.saved_usb_indices.update(unsaved_indices)
+12093: messagebox.showerror("Database Error", f"Failed to save USB data: {e}")
+12095: def clear_usb_data(self):
+12096: """Clear all loaded USB data from memory and UI."""
+12097: if messagebox.askyesno("Confirm Clear", "Are you sure you want to clear all loaded USB data?"):
+12098: self.loaded_usb_rows = []
+12101: messagebox.showinfo("Clear Data", "All USB Data cleared successfully.")
+12103: def refresh_usb_data(self):
+12108: if not hasattr(self, "loaded_usb_rows") or not self.loaded_usb_rows:
+12109: messagebox.showinfo("Refresh", "No USB data is currently loaded to refresh.")
+12113: for i, row_data in enumerate(self.loaded_usb_rows):
+12136: # Update if changed (Note: UTL/LTL are preserved from original USB string)
+12138: self.loaded_usb_rows[i][0][10] = new_item_name # Item
+12139: self.loaded_usb_rows[i][0][12] = new_customer  # Customer
+12150: messagebox.showinfo("Refresh Complete", f"Refreshed USB Data. {updated_count} rows were updated with new Master settings.")
+12153: def upload_usb_file(self):
+12154: """Parse raw USB files, aggregate unique combos, and trigger assignment popup."""
+12156: title="Select USB Data File(s)",
+12163: if not hasattr(self, "loaded_usb_rows"):
+12164: self.loaded_usb_rows = []
+12280: messagebox.showerror("Upload Error", msg)
+12282: messagebox.showinfo("USB Upload", "No valid data lines found in the selected files.")
+12287: UsbAssignmentPopup(
+12292: lambda assignments: self._finish_usb_upload(temp_parsed_rows, assignments, len(filenames), error_files)
+12295: def _finish_usb_upload(self, temp_parsed_rows, assignments, total_files, error_files):
+12296: """Callback from UsbAssignmentPopup to apply assignments and insert into table."""
+12315: self.loaded_usb_rows.append((values, status))
+12344: messagebox.showinfo("USB Upload Summary", summary)
+12505: # Custom header frame, matching USB Data page
+12895: upload_timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+13186: # UI vars (defaults = wide range for USB data)
+15154: upload_timestamp DATETIME DEFAULT CURRENT_TIMESTAMP

@@ -1,0 +1,304 @@
+1170: def _validate_pass_input(self, action, index, value_if_allowed, prior_value, text_inserted_deleted):
+1175: self.actual_password = self.actual_password[:idx] + text_inserted_deleted + self.actual_password[idx:]
+1176: elif action == 0: # Delete
+1177: self.actual_password = self.actual_password[:idx] + self.actual_password[idx + len(text_inserted_deleted):]
+1183: if action == 1 and len(text_inserted_deleted) == 1:
+1196: self.pass_entry.delete(0, tk.END)
+1510: def _validate_forgot_pw_input(self, action, index, value_if_allowed, prior_value, text_inserted_deleted):
+1515: self.pw_actual_password = self.pw_actual_password[:idx] + text_inserted_deleted + self.pw_actual_password[idx:]
+1516: elif action == 0: # Delete
+1517: self.pw_actual_password = self.pw_actual_password[:idx] + self.pw_actual_password[idx + len(text_inserted_deleted):]
+1523: if action == 1 and len(text_inserted_deleted) == 1:
+1536: self.pw_entry.delete(0, tk.END)
+2155: cursor.execute("DELETE FROM setup_info")
+3261: pwd_entry.delete(0, "end")
+3411: pwd_entry.delete(0, "end")
+3826: c.delete("all")
+4442: conn.execute("DELETE FROM airgauge_master WHERE ip=?", (ip.strip(),))
+4591: text="🗑 Delete",
+4598: command=self.delete_entry
+4766: self.mac_entry.delete(0, "end")
+4769: self.id_entry.delete(0, "end")
+4803: cursor.execute("DELETE FROM airgauge_master")
+4869: self.mac_entry.delete(0, "end")
+4870: self.id_entry.delete(0, "end")
+4892: def delete_entry(self):
+4897: messagebox.showwarning("Invalid Input", "Select a row or enter IP/ID to delete.")
+4917: # We don't delete locally yet, wait for ACK
+4919: ip_to_delete = key_to_del
+4922: cmd = f"DEL_IP {ip_to_delete}\n"
+4924: self.app.status_label.configure(text=f"Requesting delete of {ip_to_delete}...")
+4930: self.mac_entry.delete(0, "end")
+4931: self.id_entry.delete(0, "end")
+5177: messagebox.showinfo("Settings", f"You selected: {name}")
+5198: self.selected_channel = ctk.StringVar(value="CH1")
+5324: command=lambda _: self._on_item_selected_by_user(),
+5351: command=lambda _: self._on_customer_selected_by_user(),
+5392: self.selected_channel = ctk.StringVar(value="CH1")
+5395: ch_frame, text=ch, variable=self.selected_channel,
+5469: self.delete_btn = ModernButton(
+5471: text="🗑 Delete Selected",
+5479: command=self.delete_selected
+5481: self.delete_btn.pack(side="left", padx=10)
+5733: cursor.execute("DELETE FROM component_setup")
+5776: # If user selected display that matches exact pattern
+5791: def _on_customer_selected_by_user(self):
+5875: def _on_item_selected_by_user(self):
+5876: """User explicitly selected an item from dropdown — nothing automatic here, just keep value for save."""
+5921: entry_widget.delete(0, "end")
+5931: entry_widget.delete(0, "end")
+5940: ch = self.selected_channel.get().strip()
+5967: # read currently selected item (parse to code & name)
+5968: selected_display = ""
+5970: selected_display = self.item_dropdown.get().strip()
+5975: selected_display = entry_widget.get().strip() if entry_widget else ""
+5977: selected_display = ""
+5979: item_code, item_name = self._split_display_to_code_name(selected_display)
+6039: def _get_selected_index(self):
+6041: selected = self.sheet.get_selected_rows()
+6042: if selected:
+6043: return next(iter(selected))
+6044: selected_cells = self.sheet.get_selected_cells()
+6045: if selected_cells:
+6046: return next(iter(selected_cells))[0]
+6051: def delete_selected(self):
+6052: idx = self._get_selected_index()
+6054: messagebox.showwarning("No Selection", "Please select a row to delete.")
+6067: "Confirm Delete",
+6068: f"Are you sure you want to delete config for\nAirGauge {air_id} ({channel})?"
+6079: self.show_temp_status("🗑 Deleted Successfully", "#E53935")
+6087: messagebox.showerror("Error", f"Failed to delete: {e}")
+6144: if self._get_selected_index() is not None:
+6145: self.delete_btn.configure(state="normal")
+6147: self.delete_btn.configure(state="disabled")
+6151: idx = self._get_selected_index()
+6173: self.selected_channel.set(str(ch).upper())
+6194: entry_widget.delete(0, "end")
+6214: entry_widget.delete(0, "end")
+6224: self.delete_btn.configure(state="normal")
+6240: self.selected_channel.set("CH1")
+6442: text="🗑 Delete Selected",
+6450: command=self._delete_selected
+6583: idx = self._get_selected_index()
+6677: lambda e: self._open_editor_dialog("edit", self._get_selected_index()),
+6686: def _get_selected_index(self):
+6689: cur = self.sheet.get_currently_selected()
+6693: rows = self.sheet.get_selected_rows()
+6715: self.code_e.delete(0, "end")
+6716: self.name_e.delete(0, "end")
+6717: self.desc_e.delete(0, "end")
+6722: # ADD / UPDATE / DELETE
+6811: def _delete_selected(self):
+6812: idx = self._get_selected_index()
+6814: messagebox.showwarning("No Selection", "Select a row to delete.")
+6820: "Confirm Delete", f"Delete machine '{rec.get('name')}' (Code: {rec.get('code')})?"
+6827: cursor.execute("DELETE FROM machine_master WHERE code=?", (rec.get('code'),))
+6831: messagebox.showerror("DB Error", f"Failed to delete machine: {e}")
+6838: self.app.status_label.configure(text=f"Deleted {rec.get('code')} ✅")
+7006: self.tree.delete(r)
+7215: text="🗑 Delete Selected",
+7223: command=self._delete_selected
+7342: idx = self._get_selected_index()
+7419: self.tree.bind("<Double-1>", lambda e: self._open_editor_dialog(mode="edit", index=self._get_selected_index()))
+7435: def _get_selected_index(self):
+7439: cur = self.sheet.get_currently_selected()
+7447: rows = self.sheet.get_selected_rows()
+7467: self.code_e.delete(0, "end")
+7468: self.name_e.delete(0, "end")
+7469: self.drawing_e.delete(0, "end")
+7470: self.revision_e.delete(0, "end")
+7475: # Add / Update / Delete
+7549: self.sheet.set_selected_rows([idx])
+7573: def _delete_selected(self):
+7574: idx = self._get_selected_index()
+7576: messagebox.showwarning("No Selection", "Select a row to delete.")
+7579: if not messagebox.askyesno("Confirm Delete", f"Delete item '{rec.get('name','')}' (Code: {rec.get('code','')})?"):
+7584: cursor.execute("DELETE FROM items WHERE code=?", (rec.get('code'),))
+7591: self.app.status_label.configure(text=f"Deleted item {rec.get('code')} ✅")
+7595: messagebox.showerror("Delete Failed", f"Could not delete: {e}")
+7752: self.tree.delete(r)
+7934: text="🗑 Delete Selected",
+7942: command=self._delete_selected
+8103: idx = self._get_selected_index()
+8203: lambda e: self._open_editor_dialog("edit", self._get_selected_index()),
+8213: def _get_selected_index(self):
+8217: sel = self.sheet.get_currently_selected()
+8224: rows = self.sheet.get_selected_rows()
+8246: self.code_e.delete(0, "end")
+8247: self.name_e.delete(0, "end")
+8248: self.desc_e.delete(0, "end")
+8253: # Add / Update / Delete
+8342: def _delete_selected(self):
+8343: idx = self._get_selected_index()
+8351: "Confirm Delete",
+8352: f"Delete process '{rec.get('name','')}' (Code: {rec.get('code','')})?",
+8359: cursor.execute("DELETE FROM process_master WHERE id=?", (rec.get('code'),))
+8366: messagebox.showerror("Delete Failed", f"Could not delete: {e}")
+8370: self.app.status_label.configure(text=f"Deleted {rec.get('code')} ✅")
+8553: self.tree.delete(r)
+8755: # Delete button next to Add button
+8758: text="🗑 Delete",
+8766: command=self.delete_selected
+9132: self.tree.delete(r)
+9144: def _get_selected_index(self):
+9145: """Return selected row index from tksheet or treeview."""
+9149: cur = self.sheet.get_currently_selected()
+9157: rows = self.sheet.get_selected_rows()
+9176: # Add / Update / Delete
+9267: def delete_selected(self):
+9268: idx = self._get_selected_index()
+9270: messagebox.showinfo("Delete Operator", "Please select a row to delete.")
+9274: messagebox.showinfo("Action Denied", "The Guest operator cannot be deleted.")
+9276: if not messagebox.askyesno("Confirm Delete", f"Delete operator {op.get('id')} - {op.get('name')} ?"):
+9281: cursor.execute("DELETE FROM employee_master WHERE id=?", (op.get('id'),))
+9289: self.app.status_label.configure(text=f"Deleted operator {op.get('id')} ✅")
+9297: messagebox.showerror("Delete Failed", f"Could not delete: {e}")
+9306: cur = self.sheet.get_currently_selected()
+9313: rows = self.sheet.get_selected_rows()
+9470: self.id_entry.delete(0, "end")
+9471: self.name_entry.delete(0, "end")
+9472: self.phone_entry.delete(0, "end")
+9473: self.desc_text.delete("1.0", "end")
+9527: - Delete Selected button
+9709: # Delete selected (left)
+9712: text="🗑 Delete Selected",
+9719: command=self._delete_selected
+9868: idx = self._get_selected_index()
+10014: def _get_selected_index(self):
+10015: """Return selected row index from tksheet or treeview, else None."""
+10019: cur = self.sheet.get_currently_selected()
+10027: rows = self.sheet.get_selected_rows()
+10104: # Actions: Add / Update / Delete / Edit
+10186: self.sheet.set_selected_rows([idx])
+10212: def _delete_selected(self):
+10213: """Delete selected row (single selection)."""
+10214: idx = self._get_selected_index()
+10216: messagebox.showwarning("No Selection", "Select a row to delete.")
+10219: if not messagebox.askyesno("Confirm Delete", f"Delete customer '{rec.get('name','')}' (Code: {rec.get('code','')})?"):
+10224: cursor.execute("DELETE FROM customers WHERE code=?", (rec.get('code'),))
+10231: self.app.status_label.configure(text=f"Deleted customer {rec.get('code')} ✅")
+10236: def _restore_after_delete():
+10246: self.sheet.set_selected_rows([sel_idx])
+10259: self.after(60, _restore_after_delete)
+10261: _restore_after_delete()
+10264: messagebox.showerror("Delete Failed", f"Could not delete: {e}")
+10266: def _edit_selected(self):
+10267: """Load selected row into small popup editor (optional) or into the form directly."""
+10268: idx = self._get_selected_index()
+10280: idx = self._get_selected_index()
+10289: self.code_e.delete(0, "end"); self.code_e.insert(0, str(rec.get("code","")))
+10290: self.name_e.delete(0, "end"); self.name_e.insert(0, str(rec.get("name","")))
+10291: self.desc_e.delete(0, "end"); self.desc_e.insert(0, str(rec.get("description","")))
+10292: self.email_e.delete(0, "end"); self.email_e.insert(0, str(rec.get("email","")))
+10293: self.phone_e.delete(0, "end"); self.phone_e.insert(0, str(rec.get("phone","")))
+10408: self.code_e.delete(0, "end")
+10409: self.name_e.delete(0, "end")
+10410: self.desc_e.delete(0, "end")
+10411: self.email_e.delete(0, "end")
+10412: self.phone_e.delete(0, "end")
+10455: self.tree.delete(r)
+10981: tbl_canvas.delete("all")
+11208: air_box.bind("<<ComboboxSelected>>", on_spec_change)
+11209: ch_box.bind("<<ComboboxSelected>>", on_spec_change)
+11393: # Normalize selected values the same way
+11849: self.sheet.disable_bindings("edit_cell", "rc_insert_column", "rc_delete_column",
+11850: "rc_insert_row", "rc_delete_row")
+12282: messagebox.showinfo("USB Upload", "No valid data lines found in the selected files.")
+12758: style.map("LiveData.Treeview", background=[("selected", "#BBDEFB")])
+13153: - Refresh and Delete buttons (delete requires password every time)
+13179: self.DELETE_PASSWORD = "delete@cherry"
+13229: self._build_header()           # includes Export + Delete + Refresh
+13298: Return channel list for selected airgauge from SQLite.
+13338: # Header with Delete + Refresh
+13415: # RIGHT SECTION → Delete + Refresh
+13422: text="🗑 Delete",
+13430: command=self._on_delete_clicked
+13517: text="🗑️ Delete Selected",
+13526: command=self._on_delete_clicked
+14166: selected = {"field": "hour"}
+14174: if selected["field"] == "hour":
+14176: elif selected["field"] == "minute":
+14182: selected["field"] = f
+14206: if selected["field"] == "hour":
+14208: elif selected["field"] == "minute":
+14247: limit = 3 if selected["field"] == "hour" else 6
+14249: if selected["field"] == "hour":
+14253: elif selected["field"] == "minute":
+14262: if selected["field"] == "hour":
+14264: elif selected["field"] == "minute":
+14273: if selected["field"] == "hour":
+14279: elif selected["field"] == "minute":
+14296: if selected["field"] == "hour":
+14298: elif selected["field"] == "minute":
+14309: if selected["field"] == "second":
+14311: elif selected["field"] == "minute":
+14314: if selected["field"] == "hour":
+14316: elif selected["field"] == "minute":
+14589: selected = {"field": "hour"}
+14598: if selected["field"] == "hour":
+14600: elif selected["field"] == "minute":
+14606: selected["field"] = f
+14629: if selected["field"] == "hour":
+14631: elif selected["field"] == "minute":
+14674: limit = 3 if selected["field"] == "hour" else 6
+14676: if selected["field"] == "hour":
+14680: elif selected["field"] == "minute":
+14689: if selected["field"] == "hour":
+14691: elif selected["field"] == "minute":
+14700: if selected["field"] == "hour":
+14706: elif selected["field"] == "minute":
+14723: if selected["field"] == "hour":
+14725: elif selected["field"] == "minute":
+14736: if selected["field"] == "second":
+14738: elif selected["field"] == "minute":
+14741: if selected["field"] == "hour":
+14743: elif selected["field"] == "minute":
+14922: cal.bind("<<CalendarSelected>>", on_select)
+15069: self.tree.delete(r)
+15435: selected_operator = self.operator_var.get().strip()
+15436: if selected_operator != "All":
+15437: sel_op_id = selected_operator.split(" - ")[0].strip()
+15442: selected_item = self.item_var.get().strip()
+15443: if selected_item != "All":
+15444: sel_item_code = selected_item.split(" - ")[0].strip()
+15449: selected_machine = self.machine_var.get().strip()
+15450: if selected_machine != "All":
+15451: sel_machine_code = selected_machine.split(" - ")[0].strip()
+15456: selected_airgauge = self.airgauge_var.get().strip()
+15457: if selected_airgauge != "All":
+15460: sel_ag = selected_airgauge
+15470: selected_channel = self.channel_var.get().strip()
+15471: if selected_channel != "All":
+15472: sel_ch = selected_channel.replace("CH", "").strip()
+15477: selected_drawing = self.drawing_var.get().strip()
+15478: if selected_drawing != "All":
+15479: if str(row[8]).strip() != selected_drawing: # row[8] is Drawing
+15483: selected_customer = self.customer_var.get().strip()
+15484: if selected_customer != "All":
+15485: if str(row[13]).strip().lower() != selected_customer.lower(): # row[13] is Customer
+15605: for iid in self.tree.get_children(): self.tree.delete(iid)
+15617: # Get currently selected visible row index and file_index
+15620: def _get_selected_visible(self):
+15622: if hasattr(self, "_selected_card_index") and self._selected_card_index is not None:
+15623: vis_idx = self._selected_card_index
+15636: # Delete flow: prompt for password then delete the exact file line
+15638: def _on_delete_clicked(self):
+15640: vis_idx, file_idx = self._get_selected_visible()
+15642: messagebox.showwarning("No selection", "Select a row to delete.")
+15648: if pw != self.DELETE_PASSWORD:
+15652: if not messagebox.askyesno("Confirm Delete", "Delete selected record permanently from file?"):
+15655: self._perform_delete_by_file_index(file_idx, vis_idx)
+15656: messagebox.showinfo("Deleted", "Record deleted successfully.")
+15658: messagebox.showerror("Delete failed", str(e))
+15753: def _perform_delete_by_file_index(self, file_index_to_delete, visible_index):
+15755: Delete exact line using db_id from SQLite production_data.db.
+15759: if meta.get("file_index") == file_index_to_delete:
+15771: cursor.execute("DELETE FROM measurements WHERE id = ?", (target_db_id,))
+15780: if meta.get("file_index") == file_index_to_delete:
+15786: # 3) Decrement file_index for entries that were after deleted line
+15789: if fi is not None and fi > file_index_to_delete:
+15817: self.app.status_label.configure(text="Deleted record and updated view.")
+16528: sel = tbl.get_selected_cells()
+16544: if hasattr(tbl, "set_selected_rows"):
+16545: tbl.set_selected_rows([int(row)])
+17546: If "All" is selected for AirGauge or Channel, checks if a uniform tolerance exists across all matching components.

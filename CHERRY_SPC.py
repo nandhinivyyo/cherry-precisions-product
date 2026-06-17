@@ -14928,44 +14928,105 @@ class ReportPage(ctk.CTkFrame):
             hours_lb.bind("<Button-1>", lambda e: "break")
             mins_lb.bind("<Button-1>", lambda e: "break")
     def _build_table_area(self):
-        table_frame = ModernCardFrame(self)
+        # Premium glass view card frame
+        table_frame = ModernCardFrame(self, fg_color="white", border_width=1, border_color="#e2e8f0")
         table_frame.pack(fill="both", expand=True, padx=12, pady=(6, 12))
-        table_frame.grid_rowconfigure(0, weight=1); table_frame.grid_columnconfigure(0, weight=1)
+        
+        table_frame.grid_rowconfigure(1, weight=1)
+        table_frame.grid_columnconfigure(0, weight=1)
+
+        # "RESULTS SHOWCASE" Header inside the card
+        self.results_title_lbl = ctk.CTkLabel(
+            table_frame,
+            text="RESULTS SHOWCASE",
+            font=("Segoe UI", 10, "bold"),
+            text_color="#94a3b8"
+        )
+        self.results_title_lbl.grid(row=0, column=0, sticky="w", padx=16, pady=(12, 4))
 
         cols = (
-            "S.No", "Time", "Date","Reading","Offset", "Status","AirGauge ID", "Channel",
-             "Drawing", "User", "CompID", "Item", "CNC ID", "Customer"
+            "S.No", "Time", "Date", "Reading", "Offset", "Status", "AirGauge ID", "Channel",
+            "Drawing", "User", "CompID", "Item", "CNC ID", "Customer"
         )
         
         cols_display = {
-            "S.No": "# S.No",
-            "Time": "🕒 Time",
-            "Date": "📅 Date",
-            "Reading": "📈 Reading",
-            "Offset": "⚙️ Offset",
-            "Status": "🟢 Status",
-            "AirGauge ID": "🏷️ AirGauge ID",
-            "Channel": "📊 Channel",
-            "Drawing": "📄 Drawing",
-            "User": "👤 User",
-            "CompID": "📦 CompID",
-            "Item": "📋 Item",
-            "CNC ID": "⚙️ CNC ID",
-            "Customer": "👥 Customer"
+            "S.No": "S.No",
+            "Time": "Time",
+            "Date": "Date",
+            "Reading": "Reading",
+            "Offset": "Offset",
+            "Status": "Status",
+            "AirGauge ID": "AirGauge ID",
+            "Channel": "Channel",
+            "Drawing": "Drawing",
+            "User": "User",
+            "CompID": "CompID",
+            "Item": "Item",
+            "CNC ID": "CNC ID",
+            "Customer": "Cust"
         }
         cols_display_list = [cols_display[h] for h in cols]
 
         if self.use_tksheet:
-            self.sheet = Sheet(table_frame, headers=cols_display_list, show_x_scrollbar=True, show_y_scrollbar=True, height=500)
+            self.sheet = Sheet(
+                table_frame, 
+                headers=cols_display_list, 
+                show_x_scrollbar=True, 
+                show_y_scrollbar=True, 
+                height=500,
+                show_row_index=False
+            )
             try:
-                self.sheet.set_options(auto_resize_columns=False)
-                self.sheet.set_options(column_width_resize=False)
-            except:
-                pass
-            self.sheet.grid(row=0, column=0, sticky="nsew", padx=8, pady=8)
-            make_sheet_auto_resize(self.sheet, table_frame, cols)
+                self.sheet.set_options(
+                    table_bg="#ffffff",
+                    frame_bg="#ffffff",
+                    grid_color="#f1f5f9",
+                    show_vertical_grid=False,
+                    show_horizontal_grid=True,
+                    show_row_index=False,
+                    header_bg="#ffffff",
+                    header_fg="#64748b",
+                    header_grid_color="#e2e8f0",
+                    show_vertical_header_grid=False,
+                    show_horizontal_header_grid=True,
+                    font=("Segoe UI", 11, "normal"),
+                    header_font=("Segoe UI", 11, "bold"),
+                    row_height=42,
+                    header_height=35,
+                    select_bg="#eff6ff",
+                    select_fg="#1e3a8a",
+                    selected_cells_border_color="#3b82f6"
+                )
+            except Exception as e:
+                print("Error setting options for table sheet:", e)
+                
+            self.sheet.grid(row=1, column=0, sticky="nsew", padx=8, pady=(4, 8))
+            
+            # Responsive column width layout
+            self.col_widths = [60, 100, 100, 110, 90, 100, 110, 90, 110, 110, 110, 120, 120, 120]
+            
+            def do_resize(event=None):
+                w = table_frame.winfo_width() - 20
+                if w > 100:
+                    total_default = sum(self.col_widths)
+                    if w > total_default:
+                        scale = w / total_default
+                        for i, wd in enumerate(self.col_widths):
+                            try: self.sheet.column_width(column=i, width=int(wd * scale))
+                            except: pass
+                    else:
+                        for i, wd in enumerate(self.col_widths):
+                            try: self.sheet.column_width(column=i, width=wd)
+                            except: pass
+                    try: self.sheet.refresh()
+                    except: pass
+            
+            table_frame.bind("<Configure>", do_resize)
+            table_frame.after(100, do_resize)
+            
             try:
-                self.sheet.enable_bindings(("single_select", "row_select", "arrowkeys", "copy", "select_all", "right_click_popup_menu"))
+                self.sheet.enable_bindings(("single_select", "row_select", "arrowkeys", "copy", "right_click_popup_menu", "select_all"))
+                self.sheet.extra_bindings("select_all", self._on_ctrl_a_select_rows)
             except:
                 pass
         else:
@@ -14976,7 +15037,7 @@ class ReportPage(ctk.CTkFrame):
             vsb = ttk.Scrollbar(table_frame, orient="vertical", command=self.tree.yview)
             hsb = ttk.Scrollbar(table_frame, orient="horizontal", command=self.tree.xview)
             self.tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
-            self.tree.grid(row=0, column=0, sticky="nsew"); vsb.grid(row=0, column=1, sticky="ns"); hsb.grid(row=1, column=0, sticky="ew")
+            self.tree.grid(row=1, column=0, sticky="nsew"); vsb.grid(row=1, column=1, sticky="ns"); hsb.grid(row=2, column=0, sticky="ew")
 
             self.tree.bind("<Double-1>", lambda e: None)
             
@@ -15012,65 +15073,105 @@ class ReportPage(ctk.CTkFrame):
         )
         sub_lbl.pack()
 
-    def _build_table_area_modern_cards(self):
-        # Container
-        self.table_frame = ctk.CTkFrame(self, fg_color="transparent")
-        self.table_frame.pack(fill="both", expand=True, padx=24, pady=(6, 20))
+    def _on_ctrl_a_select_rows(self, event=None):
+        try:
+            if hasattr(self, "sheet") and self.sheet:
+                total_rows = self.sheet.get_total_rows()
+                if total_rows > 0:
+                    self.sheet.deselect("all")
+                    self.sheet.create_selection_box(0, 0, total_rows, self.sheet.get_total_columns(), "rows")
+        except Exception:
+            pass
+        return "break"
 
-        self.results_title_lbl = ctk.CTkLabel(
-            self.table_frame,
-            text="RESULTS SHOWCASE",
-            font=("Segoe UI", 10, "bold"),
-            text_color="#9ca3af"
-        )
-        self.results_title_lbl.pack(anchor="w", padx=20, pady=(0, 8))
+    def _display_and_style_rows(self, rows):
+        try:
+            if not self.use_tksheet or not self.sheet:
+                if getattr(self, "tree", None):
+                    for r in self.tree.get_children():
+                        self.tree.delete(r)
+                    for rrow in rows:
+                        self.tree.insert("", "end", values=rrow)
+                return
 
-        self.table_header_frame = ctk.CTkFrame(self.table_frame, fg_color="#f8faff", corner_radius=0, border_width=1, border_color="#e5e7eb")
-        self.table_header_frame.pack(fill="x", padx=2)
+            # Format rows for display
+            formatted_rows = []
+            for i, r in enumerate(rows):
+                display_row = list(r)
+                
+                # S.No
+                display_row[0] = i + 1
+                
+                # Reading -> append " mm"
+                r_val = str(display_row[3]).strip()
+                if r_val and not r_val.endswith(" mm"):
+                    display_row[3] = f"{r_val} mm"
+                    
+                # Status -> translate ACCEPTED -> PASS
+                stat_val = str(display_row[5]).strip()
+                if "ACCEPT" in stat_val.upper():
+                    display_row[5] = "PASS"
+                elif "REJECT" in stat_val.upper():
+                    display_row[5] = "REJECT"
+                    
+                # Channel -> prefix with "CH-"
+                chan_val = str(display_row[7]).strip()
+                if chan_val.isdigit():
+                    display_row[7] = f"CH-{int(chan_val):02d}"
+                elif chan_val and not chan_val.startswith("CH"):
+                    display_row[7] = f"CH-{chan_val}"
+                    
+                formatted_rows.append(display_row)
 
-        self.cols = [
-            ("S.No", 0.5), ("Time", 1), ("Date", 1), ("Reading", 1),
-            ("Offset", 1), ("Status", 1), ("AirGauge ID", 1), ("Channel", 1),
-            ("Drawing", 1), ("User", 1), ("CompID", 1), ("Item", 1), ("CNC ID", 1), ("Cust", 1)
-        ]
-        
-        for i, (col_name, weight) in enumerate(self.cols):
-            self.table_header_frame.grid_columnconfigure(i, weight=int(weight*10))
-            lbl = ctk.CTkLabel(self.table_header_frame, text=col_name, font=("Segoe UI", 11, "bold"), text_color="#1e293b")
-            lbl.grid(row=0, column=i, sticky="w", padx=4, pady=8)
-
-        self.results_scrollable = ctk.CTkScrollableFrame(
-            self.table_frame,
-            fg_color="transparent"
-        )
-        self.results_scrollable.pack(fill="both", expand=True)
-
-        self.empty_state_frame = ctk.CTkFrame(self.table_frame, fg_color="#F8FAFF", corner_radius=12)
-        center_content = ctk.CTkFrame(self.empty_state_frame, fg_color="transparent")
-        center_content.place(relx=0.5, rely=0.5, anchor="center")
-        
-        icon_lbl = ctk.CTkLabel(center_content, text="📥", font=("Segoe UI", 48), text_color="#94a3b8")
-        icon_lbl.pack(pady=(0, 10))
-        msg_lbl = ctk.CTkLabel(center_content, text="No Data Available", font=("Segoe UI", 15, "bold"), text_color="#111827")
-        msg_lbl.pack(pady=(0, 4))
-        sub_lbl = ctk.CTkLabel(center_content, text="Please select filters and click Analyze Data to view records.", font=("Segoe UI", 11), text_color="#6b7280")
-        sub_lbl.pack()
-
-    def _style_table_status_cells(self):
-        pass
+            # Set sheet data
+            self.sheet.set_sheet_data(formatted_rows)
+            
+            # Dehighlight everything first
+            self.sheet.dehighlight_all()
+            
+            # Highlight cells in batches
+            sno_cells = []
+            reading_cells = []
+            channel_cells = []
+            pass_cells = []
+            fail_cells = []
+            other_status_cells = []
+            
+            for r_idx, row in enumerate(formatted_rows):
+                sno_cells.append((r_idx, 0))
+                reading_cells.append((r_idx, 3))
+                channel_cells.append((r_idx, 7))
+                
+                status_val = str(row[5]).upper().strip()
+                if "PASS" in status_val or "ACCEPT" in status_val:
+                    pass_cells.append((r_idx, 5))
+                elif "FAIL" in status_val or "REJECT" in status_val:
+                    fail_cells.append((r_idx, 5))
+                else:
+                    other_status_cells.append((r_idx, 5))
+            
+            if sno_cells:
+                self.sheet.highlight_cells(cells=sno_cells, bg="#e0e7ff", fg="#4338ca", redraw=False)
+            if reading_cells:
+                self.sheet.highlight_cells(cells=reading_cells, fg="#0f172a", redraw=False)
+            if channel_cells:
+                self.sheet.highlight_cells(cells=channel_cells, fg="#7c3aed", redraw=False)
+            if pass_cells:
+                self.sheet.highlight_cells(cells=pass_cells, bg="#dcfce7", fg="#15803d", redraw=False)
+            if fail_cells:
+                self.sheet.highlight_cells(cells=fail_cells, bg="#fee2e2", fg="#b91c1c", redraw=False)
+            if other_status_cells:
+                self.sheet.highlight_cells(cells=other_status_cells, bg="#fef3c7", fg="#b45309", redraw=False)
+                
+            try:
+                self.sheet.refresh()
+            except:
+                pass
+        except Exception as e:
+            print("Error in displaying and styling rows:", e)
 
     def _populate_cards(self, table_rows):
-        try:
-            if getattr(self, "use_tksheet", False) and getattr(self, "sheet", None):
-                self.sheet.set_sheet_data(table_rows)
-                self.sheet.refresh()
-            elif getattr(self, "tree", None):
-                for r in self.tree.get_children():
-                    self.tree.delete(r)
-                for rrow in table_rows:
-                    self.tree.insert("", "end", values=rrow)
-        except Exception as e:
-            print("Error updating table data:", e)
+        self._display_and_style_rows(table_rows)
 
     def _create_loading_overlay(self):
         self._overlay = ctk.CTkFrame(self, fg_color="#ffffff", corner_radius=20)
@@ -15597,13 +15698,7 @@ class ReportPage(ctk.CTkFrame):
             self._current_visible = vis
             self._visible_file_indices = [fi for (_, fi) in vis]
 
-            if self.use_tksheet and self.sheet:
-                self.sheet.set_sheet_data(table_rows)
-                try: self.sheet.refresh()
-                except: pass
-            else:
-                for iid in self.tree.get_children(): self.tree.delete(iid)
-                for rrow in table_rows: self.tree.insert("", "end", values=rrow)
+            self._display_and_style_rows(table_rows)
             self._update_empty_state(len(table_rows))
         except Exception:
             pass
@@ -15614,33 +15709,43 @@ class ReportPage(ctk.CTkFrame):
 
 
     # ---------------------------
-    # Get currently selected visible row index and file_index
-    # Returns (visible_index, file_index) or (None, None)
+    # Get currently selected visible row indices and file_indices
+    # Returns a list of (visible_index, file_index) pairs
     # ---------------------------
     def _get_selected_visible(self):
         try:
-            if hasattr(self, "_selected_card_index") and self._selected_card_index is not None:
-                vis_idx = self._selected_card_index
-            else:
-                return (None, None)
+            vis_indices = set()
+            if hasattr(self, "sheet") and self.sheet:
+                rows = self.sheet.get_selected_rows()
+                if rows:
+                    vis_indices.update(rows)
+                else:
+                    cells = self.sheet.get_selected_cells()
+                    if cells:
+                        vis_indices.update(r for r, c in cells)
 
-            # map to file_index
-            if vis_idx is None or vis_idx < 0 or vis_idx >= len(self._current_visible):
-                return (None, None)
-            file_idx = self._current_visible[vis_idx][1]
-            return (vis_idx, file_idx)
+            if not vis_indices and hasattr(self, "_selected_card_index") and self._selected_card_index is not None:
+                vis_indices.add(self._selected_card_index)
+
+            results = []
+            for v_idx in sorted(vis_indices):
+                if 0 <= v_idx < len(self._current_visible):
+                    file_idx = self._current_visible[v_idx][1]
+                    results.append((v_idx, file_idx))
+            return results
         except Exception:
-            return (None, None)
+            return []
 
     # ---------------------------
-    # Delete flow: prompt for password then delete the exact file line
+    # Delete flow: prompt for password then delete the exact db lines
     # ---------------------------
     def _on_delete_clicked(self):
         # get selection
-        vis_idx, file_idx = self._get_selected_visible()
-        if vis_idx is None:
-            messagebox.showwarning("No selection", "Select a row to delete.")
+        selections = self._get_selected_visible()
+        if not selections:
+            messagebox.showwarning("No selection", "Select at least one row to delete.")
             return
+
         # ask password modal
         pw = self._ask_password_modal()
         if pw is None:
@@ -15648,12 +15753,37 @@ class ReportPage(ctk.CTkFrame):
         if pw != self.DELETE_PASSWORD:
             messagebox.showerror("Wrong password", "Password incorrect.")
             return
-        # Confirm final
-        if not messagebox.askyesno("Confirm Delete", "Delete selected record permanently from file?"):
+
+        count = len(selections)
+        msg = f"Delete {count} selected record(s) permanently from the database?"
+        if not messagebox.askyesno("Confirm Delete", msg):
             return
+
         try:
-            self._perform_delete_by_file_index(file_idx, vis_idx)
-            messagebox.showinfo("Deleted", "Record deleted successfully.")
+            db_ids_to_delete = []
+            file_indices_to_delete = set(f_idx for v_idx, f_idx in selections)
+
+            for (row, rec_dt, meta) in self.all_data_rows:
+                if meta.get("file_index") in file_indices_to_delete:
+                    db_id = meta.get("db_id")
+                    if db_id is not None:
+                        db_ids_to_delete.append(db_id)
+
+            if not db_ids_to_delete:
+                messagebox.showerror("Error", "Could not find corresponding database records to delete.")
+                return
+
+            import sqlite3
+            conn = sqlite3.connect(resource_path("production_data.db"))
+            cursor = conn.cursor()
+            cursor.executemany("DELETE FROM measurements WHERE id = ?", [(tid,) for tid in db_ids_to_delete])
+            conn.commit()
+            conn.close()
+
+            if hasattr(self, "refresh_table_data"):
+                self.refresh_table_data()
+
+            messagebox.showinfo("Deleted", f"Successfully deleted {count} record(s).")
         except Exception as e:
             messagebox.showerror("Delete failed", str(e))
 
@@ -15888,8 +16018,9 @@ class ReportPage(ctk.CTkFrame):
 
             # Only show LTL/UTL if ALL rows in the filtered data agree on the same value.
             # If mixed values exist → leave blank (show nothing on Analysis page).
-            valid_ltls = [v for v in ltl_vals if v and v not in ("", "0", "0.0")]
-            valid_utls = [v for v in utl_vals if v and v not in ("", "0", "0.0")]
+            # Exclude zeros and USB placeholder "000.0000"
+            valid_ltls = [v for v in ltl_vals if v and str(v).strip() not in ("", "0", "0.0", "000.0000", "00.0000", "000.000")]
+            valid_utls = [v for v in utl_vals if v and str(v).strip() not in ("", "0", "0.0", "000.0000", "00.0000", "000.000")]
             row_ltl = valid_ltls[0] if valid_ltls and len(set(valid_ltls)) == 1 else ""
             row_utl = valid_utls[0] if valid_utls and len(set(valid_utls)) == 1 else ""
             
@@ -17145,10 +17276,10 @@ class AnalysisPage(ctk.CTkFrame):
             try:
                 ltl_f = float(low_tol)
                 utl_f = float(high_tol)
-                if utl_f > ltl_f:
-                    tol_valid = True
-                    pp_metrics = self._compute_pp_metrics(vals, ltl_f, utl_f)
-            except: pass
+                tol_valid = True
+                pp_metrics = self._compute_pp_metrics(vals, ltl_f, utl_f)
+            except Exception:
+                pp_metrics = self._compute_pp_metrics(vals, None, None)
 
             # 5. GENERATE CHARTS (Thread-Safe Way)
             # We must use Figure/FigureCanvas, NOT plt.plot()
@@ -17365,7 +17496,7 @@ class AnalysisPage(ctk.CTkFrame):
                 pass
 
             # ── 5. Update PP Metrics ──────────────────────────────────
-            if tol_valid and pp:
+            if pp:
                 self.pp_stddev.configure(text=f(pp.get("std")))
                 self.pp_p.configure(text=f(pp.get("pp")))
                 self.pp_ppk.configure(text=f(pp.get("ppk")))
@@ -17549,14 +17680,12 @@ class AnalysisPage(ctk.CTkFrame):
             ch = str(channel).strip()
             
             # PRIORITY: If we came from Report page, row_ltl/row_utl were explicitly set.
-            # Use them ALWAYS — if empty it means mixed data → show "–", never fall through to comp_json.
             if hasattr(self, "row_ltl") and hasattr(self, "row_utl"):
                 ltl = getattr(self, "row_ltl", "")
                 utl = getattr(self, "row_utl", "")
-                if ltl and ltl not in ("", "0", "0.0") and utl and utl not in ("", "0", "0.0"):
+                if ltl and str(ltl).strip() not in ("", "0", "0.0", "000.0000", "00.0000", "000.000") and utl and str(utl).strip() not in ("", "0", "0.0", "000.0000", "00.0000", "000.000"):
                     return ltl, utl
-                else:
-                    return "–", "–"
+                # If empty or 0, FALL THROUGH to comp_json (component database)
 
             # Format channel properly if not 'All'
             if ch != "All" and not ch.upper().startswith("CH"):
@@ -17779,13 +17908,20 @@ class AnalysisPage(ctk.CTkFrame):
     def _compute_pp_metrics(self, values, LSL, USL):
         import statistics
 
-        if not values or LSL is None or USL is None:
+        if not values or len(values) < 2:
             return {}
 
-        xbar = round(statistics.mean(values), 4)
         # Round to 7 decimals so displayed value matches
         # the value actually used in PPK formulas
         s = round(statistics.stdev(values), 7)  # overall std dev (n-1)
+
+        if LSL is None or USL is None:
+            return {"std": s}
+
+        xbar = round(statistics.mean(values), 4)
+
+        if s == 0:
+            return {"std": s, "pp": None, "ppk": None, "ppk_l": None, "ppk_u": None}
 
         ppk_l = (xbar - LSL) / (3 * s)
         ppk_u = (USL - xbar) / (3 * s)
