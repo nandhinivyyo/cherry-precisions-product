@@ -13411,6 +13411,36 @@ class ReportPage(ctk.CTkFrame):
         self._restore_filter_state()
         self.after(500, lambda: self._schedule_filter(immediate=True))
 
+    def _disable_entry_selection(self, entry_widget):
+        """Disables selection highlighting and keyboard/mouse selection actions for a tk.Entry or CTkEntry."""
+        try:
+            bg_color = entry_widget.cget("bg") if hasattr(entry_widget, "cget") else "white"
+            fg_color = entry_widget.cget("fg") if hasattr(entry_widget, "cget") else "#1e293b"
+            entry_widget.configure(selectbackground=bg_color, selectforeground=fg_color)
+        except Exception:
+            try:
+                entry_widget.configure(selectbackground="white", selectforeground="#1e293b")
+            except Exception:
+                pass
+
+        for event in (
+            "<B1-Motion>",
+            "<Double-1>",
+            "<Triple-1>",
+            "<Control-Key-a>",
+            "<Control-Key-A>",
+            "<Control-a>",
+            "<Control-A>",
+            "<Shift-Left>",
+            "<Shift-Right>",
+            "<Shift-Home>",
+            "<Shift-End>"
+        ):
+            try:
+                entry_widget.bind(event, lambda e: "break")
+            except Exception:
+                pass
+
     def on_window_resized(self):
         try:
             if self.use_tksheet and self.sheet:
@@ -14075,6 +14105,7 @@ class ReportPage(ctk.CTkFrame):
             combo._entry.bind("<KeyRelease>", on_keyrelease)
             combo._entry.bind("<FocusIn>",  lambda e: combo.configure(border_color="#7c3aed"))
             combo._entry.bind("<FocusOut>", lambda e: [combo.configure(border_color="#a78bfa"), on_select()])
+            self._disable_entry_selection(combo._entry)
 
         return combo
 
@@ -14168,6 +14199,7 @@ class ReportPage(ctk.CTkFrame):
             insertbackground="#7c3aed",
             state="normal"
         )
+        self._disable_entry_selection(entry)
         entry.pack(side="left", fill="both", expand=True, padx=(12, 4), pady=4)
 
         cal_btn = ctk.CTkLabel(
