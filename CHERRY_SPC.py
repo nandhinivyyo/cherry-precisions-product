@@ -648,20 +648,6 @@ class LicenseVerificationPage(ctk.CTkFrame):
             outline="#AAAAAA", width=2, dash=(5, 4)
         )
 
-        # Removed cloud icon as requested
-
-        # "Drag & drop" label
-        self._dz_canvas.create_text(
-            dz_w // 2, 106,
-            text="Drag & drop your license file here",
-            font=("Segoe UI", 13, "bold"), fill="#1A1A1A"
-        )
-
-        # "or" divider
-        self._dz_canvas.create_text(
-            dz_w // 2, 128,
-            text="or", font=("Segoe UI", 10), fill="#AAAAAA"
-        )
 
         # Upload button embedded in canvas
         self.license_btn = ModernButton(
@@ -674,7 +660,7 @@ class LicenseVerificationPage(ctk.CTkFrame):
             corner_radius=8,
             command=self.upload_license
         )
-        self._dz_canvas.create_window(dz_w // 2, 170, window=self.license_btn)
+        self._dz_canvas.create_window(dz_w // 2, dz_h // 2, window=self.license_btn)
 
 
         # ── Info hint ─────────────────────────────────────────────────────
@@ -10546,10 +10532,10 @@ class RunChatPage(ctk.CTkFrame):
         self.scrollable_frame.grid_columnconfigure(0, weight=1)
         self.scrollable_frame.grid_columnconfigure(1, weight=1)
 
-        self.add_button = ctk.CTkButton(self.scrollable_frame, text="+", font=("Segoe UI", 24, "bold"),
+        self.add_button = ctk.CTkButton(self.scrollable_frame, text="+", font=("Segoe UI", 28, "bold"),
                                         fg_color="#9b82d4", hover_color="#8b5cf6", text_color="#ffffff",
-                                        corner_radius=8, height=48, command=self.add_chart)
-        self.add_button.grid(row=0, column=0, columnspan=2, pady=10, sticky="ew")
+                                        corner_radius=8, width=160, height=60, command=self.add_chart)
+        self.add_button.grid(row=0, column=0, padx=8, pady=8, sticky="")
 
         # === Load previous layout ===
         initial_count, saved_state = self.load_runchat_state()
@@ -10669,13 +10655,8 @@ class RunChatPage(ctk.CTkFrame):
         n = len(self.chart_frames)
         self.add_button.grid_forget()
         row = n // 2
-        if n % 2 == 0:
-            self.add_button.grid(row=row, column=0, columnspan=2, pady=10, sticky="ew")
-        else:
-            if n == 1:
-                self.add_button.grid(row=row + 1, column=0, columnspan=2, pady=10, sticky="ew")
-            else:
-                self.add_button.grid(row=row, column=1, pady=10, sticky="")
+        col = n % 2
+        self.add_button.grid(row=row, column=col, padx=8, pady=8, sticky="")
         self.scrollable_frame.grid_rowconfigure(row + 2, minsize=12)
 
     # ------------------------------------------------------
@@ -13172,7 +13153,7 @@ except Exception:
 # Font:                Segoe UI (Inter fallback)
 # ────────────────────────────────────────────────────────────────────────────
 
-class ReportPage(ctk.CTkFrame):
+class ReportPage(ctk.CTkScrollableFrame):
     """
     Full ReportPage with:
       - background load of JSONL (non blocking)
@@ -13185,7 +13166,7 @@ class ReportPage(ctk.CTkFrame):
     UI: Purple glassmorphism matching the HTML reference design exactly.
     """
     def __init__(self, parent, app):
-        super().__init__(parent)
+        super().__init__(parent, fg_color="transparent")
         self.app = app
 
         # Configure ttk.Combobox drop-downs with purple accent
@@ -13882,6 +13863,7 @@ class ReportPage(ctk.CTkFrame):
             parent_cell,
             values=options_list,
             variable=tk_var,
+            state="readonly",
             height=40,
             corner_radius=12,
             border_width=1,
@@ -14378,7 +14360,8 @@ class ReportPage(ctk.CTkFrame):
         self.table_shadow = ctk.CTkFrame(
             self,
             fg_color="#ede9fe",
-            corner_radius=18
+            corner_radius=18,
+            height=600
         )
         self.table_shadow.pack(fill="both", expand=True, padx=20, pady=(6, 16))
 
@@ -14392,7 +14375,7 @@ class ReportPage(ctk.CTkFrame):
         )
         table_frame.pack(fill="both", expand=True, padx=(1, 3), pady=(1, 3))
 
-        table_frame.grid_rowconfigure(1, weight=1)
+        table_frame.grid_rowconfigure(1, weight=1, minsize=500)
         table_frame.grid_columnconfigure(0, weight=1)
 
         # Section label — .section-label style: uppercase, #94a3b8, bold
@@ -14452,6 +14435,12 @@ class ReportPage(ctk.CTkFrame):
                 )
             except Exception as e:
                 print("Error setting options for table sheet:", e)
+
+            # Center align all columns and headers
+            try:
+                self.sheet.align_columns(columns=list(range(len(cols_display_list))), align="center", align_header=True)
+            except Exception as e:
+                print("Error setting column alignment:", e)
 
             self.sheet.grid(row=1, column=0, sticky="nsew", padx=10, pady=(4, 10))
 
