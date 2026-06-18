@@ -13312,7 +13312,7 @@ class VerticalTimeSelector(tk.Frame):
                     pass
             self.after(50, scroll_to_selected)
 
-class ReportPage(ctk.CTkScrollableFrame):
+class ReportPage(ctk.CTkFrame):
     """
     Full ReportPage with:
       - background load of JSONL (non blocking)
@@ -13867,7 +13867,7 @@ class ReportPage(ctk.CTkScrollableFrame):
 
         # Card header
         card_hdr = ctk.CTkFrame(self.filter_card, fg_color="transparent")
-        card_hdr.pack(fill="x", padx=22, pady=(18, 12))
+        card_hdr.pack(fill="x", padx=22, pady=(10, 6))
 
         ctk.CTkLabel(
             card_hdr,
@@ -13887,7 +13887,7 @@ class ReportPage(ctk.CTkScrollableFrame):
 
         # Grid container
         grid_frame = ctk.CTkFrame(self.filter_card, fg_color="transparent")
-        grid_frame.pack(fill="x", padx=22, pady=(18, 0))
+        grid_frame.pack(fill="x", padx=22, pady=(10, 0))
 
         for col in range(4):
             grid_frame.grid_columnconfigure(col, weight=1, uniform="filter_grid")
@@ -13904,7 +13904,7 @@ class ReportPage(ctk.CTkScrollableFrame):
 
         def get_cell(row, col, padx=(0, 14)):
             cell = ctk.CTkFrame(grid_frame, fg_color="transparent")
-            cell.grid(row=row, column=col, sticky="nsew", padx=padx, pady=(0, 16))
+            cell.grid(row=row, column=col, sticky="nsew", padx=padx, pady=(0, 8))
             return cell
 
         # ── ROW 1 ────────────────────────────────────────────────────────────
@@ -13976,7 +13976,7 @@ class ReportPage(ctk.CTkScrollableFrame):
         ).pack(fill="x")
 
         actions_bar = ctk.CTkFrame(self.filter_card, fg_color="transparent")
-        actions_bar.pack(fill="x", padx=22, pady=(14, 20))
+        actions_bar.pack(fill="x", padx=22, pady=(8, 12))
 
         buttons_wrapper = ctk.CTkFrame(actions_bar, fg_color="transparent")
         buttons_wrapper.pack(side="right")
@@ -13990,7 +13990,7 @@ class ReportPage(ctk.CTkScrollableFrame):
             hover_color="#ede9fe",
             border_width=1,
             border_color="#a78bfa",
-            height=40,
+            height=32,
             width=148,
             corner_radius=12,
             font=("Segoe UI", 13, "bold"),
@@ -14005,7 +14005,7 @@ class ReportPage(ctk.CTkScrollableFrame):
             text_color="#ffffff",
             fg_color="#7c3aed",
             hover_color="#6d28d9",
-            height=40,
+            height=32,
             width=158,
             corner_radius=12,
             font=("Segoe UI", 13, "bold"),
@@ -14023,7 +14023,7 @@ class ReportPage(ctk.CTkScrollableFrame):
             values=options_list,
             variable=tk_var,
             state="readonly",
-            height=40,
+            height=32,
             corner_radius=12,
             border_width=1,
             border_color="#a78bfa",      # purple border — matches glass-select
@@ -14094,7 +14094,7 @@ class ReportPage(ctk.CTkScrollableFrame):
             corner_radius=12,
             border_width=1,
             border_color="#a78bfa",
-            height=40
+            height=32
         )
         date_wrap.grid(row=0, column=0, sticky="nsew")
         date_wrap.pack_propagate(False)
@@ -14587,10 +14587,9 @@ class ReportPage(ctk.CTkScrollableFrame):
         self.table_shadow = ctk.CTkFrame(
             self,
             fg_color="#ede9fe",
-            corner_radius=18,
-            height=600
+            corner_radius=18
         )
-        self.table_shadow.pack(fill="both", expand=True, padx=20, pady=(6, 16))
+        self.table_shadow.pack(fill="both", expand=True, padx=20, pady=(4, 12))
 
         # Glass panel card
         table_frame = ctk.CTkFrame(
@@ -14602,9 +14601,6 @@ class ReportPage(ctk.CTkScrollableFrame):
         )
         table_frame.pack(fill="both", expand=True, padx=(1, 3), pady=(1, 3))
 
-        table_frame.grid_rowconfigure(1, weight=1, minsize=500)
-        table_frame.grid_columnconfigure(0, weight=1)
-
         # Section label — .section-label style: uppercase, #94a3b8, bold
         self.results_title_lbl = ctk.CTkLabel(
             table_frame,
@@ -14613,7 +14609,7 @@ class ReportPage(ctk.CTkScrollableFrame):
             text_color="#94a3b8",
             anchor="w"
         )
-        self.results_title_lbl.grid(row=0, column=0, sticky="w", padx=18, pady=(14, 6))
+        self.results_title_lbl.pack(side="top", anchor="w", padx=18, pady=(8, 4))
 
         cols = (
             "S.No", "Time", "Date", "Reading", "Offset", "Status", "AirGauge ID", "Channel",
@@ -14669,7 +14665,7 @@ class ReportPage(ctk.CTkScrollableFrame):
             except Exception as e:
                 print("Error setting column alignment:", e)
 
-            self.sheet.grid(row=1, column=0, sticky="nsew", padx=10, pady=(4, 10))
+            self.sheet.pack(side="top", fill="both", expand=True, padx=10, pady=(4, 10))
 
             self.col_widths = [60, 100, 100, 110, 90, 100, 110, 90, 110, 110, 110, 120, 120, 120]
 
@@ -14725,17 +14721,22 @@ class ReportPage(ctk.CTkScrollableFrame):
                       background=[("selected", "#ede9fe")],
                       foreground=[("selected", "#6d28d9")])
 
-            self.tree = ttk.Treeview(table_frame, columns=cols, show="headings",
+            tree_container = ctk.CTkFrame(table_frame, fg_color="transparent")
+            tree_container.pack(side="top", fill="both", expand=True, padx=10, pady=(4, 10))
+            tree_container.grid_rowconfigure(0, weight=1)
+            tree_container.grid_columnconfigure(0, weight=1)
+
+            self.tree = ttk.Treeview(tree_container, columns=cols, show="headings",
                                      selectmode="browse", style="Purple.Treeview")
             for h in cols:
                 self.tree.heading(h, text=cols_display[h])
                 self.tree.column(h, width=120, anchor="center")
-            vsb = ttk.Scrollbar(table_frame, orient="vertical", command=self.tree.yview)
-            hsb = ttk.Scrollbar(table_frame, orient="horizontal", command=self.tree.xview)
+            vsb = ttk.Scrollbar(tree_container, orient="vertical", command=self.tree.yview)
+            hsb = ttk.Scrollbar(tree_container, orient="horizontal", command=self.tree.xview)
             self.tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
-            self.tree.grid(row=1, column=0, sticky="nsew")
-            vsb.grid(row=1, column=1, sticky="ns")
-            hsb.grid(row=2, column=0, sticky="ew")
+            self.tree.grid(row=0, column=0, sticky="nsew")
+            vsb.grid(row=0, column=1, sticky="ns")
+            hsb.grid(row=1, column=0, sticky="ew")
 
         # Empty state overlay — glass bg, purple icon
         self.empty_state_frame = ctk.CTkFrame(table_frame, fg_color="#fdf4ff", corner_radius=12)
