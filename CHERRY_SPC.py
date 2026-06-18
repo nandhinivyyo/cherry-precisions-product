@@ -4647,19 +4647,7 @@ class MachineSetupPage(ctk.CTkFrame):
         )
         sync_btn.grid(row=0, column=6, padx=5, pady=8)
         
-        excel_btn = ModernButton(
-            entry_frame,
-            text="📊 Export Excel",
-            height=32,
-            font=("Segoe UI", 11, "bold"),
-            fg_color="#007B43",
-            hover_color="#005C32",
-            text_color="white",
-            corner_radius=6,
-            command=self.export_to_excel
-        )
-        excel_btn.grid(row=0, column=7, padx=(5, 15), pady=8)
-        
+        # Export Excel removed as requested
         # --- Table Frame ---
         self.table_frame = ctk.CTkScrollableFrame(self, corner_radius=6, fg_color="white", border_width=1, border_color="#E0E0E0")
         self.table_frame.pack(padx=15, pady=10, fill="both", expand=True)
@@ -4925,6 +4913,10 @@ class MachineSetupPage(ctk.CTkFrame):
             pass # Just ignore or refresh if you want to see raw IPs (but we map IP->ID)
 
     def delete_entry(self):
+        if not getattr(self.app, "serial_conn", None):
+            messagebox.showwarning("Connection Error", "Master must be connected to delete an AirGauge setup.")
+            return
+
         mac = self.mac_entry.get().strip()
         ag_id = self.id_entry.get().strip()
 
@@ -4949,16 +4941,18 @@ class MachineSetupPage(ctk.CTkFrame):
                     break
         
         if found and key_to_del:
-            # We don't delete locally yet, wait for ACK
-            # But we need the IP to send the command
+            # Delete locally and refresh immediately for better UX
             ip_to_delete = key_to_del
+            del data[key_to_del]
+            self.save_json(data)
+            self.refresh_table()
             
             if getattr(self.app, "serial_conn", None):
                 cmd = f"DEL_IP {ip_to_delete}\n"
                 self.app.serial_conn.write(cmd.encode())
-                self.app.status_label.configure(text=f"Requesting delete of {ip_to_delete}...")
+                self.app.status_label.configure(text=f"Deleted {ip_to_delete} locally & sent DEL_IP...")
             else:
-                messagebox.showwarning("Connection Error", "Master not connected. Cannot verify deletion.")
+                self.app.status_label.configure(text=f"Deleted {ip_to_delete} locally (Master not connected).")
         else:
             messagebox.showinfo("Not Found", f"No entry found for IP {mac} or ID {ag_id}")
 
