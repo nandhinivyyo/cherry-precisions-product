@@ -3628,10 +3628,8 @@ class CherryApp(ctk.CTk):
             widget.pack_forget()
         if hasattr(self, "report_page") and self.report_page.winfo_exists():
             self.report_page.pack(fill="both", expand=True)
-            try:
-                self.report_page.refresh_table_data()
-            except Exception:
-                pass
+            # Removed the aggressive auto-refresh here to prevent UI lag.
+            # Users can manually click "Refresh Sort" if new data arrived.
         else:
             self.report_page = ReportPage(self.content_frame, self)
             self.report_page.pack(fill="both", expand=True)
@@ -14462,7 +14460,16 @@ class ReportPage(ctk.CTkScrollableFrame):
                     try: self.sheet.refresh()
                     except: pass
 
-            table_frame.bind("<Configure>", do_resize)
+            table_frame._resize_timer = None
+            def on_configure(event=None):
+                if getattr(table_frame, "_resize_timer", None):
+                    try:
+                        table_frame.after_cancel(table_frame._resize_timer)
+                    except:
+                        pass
+                table_frame._resize_timer = table_frame.after(150, do_resize)
+
+            table_frame.bind("<Configure>", on_configure)
             table_frame.after(100, do_resize)
 
             try:
@@ -14928,11 +14935,6 @@ class ReportPage(ctk.CTkScrollableFrame):
                 self._show_loading("Processing...")
             else:
                 self._hide_loading()
-            state = "disabled" if is_loading else "normal"
-            if hasattr(self, "export_btn") and self.export_btn:
-                self.export_btn.configure(state=state)
-            if hasattr(self, "analyze_btn") and self.analyze_btn:
-                self.analyze_btn.configure(state=state)
         except Exception as e:
             print("Loading state error:", e)
 
