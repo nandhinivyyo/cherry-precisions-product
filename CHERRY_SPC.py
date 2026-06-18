@@ -95,6 +95,61 @@ class ModernButton(ctk.CTkButton):
                 if isinstance(hover_color, str) and hover_color.startswith("#"):
                     self.hover_anim.hover_color = hover_color
 
+def center_toplevel_window(toplevel_win, width, height, parent_win):
+    """
+    Centers a toplevel window of a given width and height relative to its parent window.
+    Ensures that the popup is positioned correctly across different screen resolutions and DPI scaling.
+    """
+    toplevel_win.update_idletasks()
+    try:
+        scale = toplevel_win._get_window_scaling()
+    except Exception:
+        scale = 1.0
+
+    if parent_win:
+        try:
+            parent_win.update_idletasks()
+            parent_toplevel = parent_win.winfo_toplevel()
+            parent_toplevel.update_idletasks()
+            p_w = parent_toplevel.winfo_width()
+            p_h = parent_toplevel.winfo_height()
+            p_x = parent_toplevel.winfo_rootx()
+            p_y = parent_toplevel.winfo_rooty()
+        except Exception:
+            p_w, p_h = parent_win.winfo_screenwidth(), parent_win.winfo_screenheight()
+            p_x, p_y = 0, 0
+
+        w_scaled = width * scale
+        h_scaled = height * scale
+        
+        center_x = p_x + (p_w - w_scaled) // 2
+        center_y = p_y + (p_h - h_scaled) // 2
+        
+        x_logical = int(center_x / scale)
+        y_logical = int(center_y / scale)
+    else:
+        screen_w = toplevel_win.winfo_screenwidth()
+        screen_h = toplevel_win.winfo_screenheight()
+        w_scaled = width * scale
+        h_scaled = height * scale
+        center_x = (screen_w - w_scaled) // 2
+        center_y = (screen_h - h_scaled) // 2
+        x_logical = int(center_x / scale)
+        y_logical = int(center_y / scale)
+
+    # Prevent window from going off-screen
+    screen_w = toplevel_win.winfo_screenwidth()
+    screen_h = toplevel_win.winfo_screenheight()
+    max_x_logical = int((screen_w - w_scaled) / scale)
+    max_y_logical = int((screen_h - h_scaled) / scale)
+    
+    if x_logical < 0: x_logical = 0
+    if y_logical < 0: y_logical = 0
+    if x_logical > max_x_logical: x_logical = max_x_logical
+    if y_logical > max_y_logical: y_logical = max_y_logical
+
+    toplevel_win.geometry(f"{width}x{height}+{x_logical}+{y_logical}")
+
 class SidebarButton(ctk.CTkFrame):
     def __init__(self, parent, symbol, word, command, **kwargs):
         super().__init__(parent, fg_color="transparent", corner_radius=8, height=48, **kwargs)
@@ -1482,11 +1537,9 @@ class ForgotPasswordDialog(ctk.CTkToplevel):
                       corner_radius=8,
                       command=self.destroy).pack(pady=(6, 0))
 
-        # Set explicit size and centre on screen
+        # Set explicit size and centre on parent
         W, H = 820, 500
-        x = (self.winfo_screenwidth()  - W) // 2
-        y = (self.winfo_screenheight() - H) // 2
-        self.geometry(f"{W}x{H}+{x}+{y}")
+        center_toplevel_window(self, W, H, parent)
         self.update_idletasks()
         self.resizable(False, False)
         self.deiconify()  # Reveal the window fully centered
@@ -1666,9 +1719,7 @@ class ResetPasswordDialog(ctk.CTkToplevel):
         self.update_idletasks()
         # Use explicit size to avoid winfo_reqwidth returning 0 before render
         W, H = 480, 620
-        x = (self.winfo_screenwidth()  - W) // 2
-        y = (self.winfo_screenheight() - H) // 2
-        self.geometry(f"{W}x{H}+{x}+{y}")
+        center_toplevel_window(self, W, H, parent)
         self.update_idletasks()
         self.resizable(False, False)
         self.deiconify()  # Reveal the window fully centered
@@ -6832,7 +6883,7 @@ class MachineMasterPage(ctk.CTkFrame):
 
         win = ctk.CTkToplevel(self)
         win.title("Edit Machine" if mode == "edit" else "Add Machine")
-        win.geometry("580x320")
+        center_toplevel_window(win, 580, 320, self)
         win.grab_set()
 
         frm = ctk.CTkFrame(win)
@@ -7586,7 +7637,7 @@ class ItemMasterPage(ctk.CTkFrame):
             return
         win = ctk.CTkToplevel(self)
         win.title("Edit Item" if mode == "edit" else "Add Item")
-        win.geometry("580x320")
+        center_toplevel_window(win, 580, 320, self)
         win.grab_set()
 
         frm = ctk.CTkFrame(win)
@@ -8364,7 +8415,7 @@ class ProcessMasterPage(ctk.CTkFrame):
 
         win = ctk.CTkToplevel(self)
         win.title("Edit Process" if mode == "edit" else "Add Process")
-        win.geometry("580x320")
+        center_toplevel_window(win, 580, 320, self)
         win.grab_set()
 
         frm = ctk.CTkFrame(win)
@@ -9366,7 +9417,7 @@ class OperatorManagerPage(ctk.CTkFrame):
     def _open_editor_dialog(self, mode="add", index=None):
         win = ctk.CTkToplevel(self)
         win.title("Add Operator" if mode == "add" else "Edit Operator")
-        win.geometry("520x360")
+        center_toplevel_window(win, 520, 360, self)
         win.grab_set()
         win.focus_force()
 
@@ -10287,7 +10338,7 @@ class CustomerMasterPage(ctk.CTkFrame):
 
         win = ctk.CTkToplevel(self)
         win.title("Edit Customer" if mode == "edit" else "Add Customer")
-        win.geometry("640x360")
+        center_toplevel_window(win, 640, 360, self)
         win.grab_set()
 
         frame = ctk.CTkFrame(win)
@@ -11444,7 +11495,7 @@ class UsbAssignmentPopup(ctk.CTkToplevel):
     def __init__(self, parent, unique_combos, customers_list, items_list, on_confirm):
         super().__init__(parent)
         self.title("USB Data Assignment")
-        self.geometry("750x450")
+        center_toplevel_window(self, 750, 450, parent)
         self.attributes('-topmost', True)
         self.grab_set()
 
@@ -12392,6 +12443,7 @@ class LiveDataPage(ctk.CTkFrame):
             del self._data_buffer[:5]
             for parsed in chunk:
                 self._process_row_visuals(parsed)
+        self.update_status_badge()
         self.after(self._batch_interval_ms, self._ui_update_loop)
 
     def _make_header_icon(self, kind, size=24, color="#009A55"):
@@ -12475,17 +12527,7 @@ class LiveDataPage(ctk.CTkFrame):
         title_frame = ctk.CTkFrame(header_content, fg_color="transparent")
         title_frame.pack(side="left")
         
-        # Rounded green square for logo
-        logo_frame = ctk.CTkFrame(title_frame, fg_color="#007B43", width=40, height=40, corner_radius=8)
-        logo_frame.pack(side="left", padx=(0, 12))
-        logo_frame.pack_propagate(False)
-        
-        # White cherry emoji inside logo
-        logo_lbl = ctk.CTkLabel(logo_frame, text="🍒", font=("Segoe UI", 18), text_color="white", fg_color="transparent")
-        logo_lbl.pack(expand=True)
-        
-        logo_lbl.configure(text="T", font=("Segoe UI", 24, "bold"))
-        
+        # Title
         ctk.CTkLabel(
             title_frame,
             text="Live Data Monitoring",
@@ -12494,24 +12536,21 @@ class LiveDataPage(ctk.CTkFrame):
         ).pack(side="left")
         
         # Status badge
-        status_badge = ctk.CTkFrame(
+        self.status_badge = ctk.CTkFrame(
             header_content,
-            fg_color="#E8F5E9",
+            fg_color="#FFEBEE",
             corner_radius=18
         )
-        status_badge.pack(side="right", padx=10)
+        self.status_badge.pack(side="right", padx=10)
         
-        ctk.CTkLabel(
-            status_badge,
-            text="● LIVE",
-            font=("Segoe UI", 11, "bold"),
-            text_color="#43A047"
-        ).pack(padx=15, pady=6)
-        for child in status_badge.winfo_children():
-            child.destroy()
         self.live_dot_img = self._make_header_icon("live_dot", size=18, color="#00A95C")
-        ctk.CTkLabel(status_badge, image=self.live_dot_img, text="", fg_color="transparent").pack(side="left", padx=(14, 6), pady=8)
-        ctk.CTkLabel(status_badge, text="LIVE", font=("Segoe UI", 12, "bold"), text_color="#007B43").pack(side="left", padx=(0, 14), pady=8)
+        self.offline_dot_img = self._make_header_icon("live_dot", size=18, color="#D32F2F")
+        
+        self.badge_dot_label = ctk.CTkLabel(self.status_badge, image=self.offline_dot_img, text="", fg_color="transparent")
+        self.badge_dot_label.pack(side="left", padx=(14, 6), pady=8)
+        
+        self.badge_text_label = ctk.CTkLabel(self.status_badge, text="OFFLINE", font=("Segoe UI", 12, "bold"), text_color="#C62828")
+        self.badge_text_label.pack(side="left", padx=(0, 14), pady=8)
 
         # Custom header frame, matching USB Data page
         self.header_row_frame = ctk.CTkFrame(self, fg_color="white", height=42, corner_radius=0)
@@ -12558,11 +12597,37 @@ class LiveDataPage(ctk.CTkFrame):
             "Channel",
             "Drawing",
             "User ID",
-            "Component ID"
+            "Component ID",
+            "Item",
+            "CNC ID",
+            "Customer"
         ]
 
         self.create_table(cols)
         
+    def update_status_badge(self):
+        try:
+            if not self.winfo_exists() or not hasattr(self, "status_badge") or not self.status_badge.winfo_exists():
+                return
+            is_connected = False
+            if hasattr(self, "app") and self.app:
+                if hasattr(self.app, "serial_conn") and self.app.serial_conn and self.app.serial_conn.is_open:
+                    is_connected = True
+            
+            current_text = self.badge_text_label.cget("text")
+            if is_connected:
+                if current_text != "LIVE":
+                    self.status_badge.configure(fg_color="#E8F5E9")
+                    self.badge_dot_label.configure(image=self.live_dot_img)
+                    self.badge_text_label.configure(text="LIVE", text_color="#007B43")
+            else:
+                if current_text != "OFFLINE":
+                    self.status_badge.configure(fg_color="#FFEBEE")
+                    self.badge_dot_label.configure(image=self.offline_dot_img)
+                    self.badge_text_label.configure(text="OFFLINE", text_color="#C62828")
+        except Exception:
+            pass
+
     def load_component_json(self):
         try:
             conn = sqlite3.connect("component_setup.db")
@@ -12696,7 +12761,7 @@ class LiveDataPage(ctk.CTkFrame):
                     # Deduct spacing for the vertical scrollbar
                     usable_w = total_w - 18
                     
-                    ratios = [0.09, 0.10, 0.10, 0.09, 0.10, 0.12, 0.10, 0.10, 0.09, 0.11]
+                    ratios = [0.07, 0.07, 0.09, 0.08, 0.06, 0.07, 0.07, 0.08, 0.06, 0.09, 0.09, 0.08, 0.09]
                     widths = [int(r * usable_w) for r in ratios]
                     # Adjust last column to match exactly
                     widths[-1] += usable_w - sum(widths)
@@ -12797,7 +12862,7 @@ class LiveDataPage(ctk.CTkFrame):
                         total_w = 800
                     
                     usable_w = total_w - 18
-                    ratios = [0.09, 0.10, 0.10, 0.09, 0.10, 0.12, 0.10, 0.10, 0.09, 0.11]
+                    ratios = [0.07, 0.07, 0.09, 0.08, 0.06, 0.07, 0.07, 0.08, 0.06, 0.09, 0.09, 0.08, 0.09]
                     widths = [int(r * usable_w) for r in ratios]
                     widths[-1] += usable_w - sum(widths)
                     
@@ -15292,9 +15357,7 @@ class ReportPage(ctk.CTkScrollableFrame):
         dlg = ctk.CTkToplevel(self)
         dlg.title("Authentication Required")
         w, h = 380, 240
-        x_pos = self.winfo_x() + (self.winfo_width() // 2) - (w // 2)
-        y_pos = self.winfo_y() + (self.winfo_height() // 2) - (h // 2)
-        dlg.geometry(f"{w}x{h}+{x_pos}+{y_pos}")
+        center_toplevel_window(dlg, w, h, self)
         dlg.resizable(False, False)
         dlg.transient(self.winfo_toplevel())
         dlg.grab_set()
@@ -15493,16 +15556,10 @@ class ReportPage(ctk.CTkScrollableFrame):
         try:
             win = ctk.CTkToplevel(self)
             win.title("Analysis")
-            win.geometry("400x180")
+            center_toplevel_window(win, 400, 180, self)
             win.resizable(False, False)
             win.transient(self)
             win.grab_set()
-            try:
-                win.update_idletasks()
-                x = (self.winfo_screenwidth() - 400) // 2
-                y = (self.winfo_screenheight() - 180) // 2
-                win.geometry(f"+{x}+{y}")
-            except: pass
             bg = ctk.CTkFrame(win, fg_color="#fdf4ff", corner_radius=0)
             bg.pack(fill="both", expand=True)
             ctk.CTkLabel(bg, text="⚠️", font=("Segoe UI", 24, "bold"), text_color="#7c3aed").pack(pady=(20, 5))
