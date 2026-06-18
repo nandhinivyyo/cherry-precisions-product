@@ -2859,6 +2859,16 @@ class CherryApp(ctk.CTk):
         # ---------------- Force Light Theme ----------------
         ctk.set_appearance_mode("light")
 
+        # Global TTK styling to prevent native blue selection highlighting
+        style = ttk.Style()
+        style.map('TCombobox',
+                  selectbackground=[('readonly', 'white'), ('focus', 'white'), ('active', 'white')],
+                  selectforeground=[('readonly', '#1e293b'), ('focus', '#1e293b'), ('active', '#1e293b')])
+        
+        # Prevent the dropdown list menu itself from using blue selection
+        self.option_add('*TCombobox*Listbox.selectBackground', '#f1f5f9')
+        self.option_add('*TCombobox*Listbox.selectForeground', '#1e293b')
+
         # ---------------- App state ----------------
         self.active_page = None
         self.sidebar_user_visible = False
@@ -2868,6 +2878,9 @@ class CherryApp(ctk.CTk):
         self.component_page = None
         self.runchat_page = None
         self.bg_resize_job = None  # For debouncing
+
+        # --- Graceful shutdown binding ---
+        self.protocol("WM_DELETE_WINDOW", self.on_closing)
 
         # ---------------- Core systems ----------------
         self.data_manager = DataManager()
@@ -3084,6 +3097,11 @@ class CherryApp(ctk.CTk):
             self._resize_after_id = self.after(self._resize_debounce_ms, self._do_final_resize)
 
         def _do_final_resize():
+            try:
+                if getattr(self, '_closing', False) or not self.winfo_exists():
+                    return
+            except Exception:
+                return
             self._resize_after_id = None
             try:
                 # If you have a content_frame where pages are placed, update it
@@ -3168,10 +3186,26 @@ class CherryApp(ctk.CTk):
             self.status_label.configure(text="Customer Master loaded ✅")
         except Exception:
             pass
+    def on_closing(self):
+        """Handle application shutdown gracefully without throwing bgerrors."""
+        self._closing = True
+        try:
+            if hasattr(self, 'serial_conn') and self.serial_conn:
+                self.serial_conn.close()
+        except Exception:
+            pass
+        try:
+            self.quit()
+            self.destroy()
+        except Exception:
+            pass
 
     def update_live_data(self):
         """Continuously read parsed data from queue and update DataManager."""
-        if getattr(self, '_closing', False):
+        try:
+            if getattr(self, '_closing', False) or not self.winfo_exists():
+                return
+        except Exception:
             return
         # Process up to 20 items per tick; 80 ms gives smooth UI without queue buildup
         count = 0
@@ -3877,7 +3911,10 @@ class CherryApp(ctk.CTk):
 
     def _update_rssi_display(self):
         """Poll rssi_queue every 1 second and update WiFi bars widget."""
-        if getattr(self, '_closing', False):
+        try:
+            if getattr(self, '_closing', False) or not self.winfo_exists():
+                return
+        except Exception:
             return
         try:
             # Drain queue, keep only latest value
@@ -3918,7 +3955,10 @@ class CherryApp(ctk.CTk):
     def _pulse_status_light(self):
 
         """Animate status light with pulsing effect"""
-        if getattr(self, '_closing', False):
+        try:
+            if getattr(self, '_closing', False) or not self.winfo_exists():
+                return
+        except Exception:
             return
         if not hasattr(self, '_pulse_state'):
             self._pulse_state = 0
@@ -10561,9 +10601,9 @@ class RunChatPage(ctk.CTkFrame):
 
         # === Scrollable Canvas Setup ===
         self.canvas = tk.Canvas(self, bg="#fff", highlightthickness=0)
+        self.scrollbar = ctk.CTkScrollbar(self, orientation="vertical", command=self.canvas.yview)
+        self.scrollbar.pack(side="right", fill="y", padx=2, pady=5)
         self.canvas.pack(side="left", fill="both", expand=True, padx=10, pady=5)
-        self.scrollbar = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
-        self.scrollbar.pack(side="right", fill="y")
         self.canvas.configure(yscrollcommand=self.scrollbar.set)
 
         self.scrollable_frame = tk.Frame(self.canvas, bg="#fff")
@@ -10718,13 +10758,10 @@ class RunChatPage(ctk.CTkFrame):
 
         # --- Add internal scrollable area (for chart + table) ---
         inner_canvas = tk.Canvas(frame, bg="#f8f7fb", highlightthickness=0)
-        inner_scrollbar = ttk.Scrollbar(frame, orient="vertical", command=inner_canvas.yview)
         scrollable_inner = tk.Frame(inner_canvas, bg="#f8f7fb")
 
-        inner_canvas.configure(yscrollcommand=inner_scrollbar.set)
         # Pack canvas with padding to avoid overlapping the rounded corners of 'frame'
         inner_canvas.pack(side="left", fill="both", expand=True, padx=(16, 0), pady=(0, 16))
-        # The scrollbar is hidden to match the pristine UI look, but mouse scrolling works flawlessly
         
         inner_window = inner_canvas.create_window((0, 0), window=scrollable_inner, anchor="nw")
 
@@ -10854,25 +10891,27 @@ class RunChatPage(ctk.CTkFrame):
 
         # --- AirGauge selector ---
         tk.Label(left_frame, text="AirGauge:", bg="#ffffff", font=("Segoe UI", 11, "bold"), fg="#1e293b").pack(side="left", padx=(0, 6))
-        air_var = tk.StringVar()
-        air_box = ttk.Combobox(left_frame, textvariable=air_var,
-                               values=sorted(list(self.comp_map.keys())), state="readonly", width=8, font=("Segoe UI", 11))
-        air_box.pack(side="left", padx=(0, 20))
+        air_var = ctk.StringVar()
+        air_box = ctk.CTkComboBox(left_frame, variable=air_var,
+                                  values=sorted(list(self.comp_map.keys())) or ["None"], state="readonly", width=120, font=("Segoe UI", 12),
+                                  fg_color="#ffffff", text_color="#1e293b", border_color="#cbd5e1", button_color="#f8fafc", button_hover_color="#f1f5f9",
+                                  dropdown_fg_color="#ffffff", dropdown_text_color="#1e293b", dropdown_hover_color="#f1f5f9")
+        air_box.pack(side="left", padx=(0, 20), pady=4)
 
         # --- Channel selector ---
         tk.Label(left_frame, text="Channel:", bg="#ffffff", font=("Segoe UI", 11, "bold"), fg="#1e293b").pack(side="left", padx=(0, 6))
-        ch_var = tk.StringVar()
-        ch_box = ttk.Combobox(left_frame, textvariable=ch_var,
-                              values=[], state="readonly", width=8, font=("Segoe UI", 11))
-        ch_box.pack(side="left", padx=(0, 20))
+        ch_var = ctk.StringVar()
+        ch_box = ctk.CTkComboBox(left_frame, variable=ch_var,
+                                 values=["CH1"], state="readonly", width=100, font=("Segoe UI", 12),
+                                 fg_color="#ffffff", text_color="#1e293b", border_color="#cbd5e1", button_color="#f8fafc", button_hover_color="#f1f5f9",
+                                 dropdown_fg_color="#ffffff", dropdown_text_color="#1e293b", dropdown_hover_color="#f1f5f9")
+        ch_box.pack(side="left", padx=(0, 20), pady=4)
 
-        # --- Latest value box ---
-        val_frame = tk.Frame(left_frame, bg="#ffffff", bd=1, relief="solid", highlightbackground="#e2e8f0", highlightthickness=1)
-        val_frame.pack(side="left", padx=0)
+        # --- Latest value label (No border) ---
         latest_var = tk.StringVar(value="--")
-        latest_label = tk.Label(val_frame, textvariable=latest_var, bg="#ffffff",
-                                fg="#1e293b", font=("Segoe UI", 12), width=6)
-        latest_label.pack(padx=8, pady=2)
+        latest_label = tk.Label(left_frame, textvariable=latest_var, bg="#ffffff",
+                                fg="#1e293b", font=("Segoe UI", 12, "bold"), width=8)
+        latest_label.pack(side="left", padx=(10, 0))
 
         # === Chart Card ===
         fig, ax = plt.subplots(figsize=(6.0, 2.6))
@@ -10901,8 +10940,34 @@ class RunChatPage(ctk.CTkFrame):
                 chart_info["auto_follow"] = True
             chart_info["update_visible"]()
 
+        def on_slider_change(*args):
+            if chart_info.get("_ignore_slider"): return
+            data_len = len(self.global_data[idx]["x"])
+            max_start = max(0, data_len - chart_info["win_size"])
+            if max_start == 0: return
+            
+            if args[0] == "moveto":
+                fraction = float(args[1])
+                new_start = int(round(fraction * max_start))
+            elif args[0] == "scroll":
+                amount = int(args[1])
+                new_start = chart_info["start"] + amount
+                new_start = max(0, min(new_start, max_start))
+            else:
+                return
+
+            if new_start != chart_info["start"]:
+                chart_info["auto_follow"] = (new_start >= max_start)
+                chart_info["start"] = new_start
+                chart_info["update_visible"]()
+
         l_btn = ctk.CTkButton(nav_frame, text="◀", font=("Segoe UI", 16), width=32, height=32, corner_radius=8, fg_color="#ffffff", text_color="#5b21b6", border_width=1, border_color="#e2e8f0", hover_color="#f3f0f8", command=move_left)
         l_btn.pack(side="left")
+        
+        slider = ctk.CTkScrollbar(nav_frame, orientation="horizontal", command=on_slider_change)
+        slider.pack(side="left", fill="x", expand=True, padx=15)
+        slider.set(0, 1)
+        chart_info["slider"] = slider
         
         r_btn = ctk.CTkButton(nav_frame, text="▶", font=("Segoe UI", 16), width=32, height=32, corner_radius=8, fg_color="#ffffff", text_color="#5b21b6", border_width=1, border_color="#e2e8f0", hover_color="#f3f0f8", command=move_right)
         r_btn.pack(side="right")
@@ -10938,9 +11003,9 @@ class RunChatPage(ctk.CTkFrame):
                     diff = hi - lo
                     pad = diff * 1.0 if diff >= 1e-9 else 1.0
 
-                    c_high = "#ef4444" # red
-                    c_targ = "#3b82f6" # blue
-                    c_low  = "#f59e0b" # orange
+                    c_high = "#991b1b" # dark red
+                    c_targ = "#10b981" # green
+                    c_low  = "#eab308" # yellow
                     bg_high = "#fff5f5" # very pale red
                     bg_mid  = "#f0fdf4" # very pale green
                     bg_low  = "#fffbeb" # very pale orange
@@ -10974,8 +11039,8 @@ class RunChatPage(ctk.CTkFrame):
                 print(f"Setup chart error: {e}")
                 ax.set_ylim(0, 100)
 
-            chart_info["line"], = ax.plot([], [], marker="o", color="#10b981", markersize=4, 
-                                          linestyle="", zorder=3)
+            chart_info["line"], = ax.plot([], [], marker="o", color="#10b981", markersize=6, 
+                                          linewidth=2, linestyle="-", zorder=3)
             chart_info["texts"] = [] 
 
         setup_chart()
@@ -11000,7 +11065,10 @@ class RunChatPage(ctk.CTkFrame):
         # Outer frame removed, we pack directly to table_card with rounded corners
         tbl_canvas  = tk.Canvas(table_card, bg="#fdf4ff", highlightthickness=0,
                                 height=(ROW_H * 6 + 1))
+        tbl_scroll = ctk.CTkScrollbar(table_card, orientation="horizontal", command=tbl_canvas.xview)
+        tbl_scroll.pack(side="bottom", fill="x", padx=2, pady=2)
         tbl_canvas.pack(side="top", fill="x", expand=True, padx=2, pady=2)
+        tbl_canvas.configure(xscrollcommand=tbl_scroll.set)
 
         # We'll draw everything on the canvas as text + rectangles.
         # Store column label widget references so update_visible can refresh them.
@@ -11105,6 +11173,31 @@ class RunChatPage(ctk.CTkFrame):
             else:
                 s = chart_info["start"]
 
+            max_start = max(0, n - win)
+            if "slider" in chart_info:
+                try:
+                    slider = chart_info["slider"]
+                    fraction = s / max_start if max_start > 0 else 0.0
+                    thumb_size = win / max(1, n)
+                    thumb_size = min(1.0, max(0.05, thumb_size))
+                    
+                    first = fraction * (1.0 - thumb_size)
+                    last = first + thumb_size
+                    
+                    current = slider.get()
+                    if isinstance(current, tuple) and len(current) == 2:
+                        curr_first, curr_last = current
+                        if abs(curr_first - first) > 0.02 or abs(curr_last - last) > 0.02:
+                            chart_info["_ignore_slider"] = True
+                            slider.set(first, last)
+                            chart_info["_ignore_slider"] = False
+                    else:
+                        chart_info["_ignore_slider"] = True
+                        slider.set(first, last)
+                        chart_info["_ignore_slider"] = False
+                except Exception as e:
+                    print("Slider update err:", e)
+
             e = min(s + win, n)
             xw, yw = data["x"][s:e], data["y"][s:e]
             tw, ow = data["t"][s:e], data["offset"][s:e]
@@ -11183,7 +11276,6 @@ class RunChatPage(ctk.CTkFrame):
             if yw:
                 latest_val = yw[-1]
                 latest_var.set(f"{latest_val:.4f}")
-                latest_var.set(f"{latest_val:.4f}")
                 self.update_val_color(latest_label, air_var.get(), ch_var.get(), latest_val)
 
             # ---- Calculate CpK (only after 50 readings) ----
@@ -11231,20 +11323,16 @@ class RunChatPage(ctk.CTkFrame):
             ag = air_var.get()
             if ag in self.comp_map:
                 chans = sorted(list(self.comp_map[ag].keys()))
-                ch_box["values"] = chans
+                ch_box.configure(values=chans if chans else [""])
                 if ch_var.get() not in chans:
                     ch_var.set(chans[0] if chans else "")
             else:
-                ch_box["values"] = []
+                ch_box.configure(values=[""])
                 ch_var.set("")
             on_spec_change()
 
         air_var.trace_add("write", update_channels)
         ch_var.trace_add("write", on_spec_change)
-
-
-        air_box.bind("<<ComboboxSelected>>", on_spec_change)
-        ch_box.bind("<<ComboboxSelected>>", on_spec_change)
 
         # defaults
         sel = self.saved_selections[idx]
@@ -12429,7 +12517,10 @@ class LiveDataPage(ctk.CTkFrame):
 
     def _ui_update_loop(self):
         """Periodically flush buffer to UI — max 5 rows per tick to stay responsive."""
-        if getattr(self.app, '_closing', False):
+        try:
+            if getattr(self.app, '_closing', False) or not self.winfo_exists():
+                return
+        except Exception:
             return
         if self._data_buffer:
             # Process at most 5 rows per tick; remaining stay buffered for next tick

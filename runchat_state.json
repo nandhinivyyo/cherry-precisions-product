@@ -2,12 +2,17 @@
   "chart_count": 2,
   "saved_selections": [
     {
+<<<<<<< Updated upstream
       "air_id": "34",
       "channel": "None"
     },
     {
       "air_id": "233",
       "channel": "None"
+=======
+      "air_id": "432235",
+      "channel": "CH1"
+>>>>>>> Stashed changes
     }
   ]
 }
