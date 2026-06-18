@@ -12556,6 +12556,7 @@ class LiveDataPage(ctk.CTkFrame):
 
         # === Column Configuration ===
         cols = [
+            "S.No",
             "Date",
             "Time",
             "Reading",
@@ -12624,6 +12625,7 @@ class LiveDataPage(ctk.CTkFrame):
 
         # Emojis and column display names
         header_info = [
+            ("S.No", "🔢"),
             ("Date", "📅"),
             ("Time", "🕐"),
             ("Reading", "📊"),
@@ -12712,7 +12714,7 @@ class LiveDataPage(ctk.CTkFrame):
                     # Deduct spacing for the vertical scrollbar
                     usable_w = total_w - 18
                     
-                    ratios = [0.09, 0.10, 0.10, 0.09, 0.10, 0.12, 0.10, 0.10, 0.09, 0.11]
+                    ratios = [0.06, 0.09, 0.09, 0.09, 0.09, 0.09, 0.11, 0.09, 0.09, 0.09, 0.11]
                     widths = [int(r * usable_w) for r in ratios]
                     # Adjust last column to match exactly
                     widths[-1] += usable_w - sum(widths)
@@ -13052,7 +13054,10 @@ class LiveDataPage(ctk.CTkFrame):
 
             customer_name = self.get_customer_name(airgauge_id, ch)
 
+            self.serial_no += 1
+
             values = [
+                self.serial_no,
                 date,
                 f"{hh}:{mm}:{ss}",
                 Reading,
@@ -13108,7 +13113,6 @@ class LiveDataPage(ctk.CTkFrame):
 
             # bookkeeping
             self.rows.append(display_values)
-            self.serial_no += 1
 
             # Save JSON every 100 rows in background thread (was every 10 rows, on main thread)
             if self.serial_no % 100 == 0:

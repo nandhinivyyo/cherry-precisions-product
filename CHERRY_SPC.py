@@ -12666,6 +12666,7 @@ class LiveDataPage(ctk.CTkFrame):
 
         # === Column Configuration ===
         cols = [
+            "S.No",
             "Date",
             "Time",
             "Reading",
@@ -12807,9 +12808,9 @@ class LiveDataPage(ctk.CTkFrame):
             self.table_frame.grid_rowconfigure(0, weight=1)
             self.table_frame.grid_columnconfigure(0, weight=1)
 
-            # Column widths for the 13 columns (same scale logic as ReportPage)
-            # Default widths for: Date, Time, Reading, Offset, Status, AirGauge ID, Channel, Drawing, User ID, Component ID, Item, CNC ID, Customer
-            self.col_widths = [100, 100, 110, 95, 90, 110, 110, 95, 110, 120, 120, 120, 120]
+            # Column widths for the 14 columns (same scale logic as ReportPage)
+            # Default widths for: S.No, Date, Time, Reading, Offset, Status, AirGauge ID, Channel, Drawing, User ID, Component ID, Item, CNC ID, Customer
+            self.col_widths = [60, 100, 100, 110, 95, 90, 110, 110, 95, 110, 120, 120, 120, 120]
 
             def resize_sheet(ev=None):
                 try:
@@ -13115,7 +13116,10 @@ class LiveDataPage(ctk.CTkFrame):
 
             customer_name = self.get_customer_name(airgauge_id, ch)
 
+            self.serial_no += 1
+
             values = [
+                self.serial_no,
                 date,
                 f"{hh}:{mm}:{ss}",
                 Reading,
@@ -13171,7 +13175,6 @@ class LiveDataPage(ctk.CTkFrame):
 
             # bookkeeping
             self.rows.append(display_values)
-            self.serial_no += 1
 
             # Save JSON every 100 rows in background thread (was every 10 rows, on main thread)
             if self.serial_no % 100 == 0:
