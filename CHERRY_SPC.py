@@ -3732,12 +3732,12 @@ class CherryApp(ctk.CTk):
             logo_label = ctk.CTkLabel(header_inner, text="", image=self.logo_header)
             logo_label.pack(side="left", padx=(25, 10), pady=10)
             
-            # Add Text Title Next to Logo (Red separator, Green text)
+            # Add Text Title Next to Logo (Purple separator, Purple text)
             separator_label = ctk.CTkLabel(
                 header_inner,
                 text="|",
                 font=("Segoe UI", 18, "bold"),
-                text_color="#D32F2F"
+                text_color="#a78bfa"
             )
             separator_label.pack(side="left", padx=(0, 10), pady=15)
             
@@ -3745,7 +3745,7 @@ class CherryApp(ctk.CTk):
                 header_inner, 
                 text="Airgauge Monitoring",
                 font=("Segoe UI", 18, "bold"),
-                text_color="#1B5E20"
+                text_color="#7c3aed"
             )
             title_text.pack(side="left", padx=(0, 24), pady=15)
             
@@ -3756,7 +3756,7 @@ class CherryApp(ctk.CTk):
                 header_inner,
                 text="Cherry Precision – Air Gauge Monitoring",
                 font=("Segoe UI", 18, "bold"),
-                text_color="#1B5E20"
+                text_color="#7c3aed"
             )
             title.pack(side="left", padx=24, pady=15)
 
@@ -3766,7 +3766,7 @@ class CherryApp(ctk.CTk):
             fg_color="white", 
             corner_radius=12,
             border_width=1,
-            border_color="#E0E0E0"
+            border_color="#a78bfa"
         )
         status_frame.pack(side="right", padx=12, pady=12)
 
@@ -12505,86 +12505,79 @@ class LiveDataPage(ctk.CTkFrame):
     
 
     def build_ui(self):
-        # === Modern Header Card ===
-        header_card = ctk.CTkFrame(
+        # Page background: white instead of light blue/purple
+        self.configure(fg_color="#ffffff")
+
+        # Full-width white header bar
+        header_strip = ctk.CTkFrame(
             self,
-            fg_color="white",
-            corner_radius=15,
-            border_width=1,
-            border_color="#E0E0E0"
+            fg_color="#ffffff",
+            corner_radius=0,
+            border_width=0
         )
-        header_card.pack(fill="x", padx=20, pady=(10, 5))
-        
-        # Green vertical accent bar on the left edge
-        green_bar = ctk.CTkFrame(header_card, fg_color="#007B43", width=6, corner_radius=0)
-        green_bar.place(x=0, y=0, relheight=1)
-        
-        # Header content
-        header_content = ctk.CTkFrame(header_card, fg_color="transparent")
-        header_content.pack(fill="x", padx=(25, 20), pady=10)
-        
-        # Title with icon
-        title_frame = ctk.CTkFrame(header_content, fg_color="transparent")
-        title_frame.pack(side="left")
-        
-        # Title
+        header_strip.pack(fill="x")
+
+        inner = ctk.CTkFrame(header_strip, fg_color="transparent")
+        inner.pack(fill="x", padx=24, pady=(18, 16))
+
+        # ── Left: Title block ─────────────────────────────────────────────
+        title_container = ctk.CTkFrame(inner, fg_color="transparent")
+        title_container.pack(side="left", fill="y", anchor="center")
+
         ctk.CTkLabel(
-            title_frame,
+            title_container,
             text="Live Data Monitoring",
-            font=("Segoe UI", 20, "bold"),
-            text_color="#007B43"
-        ).pack(side="left")
-        
-        # Status badge
+            font=("Segoe UI", 24, "bold"),
+            text_color="#0f172a",
+            anchor="w"
+        ).pack(anchor="w")
+
+        ctk.CTkLabel(
+            title_container,
+            text="Real-time airgauge measurement streaming and log.",
+            font=("Segoe UI", 13),
+            text_color="#64748b",
+            anchor="w"
+        ).pack(anchor="w", pady=(3, 0))
+
+        # ── Right: Status badge ──────────────────
+        btn_container = ctk.CTkFrame(inner, fg_color="transparent")
+        btn_container.pack(side="right", fill="y", anchor="center")
+
         self.status_badge = ctk.CTkFrame(
-            header_content,
+            btn_container,
             fg_color="#FFEBEE",
             corner_radius=18
         )
         self.status_badge.pack(side="right", padx=10)
-        
+
         self.live_dot_img = self._make_header_icon("live_dot", size=18, color="#00A95C")
         self.offline_dot_img = self._make_header_icon("live_dot", size=18, color="#D32F2F")
-        
+
         self.badge_dot_label = ctk.CTkLabel(self.status_badge, image=self.offline_dot_img, text="", fg_color="transparent")
         self.badge_dot_label.pack(side="left", padx=(14, 6), pady=8)
-        
+
         self.badge_text_label = ctk.CTkLabel(self.status_badge, text="OFFLINE", font=("Segoe UI", 12, "bold"), text_color="#C62828")
         self.badge_text_label.pack(side="left", padx=(0, 14), pady=8)
 
-        # Custom header frame, matching USB Data page
-        self.header_row_frame = ctk.CTkFrame(self, fg_color="white", height=42, corner_radius=0)
-        self.header_row_frame.pack(fill="x", padx=20, pady=(0, 0))
-        self.header_row_frame.pack_propagate(False)
-        
-        self.header_canvas = tk.Canvas(self.header_row_frame, bg="white", highlightthickness=0, height=42)
-        self.header_canvas.pack(side="left", fill="both", expand=True)
-        
-        self.header_inner_frame = tk.Frame(self.header_canvas, bg="white")
-        self.header_canvas.create_window(0, 0, window=self.header_inner_frame, anchor="nw")
-        
-        self.header_scrollbar_spacer = ctk.CTkFrame(
-            self.header_row_frame,
-            fg_color="white",
-            corner_radius=0,
-            width=16,
-            height=42
-        )
-        self.header_scrollbar_spacer.pack(side="right", fill="y")
-        
-        # Green border line under headers
-        self.border_line = ctk.CTkFrame(self, fg_color="#007B43", height=2, corner_radius=0)
-        self.border_line.pack(fill="x", padx=20, pady=(0, 5))
-
-        # === Modern Table Container ===
-        self.table_frame = ctk.CTkFrame(
+        # Outer shadow wrapper — lavender tint (#ede9fe)
+        self.table_shadow = ctk.CTkFrame(
             self,
-            corner_radius=15,
-            border_width=1,
-            border_color="#E0E0E0",
-            height=250
+            fg_color="#ede9fe",
+            corner_radius=18,
+            height=600
         )
-        self.table_frame.pack(fill="both", expand=True, padx=20, pady=(0, 10))
+        self.table_shadow.pack(fill="both", expand=True, padx=20, pady=(6, 16))
+
+        # Glass panel card
+        self.table_frame = ctk.CTkFrame(
+            self.table_shadow,
+            fg_color="#fdf4ff",     # lavender glass bg
+            corner_radius=16,
+            border_width=1,
+            border_color="#a78bfa"  # purple border
+        )
+        self.table_frame.pack(fill="both", expand=True, padx=(1, 3), pady=(1, 3))
 
         # === Column Configuration ===
         cols = [
@@ -12680,119 +12673,81 @@ class LiveDataPage(ctk.CTkFrame):
             try: w.destroy()
             except: pass
 
-        # Emojis and column display names
-        header_info = [
-            ("Date", "📅"),
-            ("Time", "🕐"),
-            ("Reading", "~"),
-            ("Offset", "◎"),
-            ("Status", "i"),
-            ("AirGauge ID", "◇"),
-            ("Channel", "≡"),
-            ("Drawing", "📄"),
-            ("User ID", "👤"),
-            ("Component ID", "📦"),
-            ("Item", "▤"),
-            ("CNC ID", "⚙"),
-            ("Customer", "👥")
-        ]
-
-        header_info = [header for header in header_info if header[0] in cols]
-
-        # Clear custom header inner frame children
-        for child in self.header_inner_frame.winfo_children():
-            try: child.destroy()
-            except: pass
-
-        self.header_widgets = []
-
-        # Create header cells — centered text only, normal font, no icon
-        for i, (name, _) in enumerate(header_info):
-            cell = tk.Frame(
-                self.header_inner_frame,
-                bg="white",
-                height=42
-            )
-            cell.pack(side="left", fill="y")
-            cell.pack_propagate(False)
-
-            tk.Label(
-                cell,
-                text=name,
-                font=("Segoe UI", 9),
-                fg="#1A1A1A",
-                bg="white",
-                anchor="center",
-                justify="center"
-            ).place(relx=0.5, rely=0.5, anchor="center")
-
-            if i < len(header_info) - 1:
-                sep = tk.Frame(cell, bg="#E0E0E0", width=1)
-                sep.pack(side="right", fill="y")
-
-            self.header_widgets.append(cell)
-
-        self.use_tksheet = False
+        self.use_tksheet = Sheet is not None
         try:
             # Try creating tksheet
-            self.sheet = tksheet.Sheet(
+            self.sheet = Sheet(
                 self.table_frame,
                 headers=cols,
                 data=[],
-                show_header=False,
+                show_header=True,
                 show_row_index=False,
                 show_x_scrollbar=True,
                 show_y_scrollbar=True,
                 font=("Segoe UI", 11, "normal"),
-                row_height=28
+                row_height=44
             )
-            self.sheet.grid(row=0, column=0, sticky="nsew")
+            try:
+                self.sheet.set_options(
+                    table_bg="#fdf4ff",
+                    frame_bg="#fdf4ff",
+                    grid_color="#ddd6fe",          # purple tint grid
+                    show_vertical_grid=False,
+                    show_horizontal_grid=True,
+                    show_row_index=False,
+                    header_bg="#f5f3ff",
+                    header_fg="#0f172a",
+                    header_grid_color="#ddd6fe",
+                    show_vertical_header_grid=False,
+                    show_horizontal_header_grid=True,
+                    font=("Segoe UI", 11, "normal"),
+                    header_font=("Segoe UI", 11, "bold"),
+                    row_height=44,
+                    header_height=38,
+                    select_bg="#ede9fe",
+                    select_fg="#6d28d9",
+                    selected_cells_border_color="#7c3aed"
+                )
+            except Exception as e:
+                print("Error setting options for table sheet:", e)
+
+            # Center align all columns and headers
+            try:
+                self.sheet.align_columns(columns=list(range(len(cols))), align="center", align_header=True)
+            except Exception as e:
+                print("Error setting column alignment:", e)
+
+            self.sheet.grid(row=0, column=0, sticky="nsew", padx=10, pady=(4, 10))
             # Grid config
             self.table_frame.grid_rowconfigure(0, weight=1)
             self.table_frame.grid_columnconfigure(0, weight=1)
 
-            # Column width ratio-based resizer
+            # Column widths for the 13 columns (same scale logic as ReportPage)
+            # Default widths for: Date, Time, Reading, Offset, Status, AirGauge ID, Channel, Drawing, User ID, Component ID, Item, CNC ID, Customer
+            self.col_widths = [100, 100, 110, 95, 90, 110, 110, 95, 110, 120, 120, 120, 120]
+
             def resize_sheet(ev=None):
                 try:
-                    total_w = self.table_frame.winfo_width()
-                    if total_w < 100:
-                        total_w = 800
-                    
-                    # Deduct spacing for the vertical scrollbar
-                    usable_w = total_w - 18
-                    
-                    ratios = [0.07, 0.07, 0.09, 0.08, 0.06, 0.07, 0.07, 0.08, 0.06, 0.09, 0.09, 0.08, 0.09]
-                    widths = [int(r * usable_w) for r in ratios]
-                    # Adjust last column to match exactly
-                    widths[-1] += usable_w - sum(widths)
-                    
-                    # Apply widths to tksheet
-                    for idx, w in enumerate(widths):
-                        try:
-                            self.sheet.column_width(column=idx, width=w, only_set_if_too_small=False)
-                        except TypeError:
-                            self.sheet.column_width(idx, w)
-                    
-                    try:
-                        self.sheet.refresh()
-                    except Exception:
-                        pass
-
-                    # Sync header cells widths
-                    for idx, w in enumerate(widths):
-                        if idx < len(self.header_widgets):
-                            cell = self.header_widgets[idx]
-                            cell.config(width=w)
-                            for child in cell.place_slaves():
+                    w = self.table_frame.winfo_width() - 20
+                    if w > 100:
+                        total_default = sum(self.col_widths)
+                        if w > total_default:
+                            scale = w / total_default
+                            for idx, wd in enumerate(self.col_widths):
                                 try:
-                                    child.config(wraplength=max(20, w - 6))
-                                except Exception:
-                                    pass
-                    try:
-                        self.header_inner_frame.update_idletasks()
-                        self.header_canvas.configure(scrollregion=self.header_canvas.bbox("all"))
-                    except Exception:
-                        pass
+                                    self.sheet.column_width(column=idx, width=int(wd * scale))
+                                except TypeError:
+                                    self.sheet.column_width(idx, int(wd * scale))
+                        else:
+                            for idx, wd in enumerate(self.col_widths):
+                                try:
+                                    self.sheet.column_width(column=idx, width=wd)
+                                except TypeError:
+                                    self.sheet.column_width(idx, wd)
+                        try:
+                            self.sheet.refresh()
+                        except Exception:
+                            pass
                 except Exception as e:
                     print("Resize sheet error:", e)
 
@@ -12805,33 +12760,16 @@ class LiveDataPage(ctk.CTkFrame):
             except Exception:
                 pass
 
-            try:
-                orig_xscroll = self.sheet.MT.cget("xscrollcommand")
-                def sync_scroll(first, last):
-                    if orig_xscroll:
-                        try:
-                            self.sheet.tk.eval(f"{orig_xscroll} {first} {last}")
-                        except Exception:
-                            pass
-                    try:
-                        self.header_canvas.xview_moveto(first)
-                    except Exception:
-                        pass
-                self.sheet.MT.configure(xscrollcommand=sync_scroll)
-            except Exception as e:
-                print("Failed to sync Live Data header scrollbar:", e)
-
             self.use_tksheet = True
             self._sheet_row_count = 0
 
         except Exception as e:
-            # fallback to Treeview (keeps previous behavior but hides heading)
+            # fallback to Treeview (keeps previous behavior but shows heading styled)
             self.use_tksheet = False
             style = ttk.Style()
             style.configure("LiveData.Treeview", font=("Segoe UI", 11), rowheight=28)
-            # Hide the headings by configuring minimal size
-            style.configure("LiveData.Treeview.Heading", font=("Segoe UI", 1), rowheight=1)
-            style.map("LiveData.Treeview", background=[("selected", "#BBDEFB")])
+            style.configure("LiveData.Treeview.Heading", font=("Segoe UI", 11, "bold"), background="#f5f3ff", foreground="#0f172a")
+            style.map("LiveData.Treeview", background=[("selected", "#ede9fe")])
 
             self.table = ttk.Treeview(
                 self.table_frame, 
@@ -12841,7 +12779,7 @@ class LiveDataPage(ctk.CTkFrame):
                 style="LiveData.Treeview"
             )
             for c in cols:
-                self.table.heading(c, text="") # Empty header text
+                self.table.heading(c, text=c) # Real header text
                 self.table.column(c, width=100, anchor="center")
 
             y_scroll = ttk.Scrollbar(self.table_frame, orient="vertical", command=self.table.yview)
@@ -12857,34 +12795,13 @@ class LiveDataPage(ctk.CTkFrame):
             # Column width ratio-based resizer for fallback Treeview
             def resize_tree(ev=None):
                 try:
-                    total_w = self.table_frame.winfo_width()
-                    if total_w < 100:
-                        total_w = 800
-                    
-                    usable_w = total_w - 18
-                    ratios = [0.07, 0.07, 0.09, 0.08, 0.06, 0.07, 0.07, 0.08, 0.06, 0.09, 0.09, 0.08, 0.09]
-                    widths = [int(r * usable_w) for r in ratios]
-                    widths[-1] += usable_w - sum(widths)
-                    
-                    for idx, w in enumerate(widths):
-                        col_name = cols[idx]
-                        self.table.column(col_name, width=w, anchor="center")
-                    
-                    # Sync header cells widths
-                    for idx, w in enumerate(widths):
-                        if idx < len(self.header_widgets):
-                            cell = self.header_widgets[idx]
-                            cell.config(width=w)
-                            for child in cell.place_slaves():
-                                try:
-                                    child.config(wraplength=max(20, w - 6))
-                                except Exception:
-                                    pass
-                    try:
-                        self.header_inner_frame.update_idletasks()
-                        self.header_canvas.configure(scrollregion=self.header_canvas.bbox("all"))
-                    except Exception:
-                        pass
+                    w = self.table_frame.winfo_width() - 20
+                    if w > 100:
+                        total_default = sum(self.col_widths)
+                        scale = w / total_default if w > total_default else 1.0
+                        for idx, wd in enumerate(self.col_widths):
+                            col_name = cols[idx]
+                            self.table.column(col_name, width=int(wd * scale), anchor="center")
                 except Exception as e:
                     print("Resize tree error:", e)
 
