@@ -12095,6 +12095,9 @@ class UsbDataPage(ctk.CTkFrame):
         """Clear all loaded USB data from memory and UI."""
         if messagebox.askyesno("Confirm Clear", "Are you sure you want to clear all loaded USB data?"):
             self.loaded_usb_rows = []
+            self.saved_usb_indices = set()
+            if getattr(self, "save_btn", None):
+                self.save_btn.configure(state="disabled")
             if getattr(self, "sheet", None):
                 self.sheet.set_sheet_data([])
                 messagebox.showinfo("Clear Data", "All USB Data cleared successfully.")
@@ -12158,6 +12161,15 @@ class UsbDataPage(ctk.CTkFrame):
         
         if not filenames:
             return
+
+        # If all currently loaded rows are already saved, auto-clear to start fresh
+        if hasattr(self, "loaded_usb_rows") and self.loaded_usb_rows:
+            unsaved_indices = [i for i in range(len(self.loaded_usb_rows)) if i not in self.saved_usb_indices]
+            if not unsaved_indices:
+                self.loaded_usb_rows = []
+                self.saved_usb_indices = set()
+                if getattr(self, "sheet", None):
+                    self.sheet.set_sheet_data([])
 
         if not hasattr(self, "loaded_usb_rows"):
             self.loaded_usb_rows = []
@@ -13157,6 +13169,82 @@ except Exception:
 # Font:                Segoe UI (Inter fallback)
 # ────────────────────────────────────────────────────────────────────────────
 
+class VerticalTimeSelector(tk.Frame):
+    def __init__(self, parent, values, current_val, on_select, select_bg="#7c3aed", select_fg="#ffffff", hover_bg="#ede9fe"):
+        super().__init__(parent, bg="#ffffff")
+        
+        self.canvas = tk.Canvas(self, bg="#ffffff", bd=0, highlightthickness=0, width=50, height=160)
+        self.scrollbar = tk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
+        self.scroll_content = tk.Frame(self.canvas, bg="#ffffff")
+        
+        self.canvas.create_window((0, 0), window=self.scroll_content, anchor="nw")
+        self.canvas.configure(yscrollcommand=self.scrollbar.set)
+        
+        self.canvas.pack(side="left", fill="both", expand=True)
+        self.scrollbar.pack(side="right", fill="y")
+        
+        self.labels = {}
+        self.selected_label = [None]
+        self.selected_val = current_val
+        
+        def select_item(val):
+            self.selected_val = val
+            if self.selected_label[0]:
+                self.selected_label[0].configure(bg="#ffffff", fg="#1e293b", font=("Segoe UI", 10))
+            lbl = self.labels[val]
+            lbl.configure(bg=select_bg, fg=select_fg, font=("Segoe UI", 10, "bold"))
+            self.selected_label[0] = lbl
+            on_select(val)
+            
+        for val in values:
+            val_str = f"{val:02d}"
+            lbl = tk.Label(
+                self.scroll_content,
+                text=val_str,
+                font=("Segoe UI", 10),
+                bg="#ffffff",
+                fg="#1e293b",
+                cursor="hand2",
+                width=4,
+                height=1,
+                relief="flat"
+            )
+            lbl.pack(pady=1, padx=2, fill="x")
+            self.labels[val] = lbl
+            
+            def bind_events(l, v):
+                l.bind("<Enter>", lambda e: l.configure(bg=hover_bg) if self.selected_label[0] != l else None)
+                l.bind("<Leave>", lambda e: l.configure(bg="#ffffff") if self.selected_label[0] != l else None)
+                l.bind("<Button-1>", lambda e: select_item(v))
+            bind_events(lbl, val)
+            
+        self.scroll_content.update_idletasks()
+        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+        
+        def on_mousewheel(event):
+            self.canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+            
+        self.canvas.bind("<MouseWheel>", on_mousewheel)
+        self.scroll_content.bind("<MouseWheel>", on_mousewheel)
+        for lbl in self.labels.values():
+            lbl.bind("<MouseWheel>", on_mousewheel)
+            
+        if current_val in self.labels:
+            select_item(current_val)
+            
+            def scroll_to_selected():
+                try:
+                    self.scroll_content.update_idletasks()
+                    content_height = self.scroll_content.winfo_reqheight()
+                    if content_height > 0:
+                        lbl_y = self.labels[current_val].winfo_y()
+                        view_height = 160
+                        scroll_to = (lbl_y - view_height / 2) / content_height
+                        self.canvas.yview_moveto(max(0.0, min(1.0, scroll_to)))
+                except:
+                    pass
+            self.after(50, scroll_to_selected)
+
 class ReportPage(ctk.CTkScrollableFrame):
     """
     Full ReportPage with:
@@ -13948,31 +14036,52 @@ class ReportPage(ctk.CTkScrollableFrame):
 
         def on_combined_change(*args):
             val = combined_var.get().strip()
+            if not val:
+                if date_var.get() != "":
+                    date_var.set("")
+                if time_var.get() != "":
+                    time_var.set("")
+                return
             parts = val.split(" ")
             if len(parts) >= 1:
-                date_var.set(parts[0])
+                if date_var.get() != parts[0]:
+                    date_var.set(parts[0])
             if len(parts) >= 2:
-                time_var.set(parts[1] + ":00")
+                new_t = parts[1] + ":00"
+                if time_var.get() != new_t:
+                    time_var.set(new_t)
 
         combined_var.trace_add("write", on_combined_change)
 
         def on_date_change(*args):
+            d_val = date_var.get().strip()
+            if not d_val:
+                if combined_var.get() != "":
+                    combined_var.set("")
+                return
             current_date = combined_var.get().split(" ")[0] if " " in combined_var.get() else combined_var.get()
-            if current_date != date_var.get():
-                parts = combined_var.get().split(" ")
-                time_part = parts[1] if len(parts) > 1 else time_var.get()[:5]
-                combined_var.set(f"{date_var.get()} {time_part}")
+            if current_date != d_val:
+                t_val = time_var.get()[:5].strip()
+                new_combined = f"{d_val} {t_val}".strip()
+                if combined_var.get() != new_combined:
+                    combined_var.set(new_combined)
 
         date_var.trace_add("write", on_date_change)
 
         def on_time_change(*args):
             try:
+                d_val = date_var.get().strip()
+                t_val = time_var.get()[:5].strip()
+                if not d_val:
+                    if combined_var.get() != "":
+                        combined_var.set("")
+                    return
                 parts = combined_var.get().split(" ")
                 current_time = parts[1] if len(parts) > 1 else ""
-                new_time = time_var.get()[:5]
-                if current_time != new_time:
-                    date_part = parts[0] if len(parts) > 0 else date_var.get()
-                    combined_var.set(f"{date_part} {new_time}")
+                if current_time != t_val:
+                    new_combined = f"{d_val} {t_val}".strip()
+                    if combined_var.get() != new_combined:
+                        combined_var.set(new_combined)
             except:
                 pass
 
@@ -14298,6 +14407,8 @@ class ReportPage(ctk.CTkScrollableFrame):
 
         def on_clear(e):
             target_var.set("")
+            if time_var is not None:
+                time_var.set("")
             close_all()
 
         def on_today(e):
@@ -14310,37 +14421,84 @@ class ReportPage(ctk.CTkScrollableFrame):
 
         if time_var is not None:
             time_frame = tk.Frame(main_frame, bg="#ffffff")
-            time_frame.pack(side="right", fill="y", padx=(5, 5), pady=5)
+            time_frame.pack(side="right", fill="both", expand=True, padx=(5, 5), pady=5)
+            
             sep = tk.Frame(main_frame, bg="#f0f0f0", width=1)
             sep.pack(side="right", fill="y", pady=5)
-            hm_frame = tk.Frame(time_frame, bg="#ffffff")
-            hm_frame.pack(fill="both", expand=True)
-            hours_lb = tk.Listbox(hm_frame, width=3, height=8, exportselection=False,
-                                  bd=0, highlightthickness=0, bg="#ffffff", selectbackground="#7c3aed")
-            hours_lb.pack(side="left", fill="y", padx=2)
-            for h in range(24):
-                hours_lb.insert("end", str(h).zfill(2))
-            mins_lb = tk.Listbox(hm_frame, width=3, height=8, exportselection=False,
-                                 bd=0, highlightthickness=0, bg="#ffffff", selectbackground="#7c3aed")
-            mins_lb.pack(side="left", fill="y", padx=2)
-            for m_val in range(60):
-                mins_lb.insert("end", str(m_val).zfill(2))
+
             try:
                 curr_h, curr_m = time_var.get().split(":")[:2]
-                hours_lb.selection_set(int(curr_h)); hours_lb.see(int(curr_h))
-                mins_lb.selection_set(int(curr_m)); mins_lb.see(int(curr_m))
+                curr_h = int(curr_h)
+                curr_m = int(curr_m)
             except:
-                hours_lb.selection_set(0); mins_lb.selection_set(0)
+                curr_h = 0
+                curr_m = 0
 
-            def update_time_var(*args):
-                try: sel_h = hours_lb.get(hours_lb.curselection())
-                except: sel_h = "00"
-                try: sel_m = mins_lb.get(mins_lb.curselection())
-                except: sel_m = "00"
-                time_var.set(f"{sel_h}:{sel_m}:00")
+            # Container for the selectors side-by-side
+            selectors_container = tk.Frame(time_frame, bg="#ffffff")
+            selectors_container.pack(fill="both", expand=True, padx=5, pady=2)
 
-            hours_lb.bind("<<ListboxSelect>>", update_time_var)
-            mins_lb.bind("<<ListboxSelect>>", update_time_var)
+            # Hour column
+            hour_col = tk.Frame(selectors_container, bg="#ffffff")
+            hour_col.pack(side="left", fill="both", expand=True, padx=2)
+            
+            h_title = tk.Label(hour_col, text="HOUR", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#ffffff")
+            h_title.pack(anchor="center", pady=(0, 4))
+            
+            # Minute column
+            min_col = tk.Frame(selectors_container, bg="#ffffff")
+            min_col.pack(side="left", fill="both", expand=True, padx=2)
+            
+            m_title = tk.Label(min_col, text="MINUTE", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#ffffff")
+            m_title.pack(anchor="center", pady=(0, 4))
+
+            def on_hour_select(h_val):
+                try:
+                    curr_m_str = f"{min_selector.selected_val:02d}"
+                except:
+                    curr_m_str = "00"
+                time_var.set(f"{h_val:02d}:{curr_m_str}:00")
+
+            def on_minute_select(m_val):
+                try:
+                    curr_h_str = f"{hour_selector.selected_val:02d}"
+                except:
+                    curr_h_str = "00"
+                time_var.set(f"{curr_h_str}:{m_val:02d}:00")
+
+            hour_selector = VerticalTimeSelector(
+                hour_col,
+                values=list(range(24)),
+                current_val=curr_h,
+                on_select=on_hour_select
+            )
+            hour_selector.pack(fill="both", expand=True)
+
+            min_selector = VerticalTimeSelector(
+                min_col,
+                values=list(range(60)),
+                current_val=curr_m,
+                on_select=on_minute_select
+            )
+            min_selector.pack(fill="both", expand=True)
+
+            # OK Button
+            ok_frame = tk.Frame(time_frame, bg="#ffffff")
+            ok_frame.pack(fill="x", padx=5, pady=(6, 2))
+            
+            ok_btn = tk.Label(
+                ok_frame,
+                text="OK",
+                font=("Segoe UI", 9, "bold"),
+                fg="#ffffff",
+                bg="#7c3aed",
+                cursor="hand2",
+                relief="flat",
+                width=8,
+                height=1
+            )
+            ok_btn.pack(side="right")
+            ok_btn.bind("<Button-1>", lambda e: close_all())
 
         def on_select(event):
             target_var.set(cal.get_date())
@@ -14352,8 +14510,6 @@ class ReportPage(ctk.CTkScrollableFrame):
         cal.bind("<Button-1>", lambda e: "break")
         if time_var is not None:
             time_frame.bind("<Button-1>", lambda e: "break")
-            hours_lb.bind("<Button-1>", lambda e: "break")
-            mins_lb.bind("<Button-1>", lambda e: "break")
 
     # ─────────────────────────────────────────────────────────────────────────
     # TABLE AREA — glass-panel with purple badge rows
@@ -14667,7 +14823,7 @@ class ReportPage(ctk.CTkScrollableFrame):
         self.item_var.trace_add("write", lambda *a: self._schedule_filter())
         self.operator_var.trace_add("write", lambda *a: self._schedule_filter())
         self.machine_var.trace_add("write", lambda *a: self._schedule_filter())
-        self.airgauge_var.trace_add("write", self._on_airgauge_changed)
+        self.airgauge_var.trace_add("write", lambda *a: self._schedule_filter())
         self.channel_var.trace_add("write", lambda *a: self._schedule_filter())
         self.drawing_var.trace_add("write", lambda *a: self._schedule_filter())
         self.customer_var.trace_add("write", lambda *a: self._schedule_filter())
@@ -14684,17 +14840,7 @@ class ReportPage(ctk.CTkScrollableFrame):
             out.append(display)
         return out
 
-    def _on_airgauge_changed(self, *_):
-        ag = self.airgauge_var.get().strip()
-        channels = self._load_channels_for_airgauge(ag)
-        self.channel_combo._base_values = channels
-        if hasattr(self.channel_combo, "configure"):
-            self.channel_combo.configure(values=channels)
-        else:
-            self.channel_combo["values"] = channels
-        if self.channel_var.get() not in channels:
-            self.channel_var.set("All")
-        self._schedule_filter()
+    # _on_airgauge_changed removed because channel_combo is merged into airgauge_combo
 
     def _operators_display_list(self):
         out = ["All"]
@@ -14723,9 +14869,19 @@ class ReportPage(ctk.CTkScrollableFrame):
                 if len(row) > 9 and row[9]: operators.add(str(row[9]).strip())
                 if len(row) > 12 and row[12]: machines.add(str(row[12]).strip())
                 if len(row) > 6 and row[6]:
-                    ag = str(row[6]).strip()
-                    if not ag.startswith("AG"): ag = f"AG{ag}"
-                    airgauges.add(ag)
+                    ag_id = str(row[6]).strip()
+                    ch_id = str(row[7]).strip() if len(row) > 7 and row[7] else "1"
+                    ag_clean = ag_id.upper().replace("AG", "").replace("-", "").strip()
+                    ch_clean = ch_id.upper().replace("CH", "").replace("-", "").strip()
+                    try:
+                        ag_formatted = f"AG-{int(ag_clean):02d}"
+                    except ValueError:
+                        ag_formatted = f"AG-{ag_clean}"
+                    try:
+                        ch_formatted = f"CH-{int(ch_clean):02d}"
+                    except ValueError:
+                        ch_formatted = f"CH-{ch_clean}"
+                    airgauges.add(f"{ag_formatted} ({ch_formatted})")
                 if len(row) > 8 and row[8]: drawings.add(str(row[8]).strip())
                 if len(row) > 13 and row[13]: customers.add(str(row[13]).strip())
 
@@ -14848,7 +15004,7 @@ class ReportPage(ctk.CTkScrollableFrame):
         self._load_thread = threading.Thread(target=worker, daemon=True)
         self._load_thread.start()
 
-    def _finish_loading(self, parsed_data):
+    def _finish_loading(self, parsed_data, all_data=None):
         self.all_data_rows = parsed_data
         table_rows = []
         vis = []
@@ -14863,7 +15019,7 @@ class ReportPage(ctk.CTkScrollableFrame):
             self._populate_cards(table_rows)
         except Exception as e:
             print(f"Error populating cards: {e}")
-        self._update_all_dynamic_filters(parsed_data)
+        self._update_all_dynamic_filters(all_data if all_data is not None else parsed_data)
         self._update_empty_state(len(table_rows))
         self._suspend_auto_filter = False
         self._set_loading_state(False)
@@ -14977,17 +15133,22 @@ class ReportPage(ctk.CTkScrollableFrame):
 
                     selected_airgauge = self.airgauge_var.get().strip()
                     if selected_airgauge != "All":
-                        db_ag = meta["airgauge"]
-                        sel_ag = selected_airgauge
-                        if db_ag != sel_ag:
-                            db_clean = "".join(filter(str.isdigit, db_ag))
-                            sel_clean = "".join(filter(str.isdigit, sel_ag))
-                            if not (db_clean and sel_clean and db_clean == sel_clean): continue
-
-                    selected_channel = self.channel_var.get().strip()
-                    if selected_channel != "All":
-                        sel_ch = selected_channel.replace("CH", "").strip()
-                        if str(row[7]).strip() != sel_ch: continue
+                        match = re.search(r'AG[^\d]*(\d+)[^\d]*CH[^\d]*(\d+)', selected_airgauge, re.IGNORECASE)
+                        if match:
+                            sel_ag_num = int(match.group(1))
+                            sel_ch_num = int(match.group(2))
+                            try:
+                                db_ag_num = int("".join(filter(str.isdigit, str(row[6]))))
+                                db_ch_num = int("".join(filter(str.isdigit, str(row[7]))))
+                                if db_ag_num != sel_ag_num or db_ch_num != sel_ch_num:
+                                    continue
+                            except ValueError:
+                                continue
+                        else:
+                            sel_ag_clean = "".join(filter(str.isdigit, selected_airgauge))
+                            db_ag_clean = "".join(filter(str.isdigit, str(row[6])))
+                            if sel_ag_clean and db_ag_clean and sel_ag_clean != db_ag_clean:
+                                continue
 
                     selected_drawing = self.drawing_var.get().strip()
                     if selected_drawing != "All":
@@ -15000,7 +15161,7 @@ class ReportPage(ctk.CTkScrollableFrame):
                     out.append((row, rec_dt, meta))
 
                 if my_token != self._load_token: return
-                self.after(10, lambda: self._finish_loading(out))
+                self.after(10, lambda: self._finish_loading(out, all_data))
             except Exception as e:
                 self.after(10, lambda: (
                     self._hide_loading(),
