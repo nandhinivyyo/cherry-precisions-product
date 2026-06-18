@@ -12076,9 +12076,15 @@ class UsbDataPage(ctk.CTkFrame):
             conn.commit()
             conn.close()
             
-            # Mark all as saved
             self.saved_usb_indices.update(unsaved_indices)
             self.save_btn.configure(state="disabled")
+            
+            # Trigger report page refresh to show new data
+            if hasattr(self.app, "report_page") and self.app.report_page.winfo_exists():
+                try:
+                    self.app.report_page.refresh_table_data()
+                except Exception:
+                    pass
             
             messagebox.showinfo("Save Success", f"Successfully saved {len(data_to_insert)} new records to the database!")
             
