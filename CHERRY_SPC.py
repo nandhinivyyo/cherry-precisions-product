@@ -13329,8 +13329,8 @@ class ReportPage(ctk.CTkScrollableFrame):
     # HEADER — matches HTML reference: white strip, title left, buttons right
     # ─────────────────────────────────────────────────────────────────────────
     def _build_header(self):
-        # Page background: simulate gradient with closest flat colour
-        self.configure(fg_color="#f5f3ff")
+        # Page background: white instead of light blue/purple
+        self.configure(fg_color="#ffffff")
 
         # Full-width white header bar
         header_strip = ctk.CTkFrame(
