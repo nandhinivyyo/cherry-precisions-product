@@ -4568,7 +4568,7 @@ class CherryApp(ctk.CTk):
         
 class MachineSetupPage(ctk.CTkFrame):
     def __init__(self, parent, app):
-        super().__init__(parent, fg_color=("#F8F9FA", "#1C1C1C"))
+        super().__init__(parent, fg_color="#ffffff")
         self.app = app
         self.build_ui()
         self.load_existing_data()
@@ -4578,17 +4578,19 @@ class MachineSetupPage(ctk.CTkFrame):
         header_frame = ctk.CTkFrame(self, fg_color="transparent")
         header_frame.pack(fill="x", pady=(15, 10), padx=15)
 
-        # Back Button in Green
-        btn_back = ModernButton(
+        # Back Button in purple glassmorphic style
+        btn_back = ctk.CTkButton(
             header_frame,
             text="← Back",
+            text_color="#4f46e5",
+            fg_color="#ffffff",
+            hover_color="#ede9fe",
+            border_width=1,
+            border_color="#a78bfa",
             width=80,
             height=32,
-            font=("Segoe UI", 11, "bold"),
-            fg_color="#007B43",
-            hover_color="#005C32",
-            text_color="white",
-            corner_radius=6,
+            corner_radius=12,
+            font=("Segoe UI", 12, "bold"),
             command=self.go_back
         )
         btn_back.pack(side="left")
@@ -4625,106 +4627,192 @@ class MachineSetupPage(ctk.CTkFrame):
         except Exception as e:
             print(f"Error loading logo in MachineSetupPage: {e}")
 
-        # Controls Card Frame
-        entry_frame = ModernCardFrame(self)
-        entry_frame.pack(pady=10, padx=15, fill="x")
+        # Ambient glow-simulating shadow wrapper
+        self.controls_shadow = ctk.CTkFrame(
+            self,
+            fg_color="#ede9fe",
+            corner_radius=20
+        )
+        self.controls_shadow.pack(pady=10, padx=15, fill="x")
+
+        # Glass panel inner controls frame
+        self.controls_card = ctk.CTkFrame(
+            self.controls_shadow,
+            fg_color="#fdf4ff",
+            corner_radius=18,
+            border_width=1,
+            border_color="#a78bfa"
+        )
+        self.controls_card.pack(fill="both", expand=True, padx=(1, 3), pady=(1, 3))
         
         # Configure columns for grid layout
-        entry_frame.grid_columnconfigure(0, weight=0)
-        entry_frame.grid_columnconfigure(1, weight=1)
-        entry_frame.grid_columnconfigure(2, weight=0)
-        entry_frame.grid_columnconfigure(3, weight=1)
-        for col_idx in range(4, 8):
-            entry_frame.grid_columnconfigure(col_idx, weight=0)
+        self.controls_card.grid_columnconfigure(0, weight=0)
+        self.controls_card.grid_columnconfigure(1, weight=1)
+        self.controls_card.grid_columnconfigure(2, weight=0)
+        self.controls_card.grid_columnconfigure(3, weight=1)
+        for col_idx in range(4, 7):
+            self.controls_card.grid_columnconfigure(col_idx, weight=0)
 
         # --- IP Address entry ---
-        ctk.CTkLabel(entry_frame, text="IP Address:", font=("Segoe UI", 11, "bold"), text_color="#202124").grid(row=0, column=0, padx=(15, 5), pady=8, sticky="e")
-        self.mac_entry = ctk.CTkEntry(entry_frame, width=160, height=30, corner_radius=6, border_color="#E0E0E0")
-        self.mac_entry.grid(row=0, column=1, padx=(5, 15), pady=8, sticky="ew")
+        ctk.CTkLabel(
+            self.controls_card, 
+            text="IP Address:".upper(), 
+            font=("Segoe UI", 10, "bold"), 
+            text_color="#64748b"
+        ).grid(row=0, column=0, padx=(15, 5), pady=12, sticky="e")
+        
+        self.mac_entry = ctk.CTkEntry(
+            self.controls_card, 
+            width=160, 
+            height=32, 
+            corner_radius=12, 
+            border_width=1,
+            border_color="#a78bfa",
+            fg_color="#ffffff",
+            text_color="#1e293b",
+            font=("Segoe UI", 12),
+            justify="center"
+        )
+        self.mac_entry.grid(row=0, column=1, padx=(5, 15), pady=12, sticky="ew")
 
         # --- AirGauge ID entry ---
-        ctk.CTkLabel(entry_frame, text="AirGauge ID:", font=("Segoe UI", 11, "bold"), text_color="#202124").grid(row=0, column=2, padx=(15, 5), pady=8, sticky="e")
-        self.id_entry = ctk.CTkEntry(entry_frame, width=160, height=30, corner_radius=6, border_color="#E0E0E0")
-        self.id_entry.grid(row=0, column=3, padx=(5, 15), pady=8, sticky="ew")
+        ctk.CTkLabel(
+            self.controls_card, 
+            text="AirGauge ID:".upper(), 
+            font=("Segoe UI", 10, "bold"), 
+            text_color="#64748b"
+        ).grid(row=0, column=2, padx=(15, 5), pady=12, sticky="e")
+        
+        self.id_entry = ctk.CTkEntry(
+            self.controls_card, 
+            width=160, 
+            height=32, 
+            corner_radius=12, 
+            border_width=1,
+            border_color="#a78bfa",
+            fg_color="#ffffff",
+            text_color="#1e293b",
+            font=("Segoe UI", 12),
+            justify="center"
+        )
+        self.id_entry.grid(row=0, column=3, padx=(5, 15), pady=12, sticky="ew")
 
-        # --- Action Buttons ---
-        add_btn = ModernButton(
-            entry_frame,
-            text="+ Add",
+        # Focus hooks for entries
+        def on_focus_in(e, entry):
+            try: entry.configure(border_color="#7c3aed")
+            except: pass
+        def on_focus_out(e, entry):
+            try: entry.configure(border_color="#a78bfa")
+            except: pass
+
+        self.mac_entry.bind("<FocusIn>", lambda e: on_focus_in(e, self.mac_entry))
+        self.mac_entry.bind("<FocusOut>", lambda e: on_focus_out(e, self.mac_entry))
+        self.id_entry.bind("<FocusIn>", lambda e: on_focus_in(e, self.id_entry))
+        self.id_entry.bind("<FocusOut>", lambda e: on_focus_out(e, self.id_entry))
+
+        # --- Action Buttons (Synced UI) ---
+        add_btn = ctk.CTkButton(
+            self.controls_card,
+            text="➕ Add",
+            text_color="#ffffff",
+            fg_color="#7c3aed",
+            hover_color="#6d28d9",
             height=32,
-            font=("Segoe UI", 11, "bold"),
-            fg_color="#007B43",
-            hover_color="#005C32",
-            text_color="white",
-            corner_radius=6,
+            corner_radius=12,
+            font=("Segoe UI", 12, "bold"),
             command=self.add_entry
         )
-        add_btn.grid(row=0, column=4, padx=5, pady=8)
+        add_btn.grid(row=0, column=4, padx=5, pady=12)
         
-        del_btn = ModernButton(
-            entry_frame,
-            text="🗑 Delete",
+        del_btn = ctk.CTkButton(
+            self.controls_card,
+            text="🗑️ Delete",
+            text_color="#dc2626",
+            fg_color="#ffffff",
+            hover_color="#fef2f2",
+            border_width=1,
+            border_color="#f87171",
             height=32,
-            font=("Segoe UI", 11, "bold"),
-            fg_color="#007B43",
-            hover_color="#005C32",
-            text_color="white",
-            corner_radius=6,
+            corner_radius=12,
+            font=("Segoe UI", 12, "bold"),
             command=self.delete_entry
         )
-        del_btn.grid(row=0, column=5, padx=5, pady=8)
+        del_btn.grid(row=0, column=5, padx=5, pady=12)
         
-        sync_btn = ModernButton(
-            entry_frame,
-            text="☁ Sync from Master",
+        sync_btn = ctk.CTkButton(
+            self.controls_card,
+            text="☁️ Sync from Master",
+            text_color="#047857",
+            fg_color="#ffffff",
+            hover_color="#f0fdf4",
+            border_width=1,
+            border_color="#10b981",
             height=32,
-            font=("Segoe UI", 11, "bold"),
-            fg_color="#007B43",
-            hover_color="#005C32",
-            text_color="white",
-            corner_radius=6,
+            corner_radius=12,
+            font=("Segoe UI", 12, "bold"),
             command=self.sync_from_master
         )
-        sync_btn.grid(row=0, column=6, padx=5, pady=8)
+        sync_btn.grid(row=0, column=6, padx=(5, 15), pady=12)
         
-        # Export Excel removed as requested
-        # --- Table Frame ---
-        self.table_frame = ctk.CTkScrollableFrame(self, corner_radius=6, fg_color="white", border_width=1, border_color="#E0E0E0")
-        self.table_frame.pack(padx=15, pady=10, fill="both", expand=True)
+        # --- Table Area with Ambient Glow and Glass Card ---
+        self.table_shadow = ctk.CTkFrame(
+            self,
+            fg_color="#ede9fe",
+            corner_radius=20
+        )
+        self.table_shadow.pack(padx=15, pady=(5, 15), fill="both", expand=True)
+
+        self.table_card = ctk.CTkFrame(
+            self.table_shadow,
+            fg_color="#fdf4ff",
+            corner_radius=18,
+            border_width=1,
+            border_color="#a78bfa"
+        )
+        self.table_card.pack(fill="both", expand=True, padx=(1, 3), pady=(1, 3))
+
+        self.table_frame = ctk.CTkScrollableFrame(
+            self.table_card, 
+            corner_radius=16, 
+            fg_color="#ffffff", 
+            border_width=0
+        )
+        self.table_frame.pack(fill="both", expand=True, padx=4, pady=4)
         
-        # Configure green theme scrollbar
         try:
-            self.table_frame._scrollbar.configure(button_color="#007B43", button_hover_color="#005C32")
+            self.table_frame._scrollbar.configure(button_color="#a78bfa", button_hover_color="#7c3aed")
         except Exception:
             pass
 
-        # Build table header
-        self.header_row = ctk.CTkFrame(self.table_frame, fg_color="white", height=40, corner_radius=0)
-        self.header_row.pack(fill="x", pady=(0, 0))
+        # Build table header (Centered text & Lavender bg)
+        self.header_row = ctk.CTkFrame(self.table_frame, fg_color="#ede9fe", height=40, corner_radius=8)
+        self.header_row.pack(fill="x", pady=(0, 4), padx=2)
         self.header_row.pack_propagate(False)
         
-        # IP Address Cell
-        cell_ip = ctk.CTkFrame(self.header_row, fg_color="white", corner_radius=0, border_width=1, border_color="#E0E0E0", width=190, height=40)
-        cell_ip.grid(row=0, column=0, sticky="nsew")
-        cell_ip.grid_propagate(False)
-        
-        content_ip = ctk.CTkFrame(cell_ip, fg_color="transparent")
-        content_ip.pack(side="left", padx=20)
-        ctk.CTkLabel(content_ip, text="🌐\ufe0e", font=("Segoe UI", 11), text_color="#007B43").pack(side="left", padx=(0, 4))
-        ctk.CTkLabel(content_ip, text="IP Address", font=("Segoe UI", 11, "bold"), text_color="#1A1A1A").pack(side="left")
+        self.header_row.grid_columnconfigure(0, weight=1, uniform="cols")
+        self.header_row.grid_columnconfigure(1, weight=1, uniform="cols")
 
-        # AirGauge ID Cell
-        cell_ag = ctk.CTkFrame(self.header_row, fg_color="white", corner_radius=0, border_width=1, border_color="#E0E0E0", width=190, height=40)
-        cell_ag.grid(row=0, column=1, sticky="nsew")
-        cell_ag.grid_propagate(False)
-        
-        content_ag = ctk.CTkFrame(cell_ag, fg_color="transparent")
-        content_ag.pack(side="left", padx=20)
-        ctk.CTkLabel(content_ag, text="🏷\ufe0e", font=("Segoe UI", 11), text_color="#007B43").pack(side="left", padx=(0, 4))
-        ctk.CTkLabel(content_ag, text="AirGauge ID", font=("Segoe UI", 11, "bold"), text_color="#1A1A1A").pack(side="left")
+        lbl_hdr_ip = ctk.CTkLabel(
+            self.header_row,
+            text="🌐  IP Address",
+            font=("Segoe UI", 12, "bold"),
+            text_color="#4f46e5",
+            anchor="center",
+            justify="center"
+        )
+        lbl_hdr_ip.grid(row=0, column=0, sticky="nsew", pady=8)
 
-        # Green bottom border line
-        self.header_border = ctk.CTkFrame(self.table_frame, fg_color="#007B43", height=2, corner_radius=0)
+        lbl_hdr_ag = ctk.CTkLabel(
+            self.header_row,
+            text="🏷️  AirGauge ID",
+            font=("Segoe UI", 12, "bold"),
+            text_color="#4f46e5",
+            anchor="center",
+            justify="center"
+        )
+        lbl_hdr_ag.grid(row=0, column=1, sticky="nsew", pady=8)
+
+        self.header_border = ctk.CTkFrame(self.table_frame, fg_color="#a78bfa", height=1, corner_radius=0)
         self.header_border.pack(fill="x", pady=(0, 5))
 
     def go_back(self, event=None):
@@ -4807,23 +4895,52 @@ class MachineSetupPage(ctk.CTkFrame):
             if isinstance(widget, ctk.CTkFrame):
                 widget.destroy()
 
-
         data = self.load_json()
+        row_idx = 0
         for mac, ag_id in data.items():
-            row = ctk.CTkFrame(self.table_frame, fg_color=("#FAFAFA", "#3a3a3a"), corner_radius=6)
-            row.pack(fill="x", pady=2)
+            bg_col = "#ffffff" if row_idx % 2 == 0 else "#fcfbfe"
+            row = ctk.CTkFrame(self.table_frame, fg_color=bg_col, corner_radius=6)
+            row.pack(fill="x", pady=2, padx=2)
             
-            # Use a transparent button or bind events to labels to make row clickable
-            # Using labels with bindings is easier for layout control
-            lbl_ip = ctk.CTkLabel(row, text=mac, font=("Segoe UI", 11), width=150, anchor="w")
-            lbl_ip.grid(row=0, column=0, padx=20, sticky="w")
+            row.grid_columnconfigure(0, weight=1, uniform="cols")
+            row.grid_columnconfigure(1, weight=1, uniform="cols")
             
-            lbl_id = ctk.CTkLabel(row, text=str(ag_id), font=("Segoe UI", 11), width=150, anchor="w")
-            lbl_id.grid(row=0, column=1, padx=20, sticky="w")
+            lbl_ip = ctk.CTkLabel(
+                row, 
+                text=mac, 
+                font=("Segoe UI", 12), 
+                text_color="#1e293b",
+                anchor="center",
+                justify="center"
+            )
+            lbl_ip.grid(row=0, column=0, sticky="nsew", pady=4)
+            
+            lbl_id = ctk.CTkLabel(
+                row, 
+                text=str(ag_id), 
+                font=("Segoe UI", 12), 
+                text_color="#1e293b",
+                anchor="center",
+                justify="center"
+            )
+            lbl_id.grid(row=0, column=1, sticky="nsew", pady=4)
+            
+            # Simple hover color change
+            def make_hover_fns(r, default_bg):
+                return (
+                    lambda e: r.configure(fg_color="#f5f3ff"),
+                    lambda e: r.configure(fg_color=default_bg)
+                )
+            
+            h_in, h_out = make_hover_fns(row, bg_col)
+            row.bind("<Enter>", h_in)
+            row.bind("<Leave>", h_out)
             
             # Bind click to populate fields
             for widget in (row, lbl_ip, lbl_id):
                 widget.bind("<Button-1>", lambda e, m=mac, i=ag_id: self.on_row_click(m, i))
+            
+            row_idx += 1
 
     def on_row_click(self, mac, ag_id):
         self.mac_entry.delete(0, "end")
