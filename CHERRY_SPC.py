@@ -15266,9 +15266,8 @@ class ReportPage(ctk.CTkFrame):
             self.sheet = Sheet(
                 table_frame,
                 headers=cols_display_list,
-                show_x_scrollbar=True,
+                show_x_scrollbar=False,
                 show_y_scrollbar=True,
-                height=500,
                 show_row_index=False
             )
             try:
@@ -15306,21 +15305,18 @@ class ReportPage(ctk.CTkFrame):
 
             self.sheet.pack(side="top", fill="both", expand=True, padx=10, pady=(4, 10))
 
-            self.col_widths = [60, 100, 100, 110, 90, 100, 110, 90, 110, 110, 110, 120, 120, 120]
+            # Proportional weights for 14 cols: S.No, Time, Date, Reading, Offset, Status,
+            # AirGauge ID, Channel, Drawing, User, CompID, Item, CNC ID, Customer
+            self.col_weights = [5, 7, 7, 9, 6, 7, 8, 7, 8, 6, 8, 7, 7, 7]
 
             def do_resize(event=None):
-                w = table_frame.winfo_width() - 20
+                # Subtract: vertical scrollbar (~18px) + padx 10 each side (20px) + a small safety margin (4px)
+                w = table_frame.winfo_width() - 42
                 if w > 100:
-                    total_default = sum(self.col_widths)
-                    if w > total_default:
-                        scale = w / total_default
-                        for i, wd in enumerate(self.col_widths):
-                            try: self.sheet.column_width(column=i, width=int(wd * scale))
-                            except: pass
-                    else:
-                        for i, wd in enumerate(self.col_widths):
-                            try: self.sheet.column_width(column=i, width=wd)
-                            except: pass
+                    total_w = sum(self.col_weights)
+                    for i, wt in enumerate(self.col_weights):
+                        try: self.sheet.column_width(column=i, width=max(44, int(w * wt / total_w)))
+                        except: pass
                     try: self.sheet.refresh()
                     except: pass
 
@@ -15331,10 +15327,16 @@ class ReportPage(ctk.CTkFrame):
                         table_frame.after_cancel(table_frame._resize_timer)
                     except:
                         pass
-                table_frame._resize_timer = table_frame.after(150, do_resize)
+                table_frame._resize_timer = table_frame.after(80, do_resize)
 
             table_frame.bind("<Configure>", on_configure)
-            table_frame.after(100, do_resize)
+            # Also bind to the sheet itself so it fires when sheet container changes
+            try:
+                self.sheet.bind("<Configure>", on_configure)
+            except:
+                pass
+            table_frame.after(150, do_resize)
+            table_frame.after(500, do_resize)  # second pass after full layout settles
 
             try:
                 self.sheet.enable_bindings(("single_select", "row_select", "arrowkeys",
