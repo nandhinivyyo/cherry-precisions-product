@@ -5279,6 +5279,7 @@ class ComponentSetupPage(ctk.CTkFrame):
             # UI state
             self.entry_vars = {}
             self.entries = []
+            self.edit_index = None
             self.build_ui()
 
 
@@ -5523,7 +5524,7 @@ class ComponentSetupPage(ctk.CTkFrame):
         btn_frame = ctk.CTkFrame(self, fg_color="transparent")
         btn_frame.pack(pady=(10, 5))
         
-        ModernButton(
+        self.save_btn = ModernButton(
             btn_frame,
             text="💾 Save Setup",
             fg_color="#007B43",
@@ -5533,7 +5534,22 @@ class ComponentSetupPage(ctk.CTkFrame):
             corner_radius=6,
             font=("Segoe UI", 11, "bold"),
             command=self.save_data
-        ).pack(side="left", padx=10)
+        )
+        self.save_btn.pack(side="left", padx=10)
+        
+        self.edit_btn = ModernButton(
+            btn_frame,
+            text="✏️ Edit Setup",
+            fg_color="#007B43",
+            hover_color="#005C32",
+            height=32,
+            width=160,
+            corner_radius=6,
+            font=("Segoe UI", 11, "bold"),
+            state="disabled",
+            command=self._edit_selected
+        )
+        self.edit_btn.pack(side="left", padx=10)
         
         self.delete_btn = ModernButton(
             btn_frame,
@@ -5724,13 +5740,13 @@ class ComponentSetupPage(ctk.CTkFrame):
 
         # Selection handler
         def _on_click(e):
-            self.on_row_click()
             self.on_row_select()
 
         try:
             self.sheet.bind("<ButtonRelease-1>", _on_click)
             self.sheet.bind("<KeyRelease-Up>", _on_click)
             self.sheet.bind("<KeyRelease-Down>", _on_click)
+            self.sheet.bind("<Double-1>", lambda e: self._edit_selected())
         except Exception:
             pass
 
@@ -6063,6 +6079,18 @@ class ComponentSetupPage(ctk.CTkFrame):
 
         cust_code, cust_name = self._split_customer_display(customer_display)
 
+        # If in edit mode, get the old keys and delete them if they changed
+        if getattr(self, "edit_index", None) is not None:
+            data_list = []
+            for old_ag, ch_data in self.comp_map.items():
+                for old_ch in ch_data.keys():
+                    data_list.append((old_ag, old_ch))
+            if self.edit_index < len(data_list):
+                old_ag, old_ch = data_list[self.edit_index]
+                if (old_ag != ag_id or old_ch != ch) and old_ag in self.comp_map and old_ch in self.comp_map[old_ag]:
+                    del self.comp_map[old_ag][old_ch]
+                    if not self.comp_map[old_ag]:
+                        del self.comp_map[old_ag]
 
         # Prepare map for ag_id
         if ag_id not in self.comp_map:
@@ -6214,6 +6242,7 @@ class ComponentSetupPage(ctk.CTkFrame):
             self.delete_btn.configure(state="normal")
         else:
             self.delete_btn.configure(state="disabled")
+        self._update_edit_btn_state()
 
     def on_row_click(self, event=None):
         """When a row is clicked, load data into form (including item)."""
@@ -6326,7 +6355,43 @@ class ComponentSetupPage(ctk.CTkFrame):
             self._customer_display_list = self._build_customer_display_list(self.customers_master)
         except Exception:
             pass
+        self.edit_index = None
+        try:
+            self.save_btn.configure(text="💾 Save Setup")
+        except Exception:
+            pass
+        self._update_edit_btn_state()
         
+    def _update_edit_btn_state(self, event=None):
+        try:
+            if getattr(self, "edit_index", None) is not None:
+                self.edit_btn.configure(text="Unsave Changes", state="normal")
+            else:
+                self.edit_btn.configure(text="✏️ Edit Setup")
+                idx = self._get_selected_index()
+                if idx is not None:
+                    self.edit_btn.configure(state="normal")
+                else:
+                    self.edit_btn.configure(state="disabled")
+        except Exception:
+            pass
+
+    def _edit_selected(self):
+        if getattr(self, "edit_index", None) is not None:
+            self.reset_form()
+            return
+            
+        idx = self._get_selected_index()
+        if idx is None:
+            return
+        self.edit_index = idx
+        self.on_row_click()
+        try:
+            self.save_btn.configure(text="Update Setup")
+        except Exception:
+            pass
+        self._update_edit_btn_state()
+
     def go_back(self, event=None):
         try:
             self.app.load_settings_page()
@@ -6372,6 +6437,7 @@ class MachineMasterPage(ctk.CTkFrame):
         # Fixed column widths (similar style)
         self._col_widths = [140, 420, 550]
 
+        self.edit_index = None
         self.load_machine_data()
         self.build_ui()
         self.refresh_table()
@@ -6506,7 +6572,22 @@ class MachineMasterPage(ctk.CTkFrame):
         )
         self.action_btn.pack(side="left", padx=(0, 10))
 
-        del_btn = ModernButton(
+        self.edit_btn = ModernButton(
+            btn_frame,
+            text="✏️ Edit Machine",
+            width=150,
+            height=32,
+            font=("Segoe UI", 11, "bold"),
+            fg_color="#007B43",
+            hover_color="#005C32",
+            text_color="white",
+            corner_radius=6,
+            state="disabled",
+            command=self._edit_selected
+        )
+        self.edit_btn.pack(side="left", padx=(0, 10))
+
+        self.del_btn = ModernButton(
             btn_frame,
             text="🗑 Delete Selected",
             width=150,
@@ -6516,9 +6597,10 @@ class MachineMasterPage(ctk.CTkFrame):
             hover_color="#90040B",
             text_color="white",
             corner_radius=6,
+            state="disabled",
             command=self._delete_selected
         )
-        del_btn.pack(side="left")
+        self.del_btn.pack(side="left")
 
         # Bind focus highlights
         for entry in (self.code_e, self.name_e, self.desc_e):
@@ -6647,14 +6729,21 @@ class MachineMasterPage(ctk.CTkFrame):
             except Exception:
                 pass
 
-            # Double click → edit popup
-            def _dbl(event):
-                idx = self._get_selected_index()
-                if idx is not None:
-                    self._open_editor_dialog("edit", idx)
+            try:
+                extra_bindings = [
+                    ("row_select", lambda event=None: self._update_edit_btn_state()),
+                    ("deselect_all", lambda event=None: self._update_edit_btn_state()),
+                    ("select_all", lambda event=None: self._update_edit_btn_state()),
+                    ("drag_select_rows", lambda event=None: self._update_edit_btn_state())
+                ]
+                self.sheet.extra_bindings(extra_bindings)
+                self.sheet.bind("<ButtonRelease-1>", lambda e: self._update_edit_btn_state())
+                self.sheet.bind("<KeyRelease>", lambda e: self._update_edit_btn_state())
+            except Exception:
+                pass
 
             try:
-                self.sheet.bind("<Double-1>", _dbl)
+                self.sheet.bind("<Double-1>", lambda e: self._edit_selected())
             except Exception:
                 pass
 
@@ -6743,8 +6832,9 @@ class MachineMasterPage(ctk.CTkFrame):
 
             self.tree.bind(
                 "<Double-1>",
-                lambda e: self._open_editor_dialog("edit", self._get_selected_index()),
+                lambda e: self._edit_selected(),
             )
+            self.tree.bind("<<TreeviewSelect>>", lambda e: self._update_edit_btn_state())
 
         self.after(80, self.refresh_table)
 
@@ -6754,15 +6844,13 @@ class MachineMasterPage(ctk.CTkFrame):
     # ----------------------------------------------------
     def _get_selected_index(self):
         try:
-            if self.use_tksheet:
-                cur = self.sheet.get_currently_selected()
-                if cur and isinstance(cur, tuple):
-                    return cur[0]
-
-                rows = self.sheet.get_selected_rows()
-                if rows:
-                    return rows[0]
-
+            if self.use_tksheet and self.sheet is not None:
+                selected = self.sheet.get_selected_rows()
+                if selected:
+                    return next(iter(selected))
+                selected_cells = self.sheet.get_selected_cells()
+                if selected_cells:
+                    return next(iter(selected_cells))[0]
                 return None
 
             else:
@@ -6786,6 +6874,56 @@ class MachineMasterPage(ctk.CTkFrame):
             self.desc_e.delete(0, "end")
         except:
             pass
+        self.edit_index = None
+        try:
+            self.action_btn.configure(text="➕ Add Machine")
+        except:
+            pass
+        self._update_edit_btn_state()
+
+    def _update_edit_btn_state(self, event=None):
+        try:
+            if getattr(self, "edit_index", None) is not None:
+                self.edit_btn.configure(text="Unsave Changes", state="normal")
+                self.del_btn.configure(state="normal")
+            else:
+                self.edit_btn.configure(text="✏️ Edit Machine")
+                idx = self._get_selected_index()
+                if idx is not None:
+                    self.edit_btn.configure(state="normal")
+                    self.del_btn.configure(state="normal")
+                else:
+                    self.edit_btn.configure(state="disabled")
+                    self.del_btn.configure(state="disabled")
+        except Exception:
+            pass
+
+    def _edit_selected(self):
+        if getattr(self, "edit_index", None) is not None:
+            self._clear_inputs()
+            return
+
+        idx = self._get_selected_index()
+        if idx is None:
+            return
+        
+        self.edit_index = idx
+        rec = self.machines[idx]
+        
+        self._clear_inputs()
+        self.edit_index = idx
+        try:
+            self.code_e.insert(0, str(rec.get("code", "")))
+            self.name_e.insert(0, str(rec.get("name", "")))
+            self.desc_e.insert(0, str(rec.get("desc", "")))
+        except Exception:
+            pass
+        
+        try:
+            self.action_btn.configure(text="Update Machine")
+        except Exception:
+            pass
+        self._update_edit_btn_state()
 
     # ----------------------------------------------------
     # ADD / UPDATE / DELETE
@@ -6902,6 +7040,7 @@ class MachineMasterPage(ctk.CTkFrame):
 
         self.load_machine_data()
         self.refresh_table()
+        self._clear_inputs()
 
         try:
             self.app.status_label.configure(text=f"Deleted {rec.get('code')} ✅")
@@ -7153,6 +7292,7 @@ class ItemMasterPage(ctk.CTkFrame):
         self.tree = None
         self.resize_sheet = lambda event=None: None
         self._col_widths = [130, 550, 212, 212]  # default widths
+        self.edit_index = None
         self.load_item_data()
         self.build_ui()
         self.refresh_table()
@@ -7279,7 +7419,22 @@ class ItemMasterPage(ctk.CTkFrame):
         )
         self.action_btn.pack(side="left", padx=(0, 10))
 
-        del_btn = ModernButton(
+        self.edit_btn = ModernButton(
+            btn_frame,
+            text="✏️ Edit Item",
+            width=140,
+            height=32,
+            font=("Segoe UI", 11, "bold"),
+            fg_color="#007B43",
+            hover_color="#005C32",
+            text_color="white",
+            corner_radius=6,
+            command=self._edit_selected,
+            state="disabled"
+        )
+        self.edit_btn.pack(side="left", padx=(0, 10))
+
+        self.del_btn = ModernButton(
             btn_frame,
             text="🗑 Delete Selected",
             width=150,
@@ -7291,7 +7446,7 @@ class ItemMasterPage(ctk.CTkFrame):
             corner_radius=6,
             command=self._delete_selected
         )
-        del_btn.pack(side="left")
+        self.del_btn.pack(side="left")
 
         # ====== TABLE ======
         table_card = ModernCardFrame(self)
@@ -7403,26 +7558,22 @@ class ItemMasterPage(ctk.CTkFrame):
 
             try:
                 self.sheet.enable_bindings(("single_select", "row_select", "arrowkeys", "copy", "select_all","right_click_popup_menu"))
+                extra_bindings = [
+                    ("row_select", lambda event=None: self._update_edit_btn_state()),
+                    ("deselect_all", lambda event=None: self._update_edit_btn_state()),
+                    ("select_all", lambda event=None: self._update_edit_btn_state()),
+                    ("drag_select_rows", lambda event=None: self._update_edit_btn_state())
+                ]
+                self.sheet.extra_bindings(extra_bindings)
+                self.sheet.bind("<ButtonRelease-1>", lambda e: self._update_edit_btn_state())
+                self.sheet.bind("<KeyRelease>", lambda e: self._update_edit_btn_state())
             except Exception:
                 pass
 
-            # double-click -> popup editor
-            def _on_sheet_double_click(event):
-                idx = self._get_selected_index()
-                if idx is None:
-                    return
-                try:
-                    self._open_editor_dialog(mode="edit", index=idx)
-                except Exception:
-                    pass
-
             try:
-                self.sheet.bind("<Double-1>", _on_sheet_double_click)
+                self.sheet.bind("<Double-1>", lambda e: self._edit_selected())
             except Exception:
-                try:
-                    self.sheet.bind("<Double-Button-1>", _on_sheet_double_click)
-                except Exception:
-                    pass
+                pass
 
             # Resize columns — syncs both sheet widths and header cell widths
             def resize_sheet(event=None):
@@ -7484,8 +7635,9 @@ class ItemMasterPage(ctk.CTkFrame):
             self.tree.grid(row=0, column=0, sticky="nsew")
             vsb.grid(row=0, column=1, sticky="ns")
             hsb.grid(row=1, column=0, sticky="ew")
-            # bind double click to open popup
-            self.tree.bind("<Double-1>", lambda e: self._open_editor_dialog(mode="edit", index=self._get_selected_index()))
+            # bind double click and selection for treeview
+            self.tree.bind("<Double-1>", lambda e: self._edit_selected())
+            self.tree.bind("<<TreeviewSelect>>", lambda e: self._update_edit_btn_state())
 
         # initial refresh
         self.after(50, self.refresh_table)
@@ -7504,20 +7656,12 @@ class ItemMasterPage(ctk.CTkFrame):
     def _get_selected_index(self):
         try:
             if self.use_tksheet and self.sheet is not None:
-                try:
-                    cur = self.sheet.get_currently_selected()
-                    if cur and isinstance(cur, tuple):
-                        row = cur[0]
-                        if isinstance(row, int) and row >= 0:
-                            return row
-                except Exception:
-                    pass
-                try:
-                    rows = self.sheet.get_selected_rows()
-                    if rows and isinstance(rows, list) and len(rows) > 0 and rows[0] >= 0:
-                        return rows[0]
-                except Exception:
-                    pass
+                selected = self.sheet.get_selected_rows()
+                if selected:
+                    return next(iter(selected))
+                selected_cells = self.sheet.get_selected_cells()
+                if selected_cells:
+                    return next(iter(selected_cells))[0]
                 return None
             else:
                 sel = self.tree.selection()
@@ -7539,6 +7683,54 @@ class ItemMasterPage(ctk.CTkFrame):
             self.revision_e.delete(0, "end")
         except Exception:
             pass
+        self.edit_index = None
+        try:
+            self.action_btn.configure(text="➕ Add Item")
+        except Exception:
+            pass
+        self._update_edit_btn_state()
+
+    def _update_edit_btn_state(self, event=None):
+        try:
+            if getattr(self, "edit_index", None) is not None:
+                self.edit_btn.configure(text="Unsave Changes", state="normal")
+            else:
+                self.edit_btn.configure(text="✏️ Edit Item")
+                idx = self._get_selected_index()
+                if idx is not None:
+                    self.edit_btn.configure(state="normal")
+                else:
+                    self.edit_btn.configure(state="disabled")
+        except Exception:
+            pass
+
+    def _edit_selected(self):
+        if getattr(self, "edit_index", None) is not None:
+            self._clear_inputs()
+            return
+
+        idx = self._get_selected_index()
+        if idx is None:
+            return
+        
+        self.edit_index = idx
+        rec = self.items[idx]
+        
+        self._clear_inputs()
+        self.edit_index = idx
+        try:
+            self.code_e.insert(0, str(rec.get("code", "")))
+            self.name_e.insert(0, str(rec.get("name", "")))
+            self.drawing_e.insert(0, str(rec.get("drawing", "")))
+            self.revision_e.insert(0, str(rec.get("revision", "")))
+        except Exception:
+            pass
+        
+        try:
+            self.action_btn.configure(text="Update Item")
+        except Exception:
+            pass
+        self._update_edit_btn_state()
 
     # -------------------------
     # Add / Update / Delete
@@ -7656,6 +7848,7 @@ class ItemMasterPage(ctk.CTkFrame):
             
             self.load_item_data()
             self.refresh_table()
+            self._clear_inputs()
             try:
                 self.app.status_label.configure(text=f"Deleted item {rec.get('code')} ✅")
             except Exception:
@@ -7861,6 +8054,7 @@ class ProcessMasterPage(ctk.CTkFrame):
         # Manual fixed column widths (same as Item page style)
         self._col_widths = [140, 420, 550]
 
+        self.edit_index = None
         self.load_process_data()
         self.build_ui()
         self.refresh_table()
@@ -7998,7 +8192,22 @@ class ProcessMasterPage(ctk.CTkFrame):
         )
         self.action_btn.pack(side="left", padx=(0, 10))
 
-        del_btn = ModernButton(
+        self.edit_btn = ModernButton(
+            btn_frame,
+            text="✏️ Edit Process",
+            width=150,
+            height=32,
+            font=("Segoe UI", 11, "bold"),
+            fg_color="#007B43",
+            hover_color="#005C32",
+            text_color="white",
+            corner_radius=6,
+            state="disabled",
+            command=self._edit_selected
+        )
+        self.edit_btn.pack(side="left", padx=(0, 10))
+
+        self.del_btn = ModernButton(
             btn_frame,
             text="🗑 Delete Selected",
             width=150,
@@ -8008,9 +8217,10 @@ class ProcessMasterPage(ctk.CTkFrame):
             hover_color="#90040B",
             text_color="white",
             corner_radius=6,
+            state="disabled",
             command=self._delete_selected
         )
-        del_btn.pack(side="left")
+        self.del_btn.pack(side="left")
 
         # Bind focus highlights
         for entry in (self.code_e, self.name_e, self.desc_e):
@@ -8167,11 +8377,22 @@ class ProcessMasterPage(ctk.CTkFrame):
             except Exception:
                 pass
 
+            try:
+                extra_bindings = [
+                    ("row_select", lambda event=None: self._update_edit_btn_state()),
+                    ("deselect_all", lambda event=None: self._update_edit_btn_state()),
+                    ("select_all", lambda event=None: self._update_edit_btn_state()),
+                    ("drag_select_rows", lambda event=None: self._update_edit_btn_state())
+                ]
+                self.sheet.extra_bindings(extra_bindings)
+                self.sheet.bind("<ButtonRelease-1>", lambda e: self._update_edit_btn_state())
+                self.sheet.bind("<KeyRelease>", lambda e: self._update_edit_btn_state())
+            except Exception:
+                pass
+
             # Double click handler
             def _dbl(event):
-                idx = self._get_selected_index()
-                if idx is not None:
-                    self._open_editor_dialog("edit", idx)
+                self._edit_selected()
 
             try:
                 self.sheet.bind("<Double-1>", _dbl)
@@ -8269,8 +8490,9 @@ class ProcessMasterPage(ctk.CTkFrame):
 
             self.tree.bind(
                 "<Double-1>",
-                lambda e: self._open_editor_dialog("edit", self._get_selected_index()),
+                lambda e: self._edit_selected(),
             )
+            self.tree.bind("<<TreeviewSelect>>", lambda e: self._update_edit_btn_state())
 
         self.after(80, self.refresh_table)
         
@@ -8281,20 +8503,13 @@ class ProcessMasterPage(ctk.CTkFrame):
     # ----------------------------------------------------------------
     def _get_selected_index(self):
         try:
-            if self.use_tksheet and self.sheet:
-                try:
-                    sel = self.sheet.get_currently_selected()
-                    if sel and isinstance(sel, tuple):
-                        return sel[0]
-                except Exception:
-                    pass
-
-                try:
-                    rows = self.sheet.get_selected_rows()
-                    if rows and rows[0] >= 0:
-                        return rows[0]
-                except Exception:
-                    pass
+            if self.use_tksheet and self.sheet is not None:
+                selected = self.sheet.get_selected_rows()
+                if selected:
+                    return next(iter(selected))
+                selected_cells = self.sheet.get_selected_cells()
+                if selected_cells:
+                    return next(iter(selected_cells))[0]
                 return None
 
             else:
@@ -8317,6 +8532,56 @@ class ProcessMasterPage(ctk.CTkFrame):
             self.desc_e.delete(0, "end")
         except Exception:
             pass
+        self.edit_index = None
+        try:
+            self.action_btn.configure(text="➕ Add Process")
+        except Exception:
+            pass
+        self._update_edit_btn_state()
+
+    def _update_edit_btn_state(self, event=None):
+        try:
+            if getattr(self, "edit_index", None) is not None:
+                self.edit_btn.configure(text="Unsave Changes", state="normal")
+                self.del_btn.configure(state="normal")
+            else:
+                self.edit_btn.configure(text="✏️ Edit Process")
+                idx = self._get_selected_index()
+                if idx is not None:
+                    self.edit_btn.configure(state="normal")
+                    self.del_btn.configure(state="normal")
+                else:
+                    self.edit_btn.configure(state="disabled")
+                    self.del_btn.configure(state="disabled")
+        except Exception:
+            pass
+
+    def _edit_selected(self):
+        if getattr(self, "edit_index", None) is not None:
+            self._clear_inputs()
+            return
+
+        idx = self._get_selected_index()
+        if idx is None:
+            return
+        
+        self.edit_index = idx
+        rec = self.processes[idx]
+        
+        self._clear_inputs()
+        self.edit_index = idx
+        try:
+            self.code_e.insert(0, str(rec.get("code", "")))
+            self.name_e.insert(0, str(rec.get("name", "")))
+            self.desc_e.insert(0, str(rec.get("desc", "")))
+        except Exception:
+            pass
+        
+        try:
+            self.action_btn.configure(text="Update Process")
+        except Exception:
+            pass
+        self._update_edit_btn_state()
 
     # ----------------------------------------------------------------
     # Add / Update / Delete
@@ -8431,6 +8696,7 @@ class ProcessMasterPage(ctk.CTkFrame):
 
             self.load_process_data()
             self.refresh_table()
+            self._clear_inputs()
         except Exception as e:
             messagebox.showerror("Delete Failed", f"Could not delete: {e}")
             return
@@ -8819,7 +9085,22 @@ class OperatorManagerPage(ctk.CTkFrame):
             corner_radius=6,
             command=self._on_action_clicked
         )
-        self.action_btn.grid(row=6, column=0, sticky="w", padx=(10, 6), pady=(8, 12))
+        self.action_btn.grid(row=6, column=0, sticky="w", padx=(10, 4), pady=(8, 12))
+
+        self.edit_btn = ModernButton(
+            left_inputs,
+            text="✏️ Edit Operator",
+            width=140,
+            height=32,
+            font=("Segoe UI", 11, "bold"),
+            fg_color="#007B43",
+            hover_color="#005C32",
+            text_color="white",
+            corner_radius=6,
+            command=self._edit_selected,
+            state="disabled"
+        )
+        self.edit_btn.grid(row=6, column=1, sticky="w", padx=(4, 4), pady=(8, 12))
 
         # Delete button next to Add button
         self.del_btn = ModernButton(
@@ -8834,7 +9115,7 @@ class OperatorManagerPage(ctk.CTkFrame):
             corner_radius=6,
             command=self.delete_selected
         )
-        self.del_btn.grid(row=6, column=1, sticky="w", padx=(0, 4), pady=(8, 12))
+        self.del_btn.grid(row=6, column=2, sticky="w", padx=(4, 10), pady=(8, 12))
 
 
         left_inputs.grid_rowconfigure(7, weight=1)  # spacer
@@ -9018,9 +9299,23 @@ class OperatorManagerPage(ctk.CTkFrame):
             except Exception:
                 pass
 
+            try:
+                self.sheet.enable_bindings(("single_select", "row_select", "arrowkeys", "copy", "select_all", "right_click_popup_menu"))
+                extra_bindings = [
+                    ("row_select", lambda event=None: self._update_edit_btn_state()),
+                    ("deselect_all", lambda event=None: self._update_edit_btn_state()),
+                    ("select_all", lambda event=None: self._update_edit_btn_state()),
+                    ("drag_select_rows", lambda event=None: self._update_edit_btn_state())
+                ]
+                self.sheet.extra_bindings(extra_bindings)
+                self.sheet.bind("<ButtonRelease-1>", lambda e: self._update_edit_btn_state())
+                self.sheet.bind("<KeyRelease>", lambda e: self._update_edit_btn_state())
+            except Exception:
+                pass
+
             # double click
             try:
-                self.sheet.bind("<Double-1>", lambda e: self._on_double_click_tksheet(e))
+                self.sheet.bind("<Double-1>", lambda e: self._edit_selected())
             except Exception:
                 pass
 
@@ -9103,7 +9398,8 @@ class OperatorManagerPage(ctk.CTkFrame):
         hsb.grid(row=1, column=0, sticky="ew")
         self.tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
 
-        self.tree.bind("<Double-1>", lambda e: self._on_tree_double_click(e))
+        self.tree.bind("<Double-1>", lambda e: self._edit_selected())
+        self.tree.bind("<<TreeviewSelect>>", lambda e: self._update_edit_btn_state())
 
         # resize handler for treeview
         def resize_tree(event=None):
@@ -9214,20 +9510,12 @@ class OperatorManagerPage(ctk.CTkFrame):
         """Return selected row index from tksheet or treeview."""
         try:
             if getattr(self, "use_tksheet", False) and getattr(self, "sheet", None):
-                try:
-                    cur = self.sheet.get_currently_selected()
-                    if cur and isinstance(cur, tuple):
-                        row = cur[0]
-                        if isinstance(row, int) and row >= 0:
-                            return row
-                except Exception:
-                    pass
-                try:
-                    rows = self.sheet.get_selected_rows()
-                    if rows and isinstance(rows, list) and len(rows) > 0 and rows[0] >= 0:
-                        return rows[0]
-                except Exception:
-                    pass
+                selected = self.sheet.get_selected_rows()
+                if selected:
+                    return next(iter(selected))
+                selected_cells = self.sheet.get_selected_cells()
+                if selected_cells:
+                    return next(iter(selected_cells))[0]
                 return None
             else:
                 sel = self.tree.selection()
@@ -9353,6 +9641,11 @@ class OperatorManagerPage(ctk.CTkFrame):
             
             self._load_operators()
             self.refresh_table()
+            if getattr(self, "edit_index", None) == idx:
+                self._clear_inputs()
+            elif getattr(self, "edit_index", None) is not None:
+                self._clear_inputs()
+            self._update_edit_btn_state()
             try:
                 if self.app and hasattr(self.app, "status_label"):
                     self.app.status_label.configure(text=f"Deleted operator {op.get('id')} ✅")
@@ -9544,6 +9837,51 @@ class OperatorManagerPage(ctk.CTkFrame):
             self.action_btn.configure(text="➕  Add Operator")
         except Exception:
             pass
+        self._update_edit_btn_state()
+
+    def _update_edit_btn_state(self, event=None):
+        try:
+            if getattr(self, "edit_index", None) is not None:
+                self.edit_btn.configure(text="Unsave Changes", state="normal")
+            else:
+                self.edit_btn.configure(text="✏️ Edit Operator")
+                idx = self._get_selected_index()
+                if idx is not None:
+                    op = self.operators[idx]
+                    if str(op.get("id")) != "999":
+                        self.edit_btn.configure(state="normal")
+                        return
+                self.edit_btn.configure(state="disabled")
+        except Exception:
+            pass
+
+    def _edit_selected(self):
+        if getattr(self, "edit_index", None) is not None:
+            self._clear_inputs()
+            return
+
+        idx = self._get_selected_index()
+        if idx is None:
+            return
+        op = self.operators[idx]
+        if str(op.get("id")) == "999":
+            messagebox.showinfo("Restricted", "The Guest operator cannot be edited.")
+            return
+        
+        self.edit_index = idx
+        self.id_entry.delete(0, "end")
+        self.id_entry.insert(0, str(op.get("id", "")))
+        self.name_entry.delete(0, "end")
+        self.name_entry.insert(0, str(op.get("name", "")))
+        self.phone_entry.delete(0, "end")
+        self.phone_entry.insert(0, str(op.get("phone", "")))
+        self.desc_text.delete("1.0", "end")
+        self.desc_text.insert("1.0", str(op.get("description", "")))
+        try:
+            self.action_btn.configure(text="Update Operator")
+        except Exception:
+            pass
+        self._update_edit_btn_state()
 
     def _safe_resize(self):
         try:
@@ -9775,8 +10113,21 @@ class CustomerMasterPage(ctk.CTkFrame):
         )
         self.action_btn.pack(side="left", padx=(0, 10))
 
-        # Delete selected (left)
-        del_btn = ModernButton(
+        self.edit_btn = ModernButton(
+            btn_frame,
+            text="✏️ Edit Customer",
+            fg_color="#007B43",
+            hover_color="#005C32",
+            height=32,
+            width=150,
+            corner_radius=6,
+            font=("Segoe UI", 11, "bold"),
+            state="disabled",
+            command=self._edit_selected
+        )
+        self.edit_btn.pack(side="left", padx=(0, 10))
+
+        self.del_btn = ModernButton(
             btn_frame,
             text="🗑 Delete Selected",
             fg_color="#B0050E",
@@ -9785,9 +10136,10 @@ class CustomerMasterPage(ctk.CTkFrame):
             width=150,
             corner_radius=6,
             font=("Segoe UI", 11, "bold"),
+            state="disabled",
             command=self._delete_selected
         )
-        del_btn.pack(side="left")
+        self.del_btn.pack(side="left")
 
         # Search area
         search_frame = ctk.CTkFrame(add_frame, fg_color="transparent")
@@ -9925,6 +10277,19 @@ class CustomerMasterPage(ctk.CTkFrame):
             except Exception:
                 pass
 
+            try:
+                extra_bindings = [
+                    ("row_select", lambda event=None: self._update_edit_btn_state()),
+                    ("deselect_all", lambda event=None: self._update_edit_btn_state()),
+                    ("select_all", lambda event=None: self._update_edit_btn_state()),
+                    ("drag_select_rows", lambda event=None: self._update_edit_btn_state())
+                ]
+                self.sheet.extra_bindings(extra_bindings)
+                self.sheet.bind("<ButtonRelease-1>", lambda e: self._update_edit_btn_state())
+                self.sheet.bind("<KeyRelease>", lambda e: self._update_edit_btn_state())
+            except Exception:
+                pass
+
             # set manual column widths
             try:
                 for i, w in enumerate(self._col_widths):
@@ -9934,13 +10299,7 @@ class CustomerMasterPage(ctk.CTkFrame):
 
             # Double-click loads editor
             def _on_sheet_double_click(event):
-                idx = self._get_selected_index()
-                if idx is None:
-                    return
-                try:
-                    self._open_editor_dialog(mode="edit", index=idx)
-                except Exception:
-                    pass
+                self._edit_selected()
 
             try:
                 self.sheet.bind("<Double-1>", _on_sheet_double_click)
@@ -10050,8 +10409,9 @@ class CustomerMasterPage(ctk.CTkFrame):
             hsb.pack(side="bottom", fill="x")
             vsb.pack(side="right", fill="y")
 
-            # bind double click
-            self.tree.bind("<Double-1>", lambda e: self._on_tree_double_click(e))
+            # bind double click and selection for treeview
+            self.tree.bind("<Double-1>", lambda e: self._edit_selected())
+            self.tree.bind("<<TreeviewSelect>>", lambda e: self._update_edit_btn_state())
 
             # resize logic for tree
             def resize_tree(event=None):
@@ -10084,20 +10444,12 @@ class CustomerMasterPage(ctk.CTkFrame):
         """Return selected row index from tksheet or treeview, else None."""
         try:
             if self.use_tksheet and self.sheet is not None:
-                try:
-                    cur = self.sheet.get_currently_selected()
-                    if cur and isinstance(cur, tuple):
-                        row = cur[0]
-                        if isinstance(row, int) and row >= 0:
-                            return row
-                except Exception:
-                    pass
-                try:
-                    rows = self.sheet.get_selected_rows()
-                    if rows and isinstance(rows, list) and len(rows) > 0 and rows[0] >= 0:
-                        return rows[0]
-                except Exception:
-                    pass
+                selected = self.sheet.get_selected_rows()
+                if selected:
+                    return next(iter(selected))
+                selected_cells = self.sheet.get_selected_cells()
+                if selected_cells:
+                    return next(iter(selected_cells))[0]
                 return None
             else:
                 sel = self.tree.selection()
@@ -10296,6 +10648,11 @@ class CustomerMasterPage(ctk.CTkFrame):
             
             self._load_customers()
             self.refresh_table()
+            if getattr(self, "edit_index", None) == idx:
+                self.reset_form()
+            elif getattr(self, "edit_index", None) is not None:
+                self.reset_form()
+            self._update_edit_btn_state()
             try:
                 self.app.status_label.configure(text=f"Deleted customer {rec.get('code')} ✅")
             except Exception:
@@ -10333,17 +10690,15 @@ class CustomerMasterPage(ctk.CTkFrame):
             messagebox.showerror("Delete Failed", f"Could not delete: {e}")
 
     def _edit_selected(self):
-        """Load selected row into small popup editor (optional) or into the form directly."""
+        if getattr(self, "edit_index", None) is not None:
+            self.reset_form()
+            return
+
         idx = self._get_selected_index()
         if idx is None:
-            messagebox.showwarning("No Selection", "Please select a customer to edit.")
             return
-        # Use popup editor for convenience
-        try:
-            self._open_editor_dialog(mode="edit", index=idx)
-        except Exception:
-            # fallback: load into permanent form
-            self._load_into_form(idx)
+        self._load_into_form(idx)
+        self._update_edit_btn_state()
 
     def _on_tree_double_click(self, event):
         idx = self._get_selected_index()
@@ -10479,6 +10834,29 @@ class CustomerMasterPage(ctk.CTkFrame):
             self.desc_e.delete(0, "end")
             self.email_e.delete(0, "end")
             self.phone_e.delete(0, "end")
+        except Exception:
+            pass
+        self.edit_index = None
+        try:
+            self.action_btn.configure(text="➕ Add Customer")
+        except:
+            pass
+        self._update_edit_btn_state()
+
+    def _update_edit_btn_state(self, event=None):
+        try:
+            if getattr(self, "edit_index", None) is not None:
+                self.edit_btn.configure(text="Unsave Changes", state="normal")
+                self.del_btn.configure(state="normal")
+            else:
+                self.edit_btn.configure(text="✏️ Edit Customer")
+                idx = self._get_selected_index()
+                if idx is not None:
+                    self.edit_btn.configure(state="normal")
+                    self.del_btn.configure(state="normal")
+                else:
+                    self.edit_btn.configure(state="disabled")
+                    self.del_btn.configure(state="disabled")
         except Exception:
             pass
 
