@@ -5663,7 +5663,7 @@ class ComponentSetupPage(ctk.CTkFrame):
             show_header=False,        # Hide native header
             show_row_index=True,       # Show row numbers index
             row_index_width=40,        # Width matches spacer (40px)
-            show_x_scrollbar=True,
+            show_x_scrollbar=False,
             show_y_scrollbar=True
         )
         self.sheet.grid(row=0, column=0, sticky="nsew")
@@ -5737,6 +5737,22 @@ class ComponentSetupPage(ctk.CTkFrame):
             pass
         
         self.after(200, lambda: sync_widths_to_header(None))
+
+        def do_resize(event=None):
+            try:
+                w = self.table_sheet_frame.winfo_width() - 40
+                if w > 100:
+                    total_default = sum(self._col_widths)
+                    scale = w / total_default
+                    for idx, wd in enumerate(self._col_widths):
+                        try: self.sheet.column_width(column=idx, width=int(wd * scale))
+                        except: pass
+                    sync_widths_to_header()
+            except Exception:
+                pass
+
+        self.table_sheet_frame.bind("<Configure>", do_resize)
+        self.after(100, do_resize)
 
         # Selection handler
         def _on_click(e):
@@ -6705,7 +6721,7 @@ class MachineMasterPage(ctk.CTkFrame):
                 show_header=False,        # Hide native header
                 show_row_index=True,       # Show row numbers index
                 row_index_width=40,        # Width matches spacer (40px)
-                show_x_scrollbar=True,
+                show_x_scrollbar=False,
                 show_y_scrollbar=True
             )
             self.sheet.grid(row=0, column=0, sticky="nsew")
@@ -6802,6 +6818,22 @@ class MachineMasterPage(ctk.CTkFrame):
                 pass
                 
             self.after(200, lambda: sync_widths_to_header(None))
+
+            def do_resize(event=None):
+                try:
+                    w = self.table_sheet_frame.winfo_width() - 40
+                    if w > 100:
+                        total_default = sum(self._col_widths)
+                        scale = w / total_default
+                        for idx, wd in enumerate(self._col_widths):
+                            try: self.sheet.column_width(column=idx, width=int(wd * scale))
+                            except: pass
+                        sync_widths_to_header()
+                except Exception:
+                    pass
+
+            self.table_sheet_frame.bind("<Configure>", do_resize)
+            self.after(100, do_resize)
             
         else:
             self.use_tksheet = False
@@ -7537,7 +7569,7 @@ class ItemMasterPage(ctk.CTkFrame):
                 show_header=False,        # Hide native header
                 show_row_index=True,       # Show row numbers index
                 row_index_width=40,        # Width matches spacer (40px)
-                show_x_scrollbar=True,
+                show_x_scrollbar=False,
                 show_y_scrollbar=True
             )
             self.sheet.grid(row=0, column=0, sticky="nsew")
@@ -7583,9 +7615,9 @@ class ItemMasterPage(ctk.CTkFrame):
                         self.after(60, self.resize_sheet)
                         return
                     col_count = len(cols)
-                    # Deduct spacing for vertical scrollbar (16px) and row index column (40px)
-                    available = max(500, total_width - 16 - 40)
-                    col_width = max(80, int(available / col_count))
+                    # Deduct spacing for row index column (40px)
+                    available = total_width - 40
+                    col_width = int(available / col_count)
                     for c in range(col_count):
                         try:
                             self.sheet.column_width(column=c, width=col_width, only_set_if_too_small=False)
@@ -8353,7 +8385,7 @@ class ProcessMasterPage(ctk.CTkFrame):
                 show_header=False,        # Hide native header
                 show_row_index=True,       # Show row numbers index
                 row_index_width=40,        # Width matches spacer (40px)
-                show_x_scrollbar=True,
+                show_x_scrollbar=False,
                 show_y_scrollbar=True
             )
             self.sheet.grid(row=0, column=0, sticky="nsew")
@@ -8424,9 +8456,9 @@ class ProcessMasterPage(ctk.CTkFrame):
                         self.after(60, self.resize_sheet)
                         return
                     col_count = len(cols)
-                    # Deduct spacing for vertical scrollbar (16px) and row index column (40px)
-                    available = max(500, total_width - 16 - 40)
-                    col_width = max(80, int(available / col_count))
+                    # Deduct spacing for row index column (40px)
+                    available = total_width - 40
+                    col_width = int(available / col_count)
                     for c in range(col_count):
                         try:
                             self.sheet.column_width(column=c, width=col_width, only_set_if_too_small=False)
@@ -9275,7 +9307,7 @@ class OperatorManagerPage(ctk.CTkFrame):
                 show_header=False,         # Hide native header
                 show_row_index=True,       # Show row numbers index
                 row_index_width=40,        # Width matches spacer (40px)
-                show_x_scrollbar=True,
+                show_x_scrollbar=False,
                 show_y_scrollbar=True
             )
             self.sheet.grid(row=0, column=0, sticky="nsew")
@@ -9373,6 +9405,22 @@ class OperatorManagerPage(ctk.CTkFrame):
                 pass
                 
             self.after(200, lambda: sync_widths_to_header(None))
+
+            def do_resize(event=None):
+                try:
+                    w = self.table_sheet_frame.winfo_width() - 40
+                    if w > 100:
+                        total_default = sum(self._col_widths)
+                        scale = w / total_default
+                        for idx, wd in enumerate(self._col_widths):
+                            try: self.sheet.column_width(column=idx, width=int(wd * scale))
+                            except: pass
+                        sync_widths_to_header()
+                except Exception:
+                    pass
+
+            self.table_sheet_frame.bind("<Configure>", do_resize)
+            self.after(100, do_resize)
 
             return
         except Exception as e:
@@ -10253,7 +10301,7 @@ class CustomerMasterPage(ctk.CTkFrame):
                 show_header=False,        # Hide native header
                 show_row_index=True,       # Show row numbers index
                 row_index_width=40,        # Width matches spacer (40px)
-                show_x_scrollbar=True,
+                show_x_scrollbar=False,
                 show_y_scrollbar=True
             )
             self.sheet.grid(row=0, column=0, sticky="nsew")
@@ -10357,6 +10405,22 @@ class CustomerMasterPage(ctk.CTkFrame):
                 pass
                 
             self.after(200, lambda: sync_widths_to_header(None))
+
+            def do_resize(event=None):
+                try:
+                    w = self.table_sheet_frame.winfo_width() - 40
+                    if w > 100:
+                        total_default = sum(self._col_widths)
+                        scale = w / total_default
+                        for idx, wd in enumerate(self._col_widths):
+                            try: self.sheet.column_width(column=idx, width=int(wd * scale))
+                            except: pass
+                        sync_widths_to_header()
+                except Exception:
+                    pass
+
+            self.table_sheet_frame.bind("<Configure>", do_resize)
+            self.after(100, do_resize)
 
         else:
             # Treeview fallback
