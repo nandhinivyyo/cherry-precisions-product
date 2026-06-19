@@ -13249,6 +13249,21 @@ class LiveDataPage(ctk.CTkFrame):
         self.badge_text_label = ctk.CTkLabel(self.status_badge, text="OFFLINE", font=("Segoe UI", 12, "bold"), text_color="#C62828")
         self.badge_text_label.pack(side="left", padx=(0, 14), pady=8)
 
+        self.delete_all_btn = ctk.CTkButton(
+            btn_container,
+            text="🗑️ Delete All",
+            text_color="#dc2626",
+            fg_color="#ffffff",
+            hover_color="#fef2f2",
+            border_width=1,
+            border_color="#f87171",
+            height=32,
+            corner_radius=12,
+            font=("Segoe UI", 12, "bold"),
+            command=self.delete_all_data
+        )
+        self.delete_all_btn.pack(side="right", padx=(0, 10))
+
         # Outer shadow wrapper — lavender tint (#ede9fe)
         self.table_shadow = ctk.CTkFrame(
             self,
@@ -13554,6 +13569,26 @@ class LiveDataPage(ctk.CTkFrame):
                 json.dump(self.rows, f, indent=2)
         except Exception as e:
             print("Save error:", e)
+
+    def delete_all_data(self):
+        from tkinter import messagebox
+        if not messagebox.askyesno("Confirm Delete", "Are you sure you want to clear all data from the live view?"):
+            return
+            
+        self.serial_no = 0
+        self.rows = []
+        
+        try:
+            if getattr(self, "use_tksheet", False) and getattr(self, "sheet", None):
+                self.sheet.set_sheet_data([])
+                self._sheet_row_count = 0
+            elif hasattr(self, "table") and self.table:
+                for item in self.table.get_children():
+                    self.table.delete(item)
+        except Exception as e:
+            print("Error clearing table:", e)
+            
+        self.save_to_file()
 
     def append_to_all_data(self, parsed_tuple, customer_name):
         """Queue a DB write to the background thread — never blocks the UI."""
