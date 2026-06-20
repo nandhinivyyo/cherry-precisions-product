@@ -1025,9 +1025,9 @@ class AdminLoginPage(ctk.CTkFrame):
         welcome_frame = ctk.CTkFrame(self.login_card, fg_color="transparent")
         welcome_frame.pack(pady=(0, 2))
         
-        welcome_lbl1 = ctk.CTkLabel(welcome_frame, text="Welcome ", font=("Segoe UI", 24, "bold"), text_color="#1A1A1A")
+        welcome_lbl1 = ctk.CTkLabel(welcome_frame, text="Admin ", font=("Segoe UI", 24, "bold"), text_color="#1A1A1A")
         welcome_lbl1.pack(side="left")
-        welcome_lbl2 = ctk.CTkLabel(welcome_frame, text="Back!", font=("Segoe UI", 24, "bold"), text_color="#B0050E")
+        welcome_lbl2 = ctk.CTkLabel(welcome_frame, text="Login!", font=("Segoe UI", 24, "bold"), text_color="#B0050E")
         welcome_lbl2.pack(side="left")
 
         # ── 3. Subtitle ──
@@ -17050,11 +17050,12 @@ class AnalysisPage(ctk.CTkFrame):
         except:
             pass
 
-        # Status label (unchanged)
         self.status_label = ctk.CTkLabel(
             scroll_frame, text="", font=("Segoe UI", 11), text_color="#1565C0"
         )
         self.status_label.pack(pady=(6, 10))
+
+
 
 
         # lock histogram widths after idle
@@ -17161,9 +17162,9 @@ class AnalysisPage(ctk.CTkFrame):
                 height=340, # Match chart height
                 width=TOTAL_WIDTH,
                 show_x_scrollbar=False,
-                show_y_scrollbar=True,
+                show_y_scrollbar=False,
                 theme="light green",
-                show_index=True
+                show_index=False
             )
             self.freq_table.pack()
             COL_WIDTHS = [120, 120, 120, 120]
@@ -17464,7 +17465,9 @@ class AnalysisPage(ctk.CTkFrame):
                 "chart_paths": chart_paths,
                 "freq_rows": freq_rows,
                 "hist_interval_path": hist_interval_path,
-                "tol_valid": tol_valid
+                "tol_valid": tol_valid,
+                "xbars": stats_res["avg"],
+                "ranges": stats_res["rng"]
             }
 
             # Schedule UI Update on Main Thread
@@ -17483,6 +17486,7 @@ class AnalysisPage(ctk.CTkFrame):
         """
         from matplotlib.figure import Figure
         from matplotlib.backends.backend_agg import FigureCanvasAgg
+        import matplotlib.patheffects as path_effects
         
         tmp_dir = tempfile.gettempdir()
         x_indices = list(range(1, len(xbars) + 1))
@@ -17490,57 +17494,101 @@ class AnalysisPage(ctk.CTkFrame):
         # --- Helper: Save Figure ---
         def save_fig(fig, path):
             canvas = FigureCanvasAgg(fig)
-            fig.subplots_adjust(right=0.82) # Margin for legend
+            fig.subplots_adjust(left=0.10, right=0.95, top=0.9, bottom=0.20) # Better centered plot area
+            fig.patch.set_alpha(0.0)
             canvas.print_figure(path, dpi=100)
-        
-        # 1. X-Bar Chart
-        fig1 = Figure(figsize=(6, 2.8), dpi=100)
-        ax1 = fig1.add_subplot(111)
-        
-        # Convert strings to floats if needed
-        xbars_f = [float(x) for x in xbars]
-        
-        ax1.plot(x_indices, xbars_f, marker="o", label="AVG")
-        ax1.axhline(float(xbarbar), linestyle="--", label="X-BAR")
-        
-        if metrics.get("ucl_x") is not None:
-            ax1.axhline(metrics["ucl_x"], linestyle="--", color="red", label="UCL")
-        if metrics.get("lcl_x") is not None:
-            ax1.axhline(metrics["lcl_x"], linestyle="--", color="orange", label="LCL")
             
-        ax1.set_title("X-Bar Chart")
-        ax1.set_xlabel("Sample")
-        ax1.set_ylabel("Average")
-        ax1.legend(bbox_to_anchor=(1.02, 1), loc='upper left', borderaxespad=0.)
-        
+        def style_ax(ax):
+            ax.spines['top'].set_visible(False)
+            ax.spines['right'].set_visible(False)
+            ax.spines['left'].set_color('#9E9E9E')
+            ax.spines['bottom'].set_color('#9E9E9E')
+            ax.tick_params(colors='#616161')
+            ax.xaxis.label.set_color('#1E293B')
+            ax.yaxis.label.set_color('#1E293B')
+            try:
+                ax.ticklabel_format(useOffset=False, style='plain', axis='y')
+            except Exception:
+                pass
+
+        def plot_styled_chart(ax, data, central_val, ucl, lcl, ylabel, title_text):
+            COLOR_GREEN = "#00B074"
+            COLOR_ORANGE = "#FF7B00"
+            BG_GREEN = "#E8F5E9"
+            BG_ORANGE = "#FFF3E0"
+            
+            COLOR_RED = "#EF4444"
+            COLOR_YELLOW = "#EAB308"
+
+            COLOR_CENTRAL = COLOR_GREEN
+            COLOR_UCL = COLOR_RED
+            COLOR_LCL = COLOR_YELLOW
+            
+            # Draw dashed lines stopping at the last data point
+            ax.plot([0.5, len(data)], [central_val, central_val], linestyle="--", color=COLOR_CENTRAL, alpha=0.6, linewidth=1.5)
+            if ucl is not None:
+                ax.plot([0.5, len(data)], [ucl, ucl], linestyle="--", color=COLOR_UCL, alpha=0.6, linewidth=1.5)
+            if lcl is not None:
+                ax.plot([0.5, len(data)], [lcl, lcl], linestyle="--", color=COLOR_LCL, alpha=0.6, linewidth=1.5)
+                
+            ax.text(len(data) + 0.6, central_val, f"{ylabel}-BAR {central_val:.4f}", color=COLOR_CENTRAL, va='center', fontweight='bold', fontsize=9)
+            if ucl is not None:
+                ax.text(len(data) + 0.6, ucl, f"UCL {ucl:.4f}", color=COLOR_UCL, va='center', fontweight='bold', fontsize=9)
+            if lcl is not None:
+                ax.text(len(data) + 0.6, lcl, f"LCL {lcl:.4f}", color=COLOR_LCL, va='center', fontweight='bold', fontsize=9)
+
+            vals_for_limits = data[:]
+            if ucl is not None: vals_for_limits.append(ucl)
+            if lcl is not None: vals_for_limits.append(lcl)
+            vals_for_limits.append(central_val)
+            
+            y_min = min(vals_for_limits) if vals_for_limits else 0
+            y_max = max(vals_for_limits) if vals_for_limits else 1
+            y_range = y_max - y_min
+            if y_range == 0: y_range = 1
+            
+            ax.set_ylim(y_min - y_range*0.08, y_max + y_range*0.2)
+            
+            for i in range(len(data)):
+                val = data[i]
+                color = COLOR_GREEN if val >= central_val else COLOR_ORANGE
+                bg_color = BG_GREEN if val >= central_val else BG_ORANGE
+                
+                ax.axvspan(i + 0.5, i + 1.5, color=bg_color, alpha=0.6)
+                
+                ax.plot(i + 1, val, marker="o", color=color, markersize=8, zorder=3)
+                
+                if i > 0:
+                    prev_val = data[i-1]
+                    ax.plot([i, i+1], [prev_val, val], color=color, linewidth=2, zorder=2)
+                    
+                txt = ax.text(i + 1, val + y_range*0.08, f"{val:.4f}", color=color, ha='center', va='bottom', fontweight='bold', fontsize=7)
+                txt.set_path_effects([path_effects.withStroke(linewidth=3, foreground='white')])
+                
+            ax.set_xlim(0.5, len(data) + 2.0)
+            ax.set_xticks(range(1, len(data) + 1))
+            ax.set_xlabel("Sample")
+            # Remove left side content (y-axis label)
+            ax.set_ylabel("")
+            style_ax(ax)
+
+        # 1. X-Bar Chart
+        fig1 = Figure(figsize=(6.5, 3.2), dpi=100)
+        ax1 = fig1.add_subplot(111)
+        xbars_f = [float(x) for x in xbars]
+        plot_styled_chart(ax1, xbars_f, float(xbarbar), metrics.get("ucl_x"), metrics.get("lcl_x"), "X", "X - Bar Chart")
         xbar_path = os.path.join(tmp_dir, "xbar_chart.png")
         save_fig(fig1, xbar_path)
         
         # 2. R-Bar Chart
-        fig2 = Figure(figsize=(6, 2.8), dpi=100)
+        fig2 = Figure(figsize=(6.5, 3.2), dpi=100)
         ax2 = fig2.add_subplot(111)
-        
         ranges_f = [float(x) for x in ranges]
-        
-        ax2.plot(x_indices, ranges_f, marker="o", label="RANGE")
-        ax2.axhline(float(rbar), linestyle="--", label="R-BAR")
-        
-        if metrics.get("ucl_r") is not None:
-            ax2.axhline(metrics["ucl_r"], linestyle="--", color="red", label="UCL")
-        if metrics.get("lcl_r") is not None:
-            ax2.axhline(metrics["lcl_r"], linestyle="--", color="orange", label="LCL")
-
-        ax2.set_title("R-Bar Chart")
-        ax2.set_xlabel("Sample")
-        ax2.set_ylabel("Range")
-        ax2.legend(bbox_to_anchor=(1.02, 1), loc='upper left', borderaxespad=0.)
-        
+        plot_styled_chart(ax2, ranges_f, float(rbar), metrics.get("ucl_r"), metrics.get("lcl_r"), "R", "R - Bar Chart")
         rbar_path = os.path.join(tmp_dir, "rbar_chart.png")
         save_fig(fig2, rbar_path)
         
         # 3. Histogram
-        # For histogram, we only need vals
-        # To match previous bins logic: round(1 + 3.322 * math.log10(len(vals)))
         try:
             bins_count = round(1 + 3.322 * math.log10(len(vals)))
         except: 
@@ -17552,9 +17600,6 @@ class AnalysisPage(ctk.CTkFrame):
         ax3.set_title("Histogram")
         ax3.set_xlabel("Measurement")
         ax3.set_ylabel("Frequency")
-        # Reuse save_fig but maybe reset margin if we want tight layout? 
-        # The previous code used tight_layout. 
-        # Let's manual adjust for consistency or just use tight_layout logic
         fig3.tight_layout()
         
         hist_path = os.path.join(tmp_dir, "histogram.png")
@@ -17666,6 +17711,38 @@ class AnalysisPage(ctk.CTkFrame):
                 self._hist_interval_img_path = hist_int_path
             self._build_spc_chart_ui()
 
+            # ── 7.5 Populate Graph Data Tables ─────────────────────────
+            try:
+                xbars_data = res.get("xbars", [])
+                ranges_data = res.get("ranges", [])
+                xbar_table_data = []
+                rbar_table_data = []
+                
+                for i in range(max(len(xbars_data), len(ranges_data))):
+                    xb_val = xbars_data[i] if i < len(xbars_data) else "–"
+                    r_val = ranges_data[i] if i < len(ranges_data) else "–"
+                    try: xb_str = f"{float(xb_val):.5f}"
+                    except: xb_str = str(xb_val)
+                    try: r_str = f"{float(r_val):.5f}"
+                    except: r_str = str(r_val)
+                    
+                    if i < len(xbars_data):
+                        xbar_table_data.append([i + 1, xb_str])
+                    if i < len(ranges_data):
+                        rbar_table_data.append([i + 1, r_str])
+                
+                self._xbar_table_data = xbar_table_data
+                self._rbar_table_data = rbar_table_data
+                
+                if hasattr(self, "xbar_data_table"):
+                    self.xbar_data_table.set_sheet_data(xbar_table_data)
+                    self.xbar_data_table.refresh()
+                if hasattr(self, "rbar_data_table"):
+                    self.rbar_data_table.set_sheet_data(rbar_table_data)
+                    self.rbar_data_table.refresh()
+            except Exception as e:
+                print("Failed to populate graph data tables:", e)
+
             # ── 8. Clear status text ──────────────────────────────────
             if hasattr(self, "status_label"):
                 self.status_label.configure(text="")
@@ -17743,29 +17820,206 @@ class AnalysisPage(ctk.CTkFrame):
                 del self.loading_overlay
         except Exception:
             pass
+            
+    def _open_expanded_chart(self, chart_type):
+        import customtkinter as ctk
+        import tkinter as tk
+        import tksheet
+        from PIL import Image
+        
+        top = tk.Toplevel(self)
+        top.title(f"{chart_type} Expanded View")
+        top.geometry("1100x800")
+        top.configure(bg="#F8FAFC")
+        
+        lbl = tk.Label(top, text=f"{chart_type} Expanded View", font=("Arial", 16, "bold"), bg="#F8FAFC", fg="#1E293B")
+        lbl.pack(pady=20)
+        
+        img_path = self._xbar_img_path if chart_type == "X-Bar" else self._rbar_img_path
+        
+        try:
+            from matplotlib.figure import Figure
+            from matplotlib.backends.backend_agg import FigureCanvasAgg
+            import matplotlib.patheffects as path_effects
+            import os, tempfile
 
+            def style_ax(ax):
+                ax.spines['top'].set_visible(False)
+                ax.spines['right'].set_visible(False)
+                ax.spines['left'].set_color('#9E9E9E')
+                ax.spines['bottom'].set_color('#9E9E9E')
+                ax.tick_params(colors='#616161')
+                ax.xaxis.label.set_color('#1E293B')
+                ax.yaxis.label.set_color('#1E293B')
+                try:
+                    ax.ticklabel_format(useOffset=False, style='plain', axis='y')
+                except Exception:
+                    pass
+
+            def plot_styled_chart(ax, data, central_val, ucl, lcl, ylabel):
+                COLOR_GREEN = "#00B074"
+                COLOR_ORANGE = "#FF7B00"
+                BG_GREEN = "#E8F5E9"
+                BG_ORANGE = "#FFF3E0"
+                COLOR_RED = "#EF4444"
+                COLOR_YELLOW = "#EAB308"
+                
+                ax.plot([0.5, len(data)], [central_val, central_val], linestyle="--", color=COLOR_GREEN, alpha=0.6, linewidth=1.5)
+                if ucl is not None:
+                    ax.plot([0.5, len(data)], [ucl, ucl], linestyle="--", color=COLOR_RED, alpha=0.6, linewidth=1.5)
+                if lcl is not None:
+                    ax.plot([0.5, len(data)], [lcl, lcl], linestyle="--", color=COLOR_YELLOW, alpha=0.6, linewidth=1.5)
+                    
+                ax.text(len(data) + 0.6, central_val, f"{ylabel}-BAR {central_val:.4f}", color=COLOR_GREEN, va='center', fontweight='bold', fontsize=10)
+                if ucl is not None:
+                    ax.text(len(data) + 0.6, ucl, f"UCL {ucl:.4f}", color=COLOR_RED, va='center', fontweight='bold', fontsize=10)
+                if lcl is not None:
+                    ax.text(len(data) + 0.6, lcl, f"LCL {lcl:.4f}", color=COLOR_YELLOW, va='center', fontweight='bold', fontsize=10)
+
+                vals_for_limits = data[:]
+                if ucl is not None: vals_for_limits.append(ucl)
+                if lcl is not None: vals_for_limits.append(lcl)
+                vals_for_limits.append(central_val)
+                
+                y_min = min(vals_for_limits) if vals_for_limits else 0
+                y_max = max(vals_for_limits) if vals_for_limits else 1
+                y_range = y_max - y_min
+                if y_range == 0: y_range = 1
+                
+                ax.set_ylim(y_min - y_range*0.08, y_max + y_range*0.2)
+                
+                for i in range(len(data)):
+                    val = data[i]
+                    color = COLOR_GREEN if val >= central_val else COLOR_ORANGE
+                    bg_color = BG_GREEN if val >= central_val else BG_ORANGE
+                    ax.axvspan(i + 0.5, i + 1.5, color=bg_color, alpha=0.6)
+                    ax.plot(i + 1, val, marker="o", color=color, markersize=8, zorder=3)
+                    if i > 0:
+                        prev_val = data[i-1]
+                        ax.plot([i, i+1], [prev_val, val], color=color, linewidth=2, zorder=2)
+                        
+                    txt = ax.text(i + 1, val + y_range*0.08, f"{val:.4f}", color=color, ha='center', va='bottom', fontweight='bold', fontsize=10)
+                    txt.set_path_effects([path_effects.withStroke(linewidth=3, foreground='white')])
+                    
+                ax.set_xlim(0.5, len(data) + 2.0)
+                ax.set_xticks(range(1, len(data) + 1))
+                ax.set_xlabel("Sample")
+                ax.set_ylabel("")
+                style_ax(ax)
+
+            data_rows = self._xbar_table_data if chart_type == "X-Bar" else getattr(self, "_rbar_table_data", [])
+            plot_data = [float(r[1]) for r in data_rows if str(r[1]).strip() != ""]
+            
+            metrics = getattr(self, "_last_spc_metrics", {})
+            if chart_type == "X-Bar":
+                ucl = metrics.get("ucl_x")
+                lcl = metrics.get("lcl_x")
+                central = sum(plot_data)/len(plot_data) if plot_data else 0
+                ylabel = "X"
+            else:
+                ucl = metrics.get("ucl_r")
+                lcl = metrics.get("lcl_r")
+                central = sum(plot_data)/len(plot_data) if plot_data else 0
+                ylabel = "R"
+
+            fig = Figure(figsize=(12.0, 4.0), dpi=100)
+            ax = fig.add_subplot(111)
+            plot_styled_chart(ax, plot_data, float(central), ucl, lcl, ylabel)
+            
+            fig.subplots_adjust(left=0.10, right=0.88, top=0.9, bottom=0.20)
+            fig.patch.set_alpha(0.0)
+            
+            tmp_dir = tempfile.gettempdir()
+            exp_path = os.path.join(tmp_dir, f"expanded_{chart_type}.png")
+            canvas = FigureCanvasAgg(fig)
+            canvas.print_figure(exp_path, dpi=100)
+            
+            pil_img = Image.open(exp_path)
+            c_img = ctk.CTkImage(light_image=pil_img, dark_image=pil_img, size=(1000, 400))
+            lbl_img = ctk.CTkLabel(top, image=c_img, text="")
+            lbl_img.image = c_img
+            lbl_img.pack(pady=10)
+        except Exception as e:
+            print("Could not load image for expanded view:", e)
+            
+        tbl_frame = tk.Frame(top, bg="white")
+        tbl_frame.pack(fill="both", expand=True, padx=40, pady=20)
+        
+        data = self._xbar_table_data if chart_type == "X-Bar" else getattr(self, "_rbar_table_data", [])
+        
+        sheet = tksheet.Sheet(
+            tbl_frame, headers=["Sample", chart_type],
+            data=data, theme="light green", show_x_scrollbar=False, show_y_scrollbar=True
+        )
+        sheet.pack(fill="both", expand=True)
+        try:
+            sheet.column_width(0, width=150)
+            sheet.column_width(1, width=300)
+        except: pass
 
     def _build_spc_chart_ui(self):
-        # 1. Ensure shared row container exists (created by _build_histogram_frequency_table if needed)
-        if not hasattr(self, "charts_and_table_row"):
-            self.charts_and_table_row = tk.Frame(self.scroll_frame, bg="white")
-            self.charts_and_table_row.pack(fill="x", padx=18, pady=(10, 20))
-            # Configure grid columns: fixed width for charts, remaining for table
-            self.charts_and_table_row.grid_columnconfigure(0, weight=0, minsize=540)  # Chart column (520px chart + 20px padding)
-            self.charts_and_table_row.grid_columnconfigure(1, weight=1, minsize=535)  # Table column (flexible)
-
         from PIL import Image
         import customtkinter as ctk
+        import tksheet
+
+        # 1. Charts Row (X-Bar Left, R-Bar Right)
+        if not hasattr(self, "charts_row"):
+            self.charts_row = tk.Frame(self.scroll_frame, bg="white")
+            if hasattr(self, "charts_and_table_row"):
+                self.charts_row.pack(before=self.charts_and_table_row, fill="x", padx=18, pady=(15, 10))
+            else:
+                self.charts_row.pack(fill="x", padx=18, pady=(15, 10))
+                
+            # X-Bar Card
+            self.xbar_card = ctk.CTkFrame(self.charts_row, fg_color="white", corner_radius=12, border_width=1, border_color="#e0e4e8")
+            self.xbar_card.pack(side="left", fill="both", expand=True, padx=(0, 10))
+
+            hdr_x = tk.Frame(self.xbar_card, bg="white", height=30)
+            hdr_x.pack(fill="x", padx=15, pady=(15, 0))
+            lbl_x = tk.Label(hdr_x, text="X - Bar Chart", font=("Arial", 12, "bold"), bg="white", fg="#1E293B")
+            lbl_x.place(relx=0.5, rely=0.5, anchor="center")
+            btn_x = ctk.CTkButton(hdr_x, text="Expand", width=60, height=24, fg_color="#F1F5F9", text_color="#1E293B", hover_color="#E2E8F0")
+            btn_x.configure(command=lambda: self._open_expanded_chart("X-Bar"))
+            btn_x.pack(side="right")
+
+            self.xbar_chart_container = tk.Frame(self.xbar_card, bg="white")
+            self.xbar_chart_container.pack(pady=15)
+
+            # R-Bar Card
+            self.rbar_card = ctk.CTkFrame(self.charts_row, fg_color="white", corner_radius=12, border_width=1, border_color="#e0e4e8")
+            self.rbar_card.pack(side="left", fill="both", expand=True, padx=(10, 0))
+
+            hdr_r = tk.Frame(self.rbar_card, bg="white", height=30)
+            hdr_r.pack(fill="x", padx=15, pady=(15, 0))
+            lbl_r = tk.Label(hdr_r, text="R - Bar Chart", font=("Arial", 12, "bold"), bg="white", fg="#1E293B")
+            lbl_r.place(relx=0.5, rely=0.5, anchor="center")
+            btn_r = ctk.CTkButton(hdr_r, text="Expand", width=60, height=24, fg_color="#F1F5F9", text_color="#1E293B", hover_color="#E2E8F0")
+            btn_r.configure(command=lambda: self._open_expanded_chart("R-Bar"))
+            btn_r.pack(side="right")
+
+            self.rbar_chart_container = tk.Frame(self.rbar_card, bg="white")
+            self.rbar_chart_container.pack(pady=15)
+
+
+
+        # 3. Ensure shared row container exists for interval histogram
+        if not hasattr(self, "charts_and_table_row"):
+            self.charts_and_table_row = tk.Frame(self.scroll_frame, bg="white")
+            self.charts_and_table_row.pack(fill="x", padx=18, pady=(0, 20))
+            self.charts_and_table_row.grid_columnconfigure(0, weight=0, minsize=540)
+            self.charts_and_table_row.grid_columnconfigure(1, weight=1, minsize=535)
 
         # ================= LEFT : Charts Container (Grid Column 0) =================
-        # Create left container for charts (X-Bar and R-Bar) with fixed width
-        # Create charts container only once
         if not hasattr(self, "charts_left"):
             self.charts_left = tk.Frame(self.charts_and_table_row, bg="white", width=540)
             self.charts_left.grid(row=0, column=0, sticky="nw")
         left = self.charts_left
         for w in left.winfo_children():
             w.destroy()
+
+        # ================= Clear existing charts =================
+        for w in self.xbar_chart_container.winfo_children(): w.destroy()
+        for w in self.rbar_chart_container.winfo_children(): w.destroy()
 
         def load_img(path, w=720, h=230):
             pil_img = Image.open(path)
@@ -17776,20 +18030,20 @@ class AnalysisPage(ctk.CTkFrame):
             )
 
         # X-Bar Chart
-        xbar_img = load_img(self._xbar_img_path)
-        lbl_x = ctk.CTkLabel(left, image=xbar_img, text="")
-        lbl_x.image = xbar_img   # 🔥 still REQUIRED
-        lbl_x.pack(pady=(0, 10), anchor="nw")
+        xbar_img = load_img(self._xbar_img_path, w=540, h=260)
+        lbl_x = ctk.CTkLabel(self.xbar_chart_container, image=xbar_img, text="")
+        lbl_x.image = xbar_img
+        lbl_x.pack(pady=(0, 10), anchor="n")
 
         # R-Bar Chart
-        rbar_img = load_img(self._rbar_img_path)
-        lbl_r = ctk.CTkLabel(left, image=rbar_img, text="")
+        rbar_img = load_img(self._rbar_img_path, w=540, h=260)
+        lbl_r = ctk.CTkLabel(self.rbar_chart_container, image=rbar_img, text="")
         lbl_r.image = rbar_img
-        lbl_r.pack(anchor="nw")
+        lbl_r.pack(anchor="n")
 
         # ================= INTERVAL HISTOGRAM =================
         if hasattr(self, "_hist_interval_img_path") and self._hist_interval_img_path:
-            hist_img = load_img(self._hist_interval_img_path, w=760, h=260)
+            hist_img = load_img(self._hist_interval_img_path, w=540, h=260)
             lbl_h = ctk.CTkLabel(left, image=hist_img, text="")
             lbl_h.image = hist_img
             lbl_h.pack(pady=(12, 0), anchor="nw")
