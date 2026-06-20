@@ -17153,7 +17153,7 @@ class AnalysisPage(ctk.CTkFrame):
         self.freq_holder.grid(row=0, column=1, sticky="nw", padx=(16, 0))
 
         headers = ["INTERVAL FROM", "INTERVAL TO", "CUM FREQ", "FREQ"]
-        TOTAL_WIDTH = 490 
+        TOTAL_WIDTH = 450 
 
         try:
             self.freq_table = tksheet.Sheet(
@@ -17167,7 +17167,7 @@ class AnalysisPage(ctk.CTkFrame):
                 show_index=False
             )
             self.freq_table.pack()
-            COL_WIDTHS = [120, 120, 120, 120]
+            COL_WIDTHS = [115, 115, 95, 95]
             for i, w in enumerate(COL_WIDTHS):
                 self.freq_table.column_width(i, width=w, only_set_if_too_small=False)
 
@@ -17835,7 +17835,31 @@ class AnalysisPage(ctk.CTkFrame):
         lbl = tk.Label(top, text=f"{chart_type} Expanded View", font=("Arial", 16, "bold"), bg="#F8FAFC", fg="#1E293B")
         lbl.pack(pady=20)
         
-        img_path = self._xbar_img_path if chart_type == "X-Bar" else self._rbar_img_path
+        if chart_type == "Histogram":
+            img_path = getattr(self, "_hist_interval_img_path", None)
+            try:
+                pil_img = Image.open(img_path)
+                c_img = ctk.CTkImage(light_image=pil_img, dark_image=pil_img, size=(1000, 350))
+                lbl_img = ctk.CTkLabel(top, image=c_img, text="")
+                lbl_img.image = c_img
+                lbl_img.pack(pady=10)
+            except Exception: pass
+            
+            tbl_frame = tk.Frame(top, bg="white")
+            tbl_frame.pack(fill="both", expand=True, padx=40, pady=20)
+            
+            data = getattr(self, "_last_hist_freq_rows", [])
+            sheet = tksheet.Sheet(
+                tbl_frame, headers=["INTERVAL FROM", "INTERVAL TO", "CUM FREQ", "FREQ"],
+                data=data, theme="light green", show_x_scrollbar=False, show_y_scrollbar=True
+            )
+            sheet.pack(fill="both", expand=True)
+            try:
+                for i in range(4): sheet.column_width(i, width=150)
+            except: pass
+            return
+
+        img_path = self._xbar_img_path if chart_type == "X-Bar" else getattr(self, "_rbar_img_path", None)
         
         try:
             from matplotlib.figure import Figure
@@ -18006,12 +18030,12 @@ class AnalysisPage(ctk.CTkFrame):
         if not hasattr(self, "charts_and_table_row"):
             self.charts_and_table_row = tk.Frame(self.scroll_frame, bg="white")
             self.charts_and_table_row.pack(fill="x", padx=18, pady=(0, 20))
-            self.charts_and_table_row.grid_columnconfigure(0, weight=0, minsize=540)
-            self.charts_and_table_row.grid_columnconfigure(1, weight=1, minsize=535)
+            self.charts_and_table_row.grid_columnconfigure(0, weight=0, minsize=590)
+            self.charts_and_table_row.grid_columnconfigure(1, weight=1, minsize=450)
 
         # ================= LEFT : Charts Container (Grid Column 0) =================
         if not hasattr(self, "charts_left"):
-            self.charts_left = tk.Frame(self.charts_and_table_row, bg="white", width=540)
+            self.charts_left = tk.Frame(self.charts_and_table_row, bg="white", width=590)
             self.charts_left.grid(row=0, column=0, sticky="nw")
         left = self.charts_left
         for w in left.winfo_children():
@@ -18043,15 +18067,14 @@ class AnalysisPage(ctk.CTkFrame):
 
         # ================= INTERVAL HISTOGRAM =================
         if hasattr(self, "_hist_interval_img_path") and self._hist_interval_img_path:
-            hist_img = load_img(self._hist_interval_img_path, w=540, h=260)
+            hist_img = load_img(self._hist_interval_img_path, w=590, h=300)
             lbl_h = ctk.CTkLabel(left, image=hist_img, text="")
             lbl_h.image = hist_img
             lbl_h.pack(pady=(12, 0), anchor="nw")
 
-
-        # Note: Frequency table (freq_holder) is already placed in grid column 1
-        # in _build_histogram_frequency_table, so no need to repack it here
-        
+        # Ensure frequency table is visible in grid column 1
+        if hasattr(self, "freq_holder"):
+            self.freq_holder.grid(row=0, column=1, sticky="nw", padx=(16, 0))
 
 
 
@@ -18346,45 +18369,36 @@ class AnalysisPage(ctk.CTkFrame):
         from matplotlib.figure import Figure
         from matplotlib.backends.backend_agg import FigureCanvasAgg
 
-        labels = []
+        edge_labels = []
         freqs = []
 
-        # -----------------------------
-        # Build X-axis labels & Y values
-        # -----------------------------
-        for row in freq_rows:
-            interval_from = row[0]
-            interval_to   = row[1]
-            freq          = row[3]   # ONLY FREQ
-
-            label = f"{interval_from}\n|\n{interval_to}"
-            labels.append(label)
-            freqs.append(freq)
-
-        if not freqs:
+        if not freq_rows:
             return None
 
-        # -----------------------------
-        # Y-axis ticks (4 values only)
-        # -----------------------------
+        # Build X-axis edge labels & Y values
+        edge_labels.append(str(freq_rows[0][0])) # First left edge
+        for row in freq_rows:
+            edge_labels.append(str(row[1])) # Right edges
+            freqs.append(row[3])
+
+        # Y-axis ticks
         max_freq = max(freqs)
         step = math.ceil(max_freq / 3) if max_freq > 0 else 1
         y_ticks = [0, step, step * 2, step * 3]
 
-        # -----------------------------
-        # Plot histogram (Thread-safe OO approach)
-        # -----------------------------
         tmp_dir = tempfile.gettempdir()
         path = os.path.join(tmp_dir, "histogram_interval_freq.png")
 
         fig = Figure(figsize=(10.5, 3.5), dpi=150)
         ax = fig.add_subplot(111)
-        ax.bar(range(len(freqs)), freqs, color="#42A5F5")
+        
+        # Graph outline dark blue color and inside light color
+        ax.bar(range(len(freqs)), freqs, width=1, align='edge', color="#E3F2FD", edgecolor="#0D47A1", linewidth=1.5)
 
-        ax.set_xticks(range(len(labels)))
-        ax.set_xticklabels(labels, fontsize=8)
+        ax.set_xticks(range(len(edge_labels)))
+        ax.set_xticklabels(edge_labels, fontsize=8, rotation='horizontal')
         ax.set_yticks(y_ticks)
-        ax.set_xlabel("Interval (From | To)")
+        ax.set_xlabel("Measurement Interval Boundaries")
         ax.set_ylabel("Frequency")
         ax.set_title("Histogram \u2013 Interval Frequency Distribution")
 
