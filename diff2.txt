@@ -1,0 +1,1623 @@
+﻿diff --git a/CHERRY_SPC.py b/CHERRY_SPC.py
+index 1976582..fd9baa0 100644
+--- a/CHERRY_SPC.py
++++ b/CHERRY_SPC.py
+@@ -5414,354 +5414,338 @@ class ComponentSetupPage(ctk.CTkFrame):
+     # UI BUILD (ALL WIDGETS HERE)
+     # -------------------------
+     def build_ui(self):
++        # ΓöÇΓöÇ Page background: white (matches ReportPage) ΓöÇΓöÇ
++        self.configure(fg_color="#ffffff")
++
+         # ====== HEADER ======
+-        header = ctk.CTkFrame(self, fg_color="transparent")
+-        header.pack(fill="x", side="top", pady=(15, 10), padx=20)
++        header_strip = ctk.CTkFrame(self, fg_color="#ffffff", corner_radius=0, border_width=0)
++        header_strip.pack(fill="x")
+ 
+-        # Back Button in Green
+-        ModernButton(
+-            header,
++        inner_hdr = ctk.CTkFrame(header_strip, fg_color="transparent")
++        inner_hdr.pack(fill="x", padx=24, pady=(18, 16))
++
++        # Left: Back button + Title
++        left_block = ctk.CTkFrame(inner_hdr, fg_color="transparent")
++        left_block.pack(side="left", fill="y", anchor="center")
++
++        # Back Button ΓÇö white glass + violet border (btn-secondary style)
++        ctk.CTkButton(
++            left_block,
+             text="ΓåÉ Back",
+-            width=80,
+-            height=32,
+-            font=("Segoe UI", 11, "bold"),
+-            fg_color="#007B43",
+-            hover_color="#005C32",
+-            text_color="white",
+-            corner_radius=6,
++            text_color="#4f46e5",
++            fg_color="#ffffff",
++            hover_color="#ede9fe",
++            border_width=1,
++            border_color="#a78bfa",
++            height=36,
++            width=90,
++            corner_radius=12,
++            font=("Segoe UI", 12, "bold"),
+             command=self.go_back
+-        ).pack(side="left")
+-        
+-        # Branded Title: "Component" (Green) + "Setup" (Red) next to Gear
+-        title_container = ctk.CTkFrame(header, fg_color="transparent")
+-        title_container.pack(side="left", padx=20)
+-        
+-        lbl_gear = ctk.CTkLabel(
+-            title_container,
+-            text="ΓÜÖ\ufe0e",
+-            font=("Segoe UI", 18, "bold"),
+-            text_color="#007B43"
+-        )
+-        lbl_gear.pack(side="left")
+-        
+-        lbl_component = ctk.CTkLabel(
++        ).pack(side="left", padx=(0, 20))
++
++        # Title block
++        title_container = ctk.CTkFrame(left_block, fg_color="transparent")
++        title_container.pack(side="left", fill="y", anchor="center")
++
++        ctk.CTkLabel(
+             title_container,
+-            text=" Component",
+-            font=("Segoe UI", 18, "bold"),
+-            text_color="#007B43"
+-        )
+-        lbl_component.pack(side="left")
+-        
+-        lbl_setup = ctk.CTkLabel(
++            text="Component Setup",
++            font=("Segoe UI", 24, "bold"),
++            text_color="#0f172a",
++            anchor="w"
++        ).pack(anchor="w")
++
++        ctk.CTkLabel(
+             title_container,
+-            text=" Setup",
+-            font=("Segoe UI", 18, "bold"),
+-            text_color="#B0050E"
+-        )
+-        lbl_setup.pack(side="left")
++            text="Map AirGauge channels to items, tolerances, and customers.",
++            font=("Segoe UI", 13),
++            text_color="#64748b",
++            anchor="w"
++        ).pack(anchor="w", pady=(3, 0))
+ 
+-        # Company Logo on the right
++        # Right: Company Logo
+         try:
+             logo_path = resource_path("settings/cherry_full_logo.png")
+             pil_img = Image.open(logo_path)
+             pil_img = pil_img.resize((144, 40), Image.Resampling.LANCZOS)
++            def add_corners(im, rad):
++                circle = Image.new('L', (rad * 2, rad * 2), 0)
++                draw = ImageDraw.Draw(circle)
++                draw.ellipse((0, 0, rad * 2 - 1, rad * 2 - 1), fill=255)
++                alpha = Image.new('L', im.size, 255)
++                w, h = im.size
++                alpha.paste(circle.crop((0, 0, rad, rad)), (0, 0))
++                alpha.paste(circle.crop((0, rad, rad, rad * 2)), (0, h - rad))
++                alpha.paste(circle.crop((rad, 0, rad * 2, rad)), (w - rad, 0))
++                alpha.paste(circle.crop((rad, rad, rad * 2, rad * 2)), (w - rad, h - rad))
++                im.putalpha(alpha)
++                return im
+             pil_img = add_corners(pil_img, 10)
+             self.logo_img = ctk.CTkImage(pil_img, size=(144, 40))
+-            logo_lbl = ctk.CTkLabel(header, text="", image=self.logo_img)
+-            logo_lbl.pack(side="right", padx=(10, 20))
++            ctk.CTkLabel(inner_hdr, text="", image=self.logo_img).pack(side="right", padx=(10, 0))
+         except Exception as e:
+             print(f"Error loading logo in ComponentSetupPage: {e}")
+ 
+-        # ====== FORM CONTAINER ======
+-        form_card = ModernCardFrame(self)
+-        form_card.pack(padx=20, pady=(15, 10), fill="x")
+-
+-        # Row 0: Horizontal layout for dropdowns
+-        dropdown_row = ctk.CTkFrame(form_card, fg_color="transparent")
+-        dropdown_row.grid(row=0, column=0, columnspan=2, sticky="ew", padx=10, pady=10)
+-        
+-        # --- AirGauge ID Selection ---
+-        ctk.CTkLabel(dropdown_row, text="AirGauge ID:", font=("Segoe UI", 11, "bold"), text_color="#202124").pack(side="left", padx=(5, 5))
+-        
+-        # Fetch IDs from airgauge_master.db
+-        try:
+-            conn = sqlite3.connect("airgauge_master.db")
+-            rows = conn.execute("SELECT airgauge_id FROM airgauge_master").fetchall()
+-            ag_ids = sorted(list(set(str(r[0]) for r in rows if r[0])))
+-            conn.close()
+-        except:
+-            ag_ids = []
+-        
+-        if not ag_ids:
+-            ag_ids = [f"AG{i}" for i in range(1, 11)] # fallback
+-        
+-        self.id_dropdown = ctk.CTkComboBox(
+-            dropdown_row,
+-            values=ag_ids,
+-            width=160,
+-            command=lambda _: self._on_airgauge_changed(),
+-            border_color="#007B43",
+-            button_color="#007B43",
+-            button_hover_color="#005C32",
+-            dropdown_fg_color="white",
+-            dropdown_hover_color="#E8F5EE",
+-            dropdown_text_color="#202124"
+-        )
+-        self.id_dropdown.pack(side="left", padx=(0, 25))
+-        
+-        # --- Item Selection ---
+-        ctk.CTkLabel(dropdown_row, text="Item:", font=("Segoe UI", 11, "bold"), text_color="#202124").pack(side="left", padx=(5, 5))
+-        
+-        self.item_dropdown = ctk.CTkComboBox(
+-            dropdown_row,
+-            values=self._display_list,
+-            width=180,
+-            hover=False,
+-            command=lambda _: self._on_item_selected_by_user(),
+-            border_color="#007B43",
+-            button_color="#007B43",
+-            button_hover_color="#005C32",
+-            dropdown_fg_color="white",
+-            dropdown_hover_color="#E8F5EE",
+-            dropdown_text_color="#202124"
+-        )
+-        self.item_dropdown.pack(side="left", padx=(0, 25))
+-        self.item_dropdown.set("")
+-        
+-        # Enable typing-search on item entry
+-        try:
+-            entry_widget = getattr(self.item_dropdown, "_entry", None)
+-            if entry_widget is not None:
+-                entry_widget.bind("<KeyRelease>", self._on_item_entry_typed)
+-        except Exception:
+-            pass
+-            
+-        # --- Customer Selection ---
+-        ctk.CTkLabel(dropdown_row, text="Customer:", font=("Segoe UI", 11, "bold"), text_color="#202124").pack(side="left", padx=(5, 5))
+-        
+-        self.customer_dropdown = ctk.CTkComboBox(
+-            dropdown_row,
+-            values=self._customer_display_list,
+-            width=180,
+-            hover=False,
+-            command=lambda _: self._on_customer_selected_by_user(),
+-            border_color="#007B43",
+-            button_color="#007B43",
+-            button_hover_color="#005C32",
+-            dropdown_fg_color="white",
+-            dropdown_hover_color="#E8F5EE",
+-            dropdown_text_color="#202124"
++        # ΓöÇΓöÇ GLASS PANEL ΓÇö Form / Filter card (matches ReportPage filter_card) ΓöÇΓöÇ
++        form_shadow = ctk.CTkFrame(
++            self,
++            fg_color="#ede9fe",   # lavender ambient glow ΓÇö same as ReportPage
++            corner_radius=26
+         )
+-        self.customer_dropdown.pack(side="left", padx=(0, 5))
+-        self.customer_dropdown.set("")
+-        
+-        # Enable typing-search on customer entry
+-        try:
+-            entry_widget = getattr(self.customer_dropdown, "_entry", None)
+-            if entry_widget:
+-                entry_widget.bind("<KeyRelease>", self._on_customer_entry_typed)
+-        except Exception:
+-            pass
++        form_shadow.pack(fill="x", padx=20, pady=(14, 8))
+ 
+-        # --- Type Selection (Shaft/Hole) ---
+-        ctk.CTkLabel(form_card, text="Type:", font=("Segoe UI", 11, "bold"), text_color="#202124").grid(
+-            row=1, column=0, padx=10, pady=10, sticky="e"
++        add_frame = ctk.CTkFrame(
++            form_shadow,
++            fg_color="#fdf4ff",   # glass bg
++            corner_radius=24,
++            border_width=1,
++            border_color="#a78bfa"  # purple border
+         )
+-        type_inner_frame = ctk.CTkFrame(form_card, fg_color="transparent")
+-        type_inner_frame.grid(row=1, column=1, padx=4, pady=10, sticky="w")
+-        
+-        ctk.CTkRadioButton(
+-            type_inner_frame, text="Shaft", variable=self.comp_type,
+-            value="Shaft", fg_color="#007B43", hover_color="#005C32", text_color="#202124"
+-        ).pack(side="left", padx=5)
+-        ctk.CTkRadioButton(
+-            type_inner_frame, text="Hole", variable=self.comp_type,
+-            value="Hole", fg_color="#007B43", hover_color="#005C32", text_color="#202124"
+-        ).pack(side="left", padx=5)
+-
+-        # --- Channel Selection ---
+-        ctk.CTkLabel(form_card, text="Select Channel:", font=("Segoe UI", 11, "bold"), text_color="#202124").grid(
+-            row=2, column=0, padx=10, pady=10, sticky="e"
++        add_frame.pack(fill="both", expand=True, padx=(1, 3), pady=(1, 3))
++
++        # Card header row
++        card_hdr = ctk.CTkFrame(add_frame, fg_color="transparent")
++        card_hdr.pack(fill="x", padx=22, pady=(10, 6))
++
++        ctk.CTkLabel(
++            card_hdr,
++            text="≡ƒôï  Mapping Parameters",
++            font=("Segoe UI", 16, "bold"),
++            text_color="#1e293b",
++            anchor="w"
++        ).pack(side="left", anchor="w")
++
++        # Temporary status label inside card header
++        self.status_label = ctk.CTkLabel(
++            card_hdr,
++            text="",
++            font=("Segoe UI", 12, "bold"),
++            text_color="#43A047",
++            anchor="e"
+         )
+-        ch_frame = ctk.CTkFrame(form_card, fg_color="transparent")
+-        ch_frame.grid(row=2, column=1, padx=4, pady=10, sticky="w")
+-        self.selected_channel = ctk.StringVar(value="CH1")
+-        for ch in ["CH1", "CH2", "CH3", "CH4", "CH5", "CH6", "CH7", "CH8"]:
+-            ctk.CTkRadioButton(
+-                ch_frame, text=ch, variable=self.selected_channel,
+-                value=ch, command=self.load_channel_data,
+-                fg_color="#007B43", hover_color="#005C32", text_color="#202124"
+-            ).pack(side="left", padx=5)
+-
+-        # --- Separator ---
+-        sep = ctk.CTkFrame(form_card, height=1, fg_color="#E0E0E0")
+-        sep.grid(row=3, column=0, columnspan=2, pady=5, sticky="ew")
+-
+-        # --- Entry Fields (Drawing & Tolerances) ---
+-        self.entry_vars = {}
+-        self.entries = []
+-        entries = [
+-            ("Drawing Value (mm):", "drawing_value"),
+-            ("Low Tolerance (mm):", "low_tolerance"),
+-            ("High Tolerance (mm):", "high_tolerance")
+-        ]
++        self.status_label.pack(side="right", padx=10)
+ 
+-        for i, (label, key) in enumerate(entries, start=4):
+-            ctk.CTkLabel(form_card, text=label, font=("Segoe UI", 11, "bold"), text_color="#202124").grid(
+-                row=i, column=0, padx=10, pady=8, sticky="e"
+-            )
+-            var = ctk.StringVar()
+-            
+-            def validate_numeric(char, new_value):
+-                if new_value == "":
+-                    return True
+-                for c in new_value:
+-                    if c not in "0123456789.":
+-                        return False
+-                if new_value.count(".") > 1:
+-                    return False
+-                return True
++        # Thin divider ΓÇö same as ReportPage
++        ctk.CTkFrame(
++            add_frame,
++            fg_color="#ddd6fe",
++            height=1,
++            corner_radius=0
++        ).pack(fill="x", padx=0)
+ 
+-            validate_cmd = self.register(validate_numeric)
+-
+-            entry = ctk.CTkEntry(
+-                form_card,
+-                textvariable=var,
+-                width=220,
+-                height=30,
+-                corner_radius=6,
+-                border_color="#007B43",
+-                validate="key",
+-                validatecommand=(validate_cmd, "%S", "%P")
+-            )
++        # ====== INPUTS GRID ======
++        grid_container = ctk.CTkFrame(add_frame, fg_color="transparent")
++        grid_container.pack(fill="x", padx=22, pady=(12, 10))
++        for col in range(4):
++            grid_container.grid_columnconfigure(col, weight=1, uniform="comp_col")
+ 
+-            entry.grid(row=i, column=1, padx=10, pady=8, sticky="w")
+-            # Focus/key bindings
+-            entry.bind("<FocusIn>", lambda e, ent=entry: self.highlight_entry(ent, True))
+-            entry.bind("<FocusOut>", lambda e, ent=entry: self.highlight_entry(ent, False))
+-            entry.bind("<Return>", lambda e, idx=i-4: self.focus_next_field(idx, save_on_last=True))
+-            entry.bind("<Down>", lambda e, idx=i-4: self.focus_next_field(idx, save_on_last=False))
+-            entry.bind("<Up>", lambda e, idx=i-4: self.focus_prev_field(idx))
++        def make_label(parent, txt):
++            ctk.CTkLabel(
++                parent,
++                text=txt,
++                font=("Segoe UI", 11, "bold"),
++                text_color="#4f46e5",
++                anchor="w"
++            ).pack(anchor="w", pady=(0, 4))
+ 
+-            self.entries.append(entry)
+-            self.entry_vars[key] = var
++        def get_cell(row, col, padx=(0, 14)):
++            cell = ctk.CTkFrame(grid_container, fg_color="transparent")
++            cell.grid(row=row, column=col, sticky="nsew", padx=padx, pady=(0, 8))
++            return cell
+ 
+-        # ====== BUTTON ROW ======
+-        btn_frame = ctk.CTkFrame(self, fg_color="transparent")
+-        btn_frame.pack(pady=(10, 5))
+-        
+-        self.save_btn = ModernButton(
+-            btn_frame,
+-            text="≡ƒÆ╛ Save Setup",
+-            fg_color="#007B43",
+-            hover_color="#005C32",
++        # --- Row 0 ---
++        # Col 0: AirGauge ID (Combo)
++        c00 = get_cell(0, 0)
++        make_label(c00, "AirGauge ID")
++        self.id_dropdown = ctk.CTkComboBox(
++            c00,
++            values=["AG1"],  # fallback
++            state="readonly",
+             height=32,
+-            width=160,
+-            corner_radius=6,
+-            font=("Segoe UI", 11, "bold"),
+-            command=self.save_data
++            corner_radius=12,
++            border_width=1,
++            border_color="#a78bfa",
++            fg_color="#ffffff",
++            button_color="#ffffff",
++            button_hover_color="#f5f3ff"
+         )
+-        self.save_btn.pack(side="left", padx=10)
+-        
+-        self.edit_btn = ModernButton(
+-            btn_frame,
+-            text="Γ£Å∩╕Å Edit Setup",
+-            fg_color="#007B43",
+-            hover_color="#005C32",
++        self.id_dropdown.pack(fill="x")
++        self.refresh_airgauge_ids()
++
++        # Col 1: Channel (Combo)
++        c01 = get_cell(0, 1)
++        make_label(c01, "Channel")
++        self.channel_dropdown = ctk.CTkComboBox(
++            c01,
++            values=["CH1", "CH2", "CH3", "CH4"],
++            variable=self.selected_channel,
++            state="readonly",
+             height=32,
+-            width=160,
+-            corner_radius=6,
+-            font=("Segoe UI", 11, "bold"),
+-            state="disabled",
+-            command=self._edit_selected
++            corner_radius=12,
++            border_width=1,
++            border_color="#a78bfa",
++            fg_color="#ffffff",
++            button_color="#ffffff",
++            button_hover_color="#f5f3ff"
+         )
+-        self.edit_btn.pack(side="left", padx=10)
+-        
+-        self.delete_btn = ModernButton(
+-            btn_frame,
+-            text="≡ƒùæ Delete Selected",
+-            fg_color="#B0050E",
+-            hover_color="#90040B",
++        self.channel_dropdown.pack(fill="x")
++
++        # Col 2: Item Selection (Combo)
++        c02 = get_cell(0, 2)
++        make_label(c02, "Item (Code)")
++        self.item_dropdown = ctk.CTkComboBox(
++            c02,
++            values=self._display_list,
++            state="readonly",
+             height=32,
+-            width=160,
+-            corner_radius=6,
+-            font=("Segoe UI", 11, "bold"),
+-            state="disabled",
+-            command=self.delete_selected
++            corner_radius=12,
++            border_width=1,
++            border_color="#a78bfa",
++            fg_color="#ffffff",
++            button_color="#ffffff",
++            button_hover_color="#f5f3ff"
+         )
+-        self.delete_btn.pack(side="left", padx=10)
++        self.item_dropdown.pack(fill="x")
+ 
+-        # --- Temporary Status Label ---
+-        self.status_label = ctk.CTkLabel(self, text="", font=("Segoe UI", 11), text_color="#007B43")
+-        self.status_label.pack(pady=(0, 5))
+-
+-        # ====== TABLE ======
+-        table_frame = ModernCardFrame(self)
+-        table_frame.pack(fill="both", expand=True, padx=20, pady=(5, 15))
++        # Col 3: Customer (Combo)
++        c03 = get_cell(0, 3, padx=(0, 0))
++        make_label(c03, "Customer (Code)")
++        self.customer_dropdown = ctk.CTkComboBox(
++            c03,
++            values=self._customer_display_list,
++            state="readonly",
++            height=32,
++            corner_radius=12,
++            border_width=1,
++            border_color="#a78bfa",
++            fg_color="#ffffff",
++            button_color="#ffffff",
++            button_hover_color="#f5f3ff"
++        )
++        self.customer_dropdown.pack(fill="x")
+ 
+-        title_lbl = ctk.CTkLabel(
+-            table_frame,
+-            text="≡ƒùÄ Saved Component Configurations",
+-            font=("Segoe UI", 13, "bold"),
+-            text_color="#007B43"
++        # --- Row 1 ---
++        # Col 0: Type (Combo)
++        c10 = get_cell(1, 0)
++        make_label(c10, "Component Type")
++        self.type_dropdown = ctk.CTkComboBox(
++            c10,
++            values=["Shaft", "Bore"],
++            variable=self.comp_type,
++            state="readonly",
++            height=32,
++            corner_radius=12,
++            border_width=1,
++            border_color="#a78bfa",
++            fg_color="#ffffff",
++            button_color="#ffffff",
++            button_hover_color="#f5f3ff"
+         )
+-        title_lbl.pack(pady=5)
+-
+-        # --- Custom Table Header Row ---
+-        cols_with_icons = [
+-            ("AirGauge ID", "≡ƒÅ╖\ufe0e"),
+-            ("Channel", "≡ƒôè\ufe0e"),
+-            ("Item", "≡ƒôï\ufe0e"),
+-            ("Type", "ΓÜÖ\ufe0e"),
+-            ("Drawing", "≡ƒôä\ufe0e"),
+-            ("Low Tol", "Γ¼ç\ufe0e"),
+-            ("High Tol", "Γ¼å\ufe0e"),
+-            ("Customer", "≡ƒæÑ\ufe0e")
+-        ]
++        self.type_dropdown.pack(fill="x")
+ 
+-        self.header_row_frame = tk.Frame(table_frame, bg="white", height=35)
+-        self.header_row_frame.pack(fill="x", padx=(10, 10), pady=(5, 0))
+-        self.header_row_frame.pack_propagate(False)
++        def add_entry(parent, key, label_txt):
++            make_label(parent, label_txt)
++            self.entry_vars[key] = ctk.StringVar()
++            e = ctk.CTkEntry(
++                parent,
++                textvariable=self.entry_vars[key],
++                height=32,
++                corner_radius=12,
++                border_width=1,
++                border_color="#a78bfa",
++                fg_color="#ffffff",
++                text_color="#1e293b",
++                font=("Segoe UI", 12)
++            )
++            e.pack(fill="x")
++            self.entries.append(e)
++            return e
+ 
+-        # Canvas inside header frame for scrolling
+-        self.header_canvas = tk.Canvas(self.header_row_frame, bg="white", highlightthickness=0, height=35)
+-        self.header_canvas.pack(side="left", fill="both", expand=True)
++        # Col 1: Drawing
++        c11 = get_cell(1, 1)
++        self.drawing_e = add_entry(c11, "drawing_value", "Drawing Number")
+ 
+-        self.header_inner_frame = tk.Frame(self.header_canvas, bg="white")
+-        self.header_canvas.create_window(0, 0, window=self.header_inner_frame, anchor="nw")
++        # Col 2: Low Tol
++        c12 = get_cell(1, 2)
++        self.low_tol_e = add_entry(c12, "low_tolerance", "Low Tolerance (mm)")
+ 
+-        # Vertical scrollbar spacer on the right of header
+-        tk.Frame(self.header_row_frame, bg="white", width=16).pack(side="right", fill="y")
++        # Col 3: High Tol
++        c13 = get_cell(1, 3, padx=(0, 0))
++        self.high_tol_e = add_entry(c13, "high_tolerance", "High Tolerance (mm)")
+ 
+-        # Row index spacer cell on the far left (40px, matches row_index_width)
+-        row_idx_cell = tk.Frame(self.header_inner_frame, bg="white", width=40, height=35)
+-        row_idx_cell.pack(side="left", fill="y")
+-        row_idx_cell.pack_propagate(False)
+-        tk.Label(row_idx_cell, text="Γû▓", font=("Segoe UI", 9),
+-                 fg="#007B43", bg="white").place(relx=0.5, rely=0.5, anchor="center")
++        # ΓöÇΓöÇ Thin divider + action buttons (same as ReportPage) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
++        ctk.CTkFrame(
++            add_frame,
++            fg_color="#ddd6fe",
++            height=1,
++            corner_radius=0
++        ).pack(fill="x")
+ 
+-        self.header_widgets = []
+-        for i, (name, _) in enumerate(cols_with_icons):
+-            cell = tk.Frame(self.header_inner_frame, bg="white", height=35)
+-            cell.pack(side="left", fill="y")
+-            cell.pack_propagate(False)
++        actions_bar = ctk.CTkFrame(add_frame, fg_color="transparent")
++        actions_bar.pack(fill="x", padx=22, pady=(8, 12))
+ 
+-            tk.Label(
+-                cell, text=name,
+-                font=("Segoe UI", 9),
+-                fg="#1A1A1A", bg="white",
+-                anchor="center", justify="center"
+-            ).place(relx=0.5, rely=0.5, anchor="center")
++        buttons_wrapper = ctk.CTkFrame(actions_bar, fg_color="transparent")
++        buttons_wrapper.pack(side="right")
+ 
+-            # 1px right separator (skip last)
+-            if i < len(cols_with_icons) - 1:
+-                tk.Frame(cell, bg="#E0E0E0", width=1).pack(side="right", fill="y")
++        # Save Button ΓÇö btn-primary style: violet
++        self.save_btn = ctk.CTkButton(
++            buttons_wrapper,
++            text="≡ƒÆ╛  Save Config",
++            text_color="#ffffff",
++            fg_color="#7c3aed",
++            hover_color="#6d28d9",
++            height=32,
++            width=148,
++            corner_radius=12,
++            font=("Segoe UI", 13, "bold"),
++            command=self.save_config
++        )
++        self.save_btn.pack(side="left", padx=(0, 8))
+ 
+-            self.header_widgets.append(cell)
++        # Delete Button ΓÇö white glass + red border (matches "Delete Selected" in ReportPage)
++        self.delete_btn = ctk.CTkButton(
++            buttons_wrapper,
++            text="≡ƒùæ∩╕Å  Delete Selected",
++            text_color="#dc2626",
++            fg_color="#ffffff",
++            hover_color="#fef2f2",
++            border_width=1,
++            border_color="#f87171",
++            height=32,
++            width=158,
++            corner_radius=12,
++            font=("Segoe UI", 13, "bold"),
++            command=self.delete_selected,
++            state="disabled"
++        )
++        self.delete_btn.pack(side="left")
++
++        # ====== TABLE (glass panel ΓÇö matches ReportPage _build_table_area) ======
++        table_shadow = ctk.CTkFrame(
++            self,
++            fg_color="#ede9fe",
++            corner_radius=18
++        )
++        table_shadow.pack(fill="both", expand=True, padx=20, pady=(4, 12))
++
++        table_card = ctk.CTkFrame(
++            table_shadow,
++            fg_color="#fdf4ff",
++            corner_radius=16,
++            border_width=1,
++            border_color="#a78bfa"
++        )
++        table_card.pack(fill="both", expand=True, padx=(1, 3), pady=(1, 3))
+ 
+-        # Underline
+-        self.border_line = ctk.CTkFrame(table_frame, fg_color="#007B43", height=2, corner_radius=0)
+-        self.border_line.pack(fill="x", padx=(10, 26), pady=(0, 0))
++        # Section label ΓÇö RESULTS SHOWCASE style
++        ctk.CTkLabel(
++            table_card,
++            text="COMPONENT RECORDS",
++            font=("Segoe UI", 10, "bold"),
++            text_color="#94a3b8",
++            anchor="w"
++        ).pack(side="top", anchor="w", padx=18, pady=(8, 4))
+ 
+         # Try import tksheet
+         try:
+@@ -5774,130 +5758,122 @@ class ComponentSetupPage(ctk.CTkFrame):
+             except Exception:
+                 SheetClass = None
+ 
+-        # ---------- Sheet Setup ----------
+-        columns = ["AirGauge ID", "Channel", "Item", "Type", "Drawing", "Low Tol", "High Tol", "Customer"]
+-        
+-        self.table_sheet_frame = ctk.CTkFrame(table_frame, fg_color="white", corner_radius=0)
+-        self.table_sheet_frame.pack(fill="both", expand=True, padx=10, pady=(0, 10))
+-        self.table_sheet_frame.grid_rowconfigure(0, weight=1)
+-        self.table_sheet_frame.grid_columnconfigure(0, weight=1)
+-
+-        self.sheet = SheetClass(
+-            self.table_sheet_frame,
+-            headers=columns,
+-            data=[],
+-            show_header=False,        # Hide native header
+-            show_row_index=True,       # Show row numbers index
+-            row_index_width=40,        # Width matches spacer (40px)
+-            show_x_scrollbar=False,
+-            show_y_scrollbar=True
+-        )
+-        self.sheet.grid(row=0, column=0, sticky="nsew")
+-
+-        # Style tksheet cells to match
+-        try:
+-            self.sheet.set_options(
+-                grid_fg="#E0E0E0",
+-                table_bg="white",
+-                table_fg="#202124",
+-                frame_bg="white",
+-                select_bg="#E8F5EE",
+-                select_fg="#007B43",
+-                font=("Segoe UI", 10, "normal")
++        if SheetClass is not None:
++            self.use_tksheet = True
++            cols = ["S.No", "AirGauge ID", "Channel", "Item", "Type", "Drawing", "Low Tol", "High Tol", "Customer"]
++            
++            self.sheet = SheetClass(
++                table_card,
++                headers=cols,
++                show_x_scrollbar=False,
++                show_y_scrollbar=True,
++                show_row_index=False
+             )
+-        except Exception:
+-            pass
++            try:
++                self.sheet.set_options(
++                    table_bg="#fdf4ff",
++                    frame_bg="#fdf4ff",
++                    grid_color="#ddd6fe",
++                    show_vertical_grid=False,
++                    show_horizontal_grid=True,
++                    show_row_index=False,
++                    header_bg="#f5f3ff",
++                    header_fg="#0f172a",
++                    header_grid_color="#ddd6fe",
++                    show_vertical_header_grid=False,
++                    show_horizontal_header_grid=True,
++                    font=("Segoe UI", 11, "normal"),
++                    header_font=("Segoe UI", 11, "bold"),
++                    row_height=44,
++                    header_height=38,
++                    select_bg="#ede9fe",
++                    select_fg="#6d28d9",
++                    selected_cells_border_color="#7c3aed"
++                )
++            except Exception as e:
++                print("Error setting options for Component Setup sheet:", e)
+ 
+-        try:
+-            self.sheet.enable_bindings(("single_select", "row_select", "arrowkeys", "copy", "select_all", "right_click_popup_menu"))
+-        except Exception:
+-            pass
++            # Center align all columns and headers
++            try:
++                self.sheet.align_columns(columns=list(range(len(cols))), align="center", align_header=True)
++            except Exception as e:
++                print("Error setting column alignment on Component Setup sheet:", e)
+ 
+-        # Sync horizontal scrolling to custom header
+-        try:
+-            orig_xscroll = self.sheet.MT.cget("xscrollcommand")
+-            def sync_scroll(first, last):
+-                if orig_xscroll:
++            self.sheet.pack(side="top", fill="both", expand=True, padx=10, pady=(4, 10))
++
++            self.col_weights = [5, 11, 8, 24, 7, 11, 9, 9, 22]
++            
++            def do_resize(event=None):
++                w = table_card.winfo_width() - 42
++                if w > 100:
++                    total_w = sum(self.col_weights)
++                    for i, wt in enumerate(self.col_weights):
++                        try:
++                            self.sheet.column_width(column=i, width=max(44, int(w * wt / total_w)))
++                        except:
++                            pass
+                     try:
+-                        self.sheet.tk.eval(f"{orig_xscroll} {first} {last}")
+-                    except Exception:
++                        self.sheet.refresh()
++                    except:
+                         pass
+-                try:
+-                    self.header_canvas.xview_moveto(first)
+-                except Exception:
+-                    pass
+-            self.sheet.MT.configure(xscrollcommand=sync_scroll)
+-        except Exception as e:
+-            pass
+ 
+-        # --- Column Width Synchronization ---
+-        def sync_widths_to_header(event=None):
+-            for i in range(len(columns)):
+-                if i < len(self.header_widgets):
++            table_card._resize_timer = None
++            def on_configure(event=None):
++                if getattr(table_card, "_resize_timer", None):
+                     try:
+-                        w = self.sheet.column_width(i)
+-                        cell = self.header_widgets[i]
+-                        cell.config(width=w)
+-                        for child in cell.place_slaves():
+-                            try:
+-                                child.config(wraplength=max(20, w - 6))
+-                            except Exception:
+-                                pass
+-                    except Exception:
++                        table_card.after_cancel(table_card._resize_timer)
++                    except:
+                         pass
++                table_card._resize_timer = table_card.after(80, do_resize)
++
++            table_card.bind("<Configure>", on_configure)
+             try:
+-                self.sheet.refresh()
++                self.sheet.bind("<Configure>", on_configure)
++            except:
++                pass
++            
++            # Bind events on sheet selection/edit
++            try:
++                self.sheet.enable_bindings(("single_select", "row_select", "arrowkeys", "copy", "select_all", "right_click_popup_menu"))
+             except Exception:
+                 pass
+ 
+-        try:
+-            self.sheet.extra_bindings([("column_width_resize", sync_widths_to_header)])
+-        except Exception:
+-            pass
++            # Selection handler
++            def _on_click(e):
++                self.on_row_select()
+ 
+-        self._col_widths = [110, 80, 240, 70, 110, 90, 90, 220]
+-        try:
+-            for i, w in enumerate(self._col_widths):
+-                self.sheet.column_width(i, w)
+-        except Exception:
+-            pass
+-        
+-        self.after(200, lambda: sync_widths_to_header(None))
+-
+-        def do_resize(event=None):
+             try:
+-                w = self.table_sheet_frame.winfo_width() - 40
+-                if w > 100:
+-                    total_default = sum(self._col_widths)
+-                    scale = w / total_default
+-                    for idx, wd in enumerate(self._col_widths):
+-                        try: self.sheet.column_width(column=idx, width=int(wd * scale))
+-                        except: pass
+-                    sync_widths_to_header()
++                self.sheet.bind("<ButtonRelease-1>", _on_click)
++                self.sheet.bind("<KeyRelease-Up>", _on_click)
++                self.sheet.bind("<KeyRelease-Down>", _on_click)
++                self.sheet.bind("<Double-1>", lambda e: self._edit_selected())
+             except Exception:
+                 pass
+ 
+-        self.table_sheet_frame.bind("<Configure>", do_resize)
+-        self.after(100, do_resize)
+-
+-        # Selection handler
+-        def _on_click(e):
+-            self.on_row_select()
+-
+-        try:
+-            self.sheet.bind("<ButtonRelease-1>", _on_click)
+-            self.sheet.bind("<KeyRelease-Up>", _on_click)
+-            self.sheet.bind("<KeyRelease-Down>", _on_click)
+-            self.sheet.bind("<Double-1>", lambda e: self._edit_selected())
+-        except Exception:
+-            pass
++        else:
++            # Treeview fallback
++            self.use_tksheet = False
++            self.sheet = None
++            self.tree = ttk.Treeview(table_card, columns=("ag_id", "ch", "item", "type", "drawing", "low", "high", "cust"), show="headings", selectmode="browse")
++            self.tree.heading("ag_id", text="AirGauge ID"); self.tree.column("ag_id", width=110, anchor="center")
++            self.tree.heading("ch", text="Channel"); self.tree.column("ch", width=80, anchor="center")
++            self.tree.heading("item", text="Item"); self.tree.column("item", width=240, anchor="w")
++            self.tree.heading("type", text="Type"); self.tree.column("type", width=70, anchor="center")
++            self.tree.heading("drawing", text="Drawing"); self.tree.column("drawing", width=110, anchor="w")
++            self.tree.heading("low", text="Low Tol"); self.tree.column("low", width=90, anchor="center")
++            self.tree.heading("high", text="High Tol"); self.tree.column("high", width=90, anchor="center")
++            self.tree.heading("cust", text="Customer"); self.tree.column("cust", width=220, anchor="w")
++            vsb = ttk.Scrollbar(table_card, orient="vertical", command=self.tree.yview)
++            hsb = ttk.Scrollbar(table_card, orient="horizontal", command=self.tree.xview)
++            self.tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
++            self.tree.grid(row=0, column=0, sticky="nsew")
++            vsb.grid(row=0, column=1, sticky="ns")
++            hsb.grid(row=1, column=0, sticky="ew")
++            self.tree.bind("<Double-1>", lambda e: self._edit_selected())
++            self.tree.bind("<<TreeviewSelect>>", lambda e: self.on_row_select())
+ 
+         self.refresh_table()
+ 
+-
+-    # ------------------------------------------------------------
+-    # ------------------- SMALL UI HELPERS -----------------------
+-    # ------------------------------------------------------------
+     def highlight_entry(self, entry, active):
+         try:
+             if active:
+@@ -6297,10 +6273,12 @@ class ComponentSetupPage(ctk.CTkFrame):
+         if idx >= len(data):
+             return
+         values = data[idx]
+-        if len(values) < 2:
++        if len(values) < 3:
+             return
+ 
+-        air_id, channel = str(values[0]).strip(), str(values[1]).strip().upper()
++        # Column 1 is AirGauge ID, Column 2 is Channel (because Column 0 is S.No)
++        air_id = str(values[1]).strip()
++        channel = str(values[2]).strip().upper()
+ 
+         if not messagebox.askyesno(
+             "Confirm Delete",
+@@ -6317,7 +6295,6 @@ class ComponentSetupPage(ctk.CTkFrame):
+                 self.refresh_table()
+                 self.show_temp_status("≡ƒùæ Deleted Successfully", "#E53935")
+                 self.reset_form()
+-                # reload in-memory map fresh
+                 self.comp_map = self.load_json()
+                 return
+             else:
+@@ -6325,9 +6302,6 @@ class ComponentSetupPage(ctk.CTkFrame):
+         except Exception as e:
+             messagebox.showerror("Error", f"Failed to delete: {e}")
+ 
+-    # ------------------------------------------------------------
+-    # ------------------- Table interactions ---------------------
+-    # ------------------------------------------------------------
+     def refresh_airgauge_ids(self):
+         """Just refresh the AirGauge dropdown values (useful after ItemMaster updates)."""
+         try:
+@@ -6343,11 +6317,13 @@ class ComponentSetupPage(ctk.CTkFrame):
+     def refresh_table(self, highlight=None):
+         """Show all saved component configurations including Item Name (only)."""
+         data = []
++        i = 1
+         for ag_id, ch_data in (self.comp_map.items()):
+             for ch, vals in ch_data.items():
+                 item_name = vals.get("item_name", "")
+                 customer_name = vals.get("customer_name", "")
+                 data.append([
++                    i,
+                     ag_id,
+                     ch,
+                     item_name,
+@@ -6357,13 +6333,19 @@ class ComponentSetupPage(ctk.CTkFrame):
+                     vals.get("high_tolerance", ""),
+                     customer_name
+                 ])
++                i += 1
+ 
+         try:
+             self.sheet.set_sheet_data(data)
+             
++            # Reapply proportional sizes
+             try:
+-                for i, w in enumerate(self._col_widths):
+-                    self.sheet.column_width(i, w)
++                w = self.sheet.master.winfo_width() - 42
++                if w > 100:
++                    total_w = sum(self.col_weights)
++                    for idx, wt in enumerate(self.col_weights):
++                        try: self.sheet.column_width(column=idx, width=max(44, int(w * wt / total_w)))
++                        except: pass
+             except Exception:
+                 pass
+                 
+@@ -6372,7 +6354,7 @@ class ComponentSetupPage(ctk.CTkFrame):
+             # Re-apply row highlights
+             if highlight:
+                 for idx, row in enumerate(data):
+-                    if (row[0], row[1]) == highlight:
++                    if (row[1], row[2]) == highlight:
+                         self.sheet.highlight_rows(rows=[idx], bg="#E8F5EE", redraw=True)
+                         self.after(1500, lambda r=idx: self.sheet.dehighlight_rows(r, redraw=True))
+                         break
+@@ -6396,13 +6378,14 @@ class ComponentSetupPage(ctk.CTkFrame):
+         if idx >= len(data):
+             return
+         values = data[idx]
+-        if len(values) < 7:
++        if len(values) < 8:
+             return
+ 
+         try:
+-            air_id, ch, item_name, comp_type, draw, low, high, customer_name = values
++            s_no, air_id, ch, item_name, comp_type, draw, low, high, customer_name = values
+         except ValueError:
+-            air_id, ch, item_name, draw, low, high, customer_name = values[0], values[1], values[2], values[4], values[5], values[6], values[7]
++            s_no = values[0]
++            air_id, ch, item_name, comp_type, draw, low, high, customer_name = values[1], values[2], values[3], values[4], values[5], values[6], values[7], values[8]
+ 
+         # Update form fields
+         try:
+@@ -6456,7 +6439,6 @@ class ComponentSetupPage(ctk.CTkFrame):
+             except Exception:
+                 pass
+ 
+-
+         self.entry_vars["drawing_value"].set(str(draw))
+         self.entry_vars["low_tolerance"].set(str(low))
+         self.entry_vars["high_tolerance"].set(str(high))
+@@ -7484,133 +7466,256 @@ class ItemMasterPage(ctk.CTkFrame):
+     # UI
+     # -------------------------
+     def build_ui(self):
+-        # Header
+-        header = ctk.CTkFrame(self, fg_color="transparent")
+-        header.pack(fill="x", side="top", pady=(15, 10), padx=20)
+-        
+-        # Back Button in Green
+-        ModernButton(
+-            header,
++        # ΓöÇΓöÇ Page background: white (matches ReportPage) ΓöÇΓöÇ
++        self.configure(fg_color="#ffffff")
++
++        # ΓöÇΓöÇ Full-width white header bar ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
++        header_strip = ctk.CTkFrame(self, fg_color="#ffffff", corner_radius=0, border_width=0)
++        header_strip.pack(fill="x")
++
++        inner_hdr = ctk.CTkFrame(header_strip, fg_color="transparent")
++        inner_hdr.pack(fill="x", padx=24, pady=(18, 16))
++
++        # Left: Back button + Title
++        left_block = ctk.CTkFrame(inner_hdr, fg_color="transparent")
++        left_block.pack(side="left", fill="y", anchor="center")
++
++        # Back Button ΓÇö white glass + violet border (btn-secondary style)
++        ctk.CTkButton(
++            left_block,
+             text="ΓåÉ Back",
+-            width=80,
+-            height=32,
+-            font=("Segoe UI", 11, "bold"),
+-            fg_color="#007B43",
+-            hover_color="#005C32",
+-            text_color="white",
+-            corner_radius=6,
++            text_color="#4f46e5",
++            fg_color="#ffffff",
++            hover_color="#ede9fe",
++            border_width=1,
++            border_color="#a78bfa",
++            height=36,
++            width=90,
++            corner_radius=12,
++            font=("Segoe UI", 12, "bold"),
+             command=self.go_back
+-        ).pack(side="left")
++        ).pack(side="left", padx=(0, 20))
+ 
+-        # Branded Title: "Item" (Green) + "Master" (Red)
+-        title_container = ctk.CTkFrame(header, fg_color="transparent")
+-        title_container.pack(side="left", padx=20)
+-        
+-        lbl_item = ctk.CTkLabel(
++        # Title block
++        title_container = ctk.CTkFrame(left_block, fg_color="transparent")
++        title_container.pack(side="left", fill="y", anchor="center")
++
++        ctk.CTkLabel(
+             title_container,
+-            text="Item",
+-            font=("Segoe UI", 18, "bold"),
+-            text_color="#007B43"
+-        )
+-        lbl_item.pack(side="left")
+-        
+-        lbl_master = ctk.CTkLabel(
++            text="Item Master",
++            font=("Segoe UI", 24, "bold"),
++            text_color="#0f172a",
++            anchor="w"
++        ).pack(anchor="w")
++
++        ctk.CTkLabel(
+             title_container,
+-            text=" Master",
+-            font=("Segoe UI", 18, "bold"),
+-            text_color="#B0050E"
+-        )
+-        lbl_master.pack(side="left")
++            text="Add, edit, and manage your item records.",
++            font=("Segoe UI", 13),
++            text_color="#64748b",
++            anchor="w"
++        ).pack(anchor="w", pady=(3, 0))
+ 
+-        # Company Logo on the right
++        # Right: Company Logo
+         try:
+             logo_path = resource_path("settings/cherry_full_logo.png")
+             pil_img = Image.open(logo_path)
+             pil_img = pil_img.resize((144, 40), Image.Resampling.LANCZOS)
++            def add_corners(im, rad):
++                circle = Image.new('L', (rad * 2, rad * 2), 0)
++                draw = ImageDraw.Draw(circle)
++                draw.ellipse((0, 0, rad * 2 - 1, rad * 2 - 1), fill=255)
++                alpha = Image.new('L', im.size, 255)
++                w, h = im.size
++                alpha.paste(circle.crop((0, 0, rad, rad)), (0, 0))
++                alpha.paste(circle.crop((0, rad, rad, rad * 2)), (0, h - rad))
++                alpha.paste(circle.crop((rad, 0, rad * 2, rad)), (w - rad, 0))
++                alpha.paste(circle.crop((rad, rad, rad * 2, rad * 2)), (w - rad, h - rad))
++                im.putalpha(alpha)
++                return im
+             pil_img = add_corners(pil_img, 10)
+             self.logo_img = ctk.CTkImage(pil_img, size=(144, 40))
+-            logo_lbl = ctk.CTkLabel(header, text="", image=self.logo_img)
+-            logo_lbl.pack(side="right", padx=(10, 20))
++            ctk.CTkLabel(inner_hdr, text="", image=self.logo_img).pack(side="right", padx=(10, 0))
+         except Exception as e:
+             print(f"Error loading logo in ItemMasterPage: {e}")
+ 
+-        # Form frame
+-        add_frame = ModernCardFrame(self)
+-        add_frame.pack(fill="x", padx=20, pady=(10, 6))
++        # ΓöÇΓöÇ GLASS PANEL ΓÇö Form / Filter card (matches ReportPage filter_card) ΓöÇΓöÇ
++        form_shadow = ctk.CTkFrame(
++            self,
++            fg_color="#ede9fe",   # lavender ambient glow ΓÇö same as ReportPage
++            corner_radius=26
++        )
++        form_shadow.pack(fill="x", padx=20, pady=(14, 8))
+ 
+-        LABEL_WIDTH = 100
+-        ENTRY_WIDTH = 260
++        add_frame = ctk.CTkFrame(
++            form_shadow,
++            fg_color="#fdf4ff",   # glass bg
++            corner_radius=24,
++            border_width=1,
++            border_color="#a78bfa"  # purple border
++        )
++        add_frame.pack(fill="both", expand=True, padx=(1, 3), pady=(1, 3))
+ 
+-        # Row 0: Item Code + drawing no
+-        ctk.CTkLabel(add_frame, text="Item Code:", width=LABEL_WIDTH, anchor="w", text_color="#202124", font=("Segoe UI", 11, "bold")).grid(row=0, column=0, sticky="w", pady=6, padx=(10, 0))
+-        self.code_e = ctk.CTkEntry(add_frame, width=ENTRY_WIDTH, height=30, corner_radius=6, border_color="#E0E0E0")
+-        self.code_e.grid(row=0, column=1, sticky="w", padx=(10, 30))
++        # Card header row
++        card_hdr = ctk.CTkFrame(add_frame, fg_color="transparent")
++        card_hdr.pack(fill="x", padx=22, pady=(10, 6))
++
++        ctk.CTkLabel(
++            card_hdr,
++            text="≡ƒôï  Item Details",
++            font=("Segoe UI", 16, "bold"),
++            text_color="#1e293b",
++            anchor="w"
++        ).pack(side="left", anchor="w")
+ 
+-        ctk.CTkLabel(add_frame, text="Drawing No:", width=LABEL_WIDTH, anchor="e", text_color="#202124", font=("Segoe UI", 11, "bold")).grid(row=0, column=2, sticky="e", padx=(0, 10), pady=6)
+-        self.drawing_e = ctk.CTkEntry(add_frame, width=ENTRY_WIDTH, height=30, corner_radius=6, border_color="#E0E0E0")
+-        self.drawing_e.grid(row=0, column=3, sticky="w", padx=(10, 10))
++        # Thin divider ΓÇö same as ReportPage
++        ctk.CTkFrame(
++            add_frame,
++            fg_color="#ddd6fe",
++            height=1,
++            corner_radius=0
++        ).pack(fill="x", padx=0)
+ 
+-        # Row 1: Item Name + revision no
+-        ctk.CTkLabel(add_frame, text="Item Name:", width=LABEL_WIDTH, anchor="w", text_color="#202124", font=("Segoe UI", 11, "bold")).grid(row=1, column=0, sticky="w", pady=6, padx=(10, 0))
+-        self.name_e = ctk.CTkEntry(add_frame, width=ENTRY_WIDTH, height=30, corner_radius=6, border_color="#E0E0E0")
+-        self.name_e.grid(row=1, column=1, sticky="w", padx=(10, 30))
++        # ΓöÇΓöÇ Form grid ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
++        form_grid = ctk.CTkFrame(add_frame, fg_color="transparent")
++        form_grid.pack(fill="x", padx=22, pady=(12, 0))
++        for col in range(4):
++            form_grid.grid_columnconfigure(col, weight=1, uniform="form_col")
+ 
+-        ctk.CTkLabel(add_frame, text="Revision No:", width=LABEL_WIDTH, anchor="e", text_color="#202124", font=("Segoe UI", 11, "bold")).grid(row=1, column=2, sticky="e", padx=(0, 10), pady=6)
+-        self.revision_e = ctk.CTkEntry(add_frame, width=ENTRY_WIDTH, height=30, corner_radius=6, border_color="#E0E0E0")
+-        self.revision_e.grid(row=1, column=3, sticky="w", padx=(10, 10))
++        def make_label(parent, txt):
++            ctk.CTkLabel(
++                parent,
++                text=txt,
++                font=("Segoe UI", 11, "bold"),
++                text_color="#4f46e5",
++                anchor="w"
++            ).pack(anchor="w", pady=(0, 4))
++
++        def make_entry(parent):
++            e = ctk.CTkEntry(
++                parent,
++                height=32,
++                corner_radius=12,
++                border_width=1,
++                border_color="#a78bfa",
++                fg_color="#ffffff",
++                text_color="#1e293b",
++                font=("Segoe UI", 12)
++            )
++            e.pack(fill="x")
++            return e
++
++        def get_form_cell(row, col, padx=(0, 14)):
++            cell = ctk.CTkFrame(form_grid, fg_color="transparent")
++            cell.grid(row=row, column=col, sticky="nsew", padx=padx, pady=(0, 8))
++            return cell
++
++        # Row 0
++        c00 = get_form_cell(0, 0)
++        make_label(c00, "Item Code")
++        self.code_e = make_entry(c00)
++
++        c01 = get_form_cell(0, 1)
++        make_label(c01, "Drawing No")
++        self.drawing_e = make_entry(c01)
++
++        c02 = get_form_cell(0, 2)
++        make_label(c02, "Item Name")
++        self.name_e = make_entry(c02)
++
++        c03 = get_form_cell(0, 3, padx=(0, 0))
++        make_label(c03, "Revision No")
++        self.revision_e = make_entry(c03)
++
++        # ΓöÇΓöÇ Thin divider + action buttons (same as ReportPage) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
++        ctk.CTkFrame(
++            add_frame,
++            fg_color="#ddd6fe",
++            height=1,
++            corner_radius=0
++        ).pack(fill="x")
++
++        actions_bar = ctk.CTkFrame(add_frame, fg_color="transparent")
++        actions_bar.pack(fill="x", padx=22, pady=(8, 12))
+ 
+-        # Row 2: Buttons
+-        btn_frame = ctk.CTkFrame(add_frame, fg_color="transparent")
+-        btn_frame.grid(row=2, column=0, columnspan=4, sticky="w", pady=(6, 10), padx=(10, 0))
++        buttons_wrapper = ctk.CTkFrame(actions_bar, fg_color="transparent")
++        buttons_wrapper.pack(side="right")
+ 
+-        self.action_btn = ModernButton(
+-            btn_frame,
+-            text="Γ₧ò Add Item",
+-            width=140,
++        # Add Item ΓÇö btn-primary style: violet (matches "Analyze Data" btn)
++        self.action_btn = ctk.CTkButton(
++            buttons_wrapper,
++            text="Γ₧ò  Add Item",
++            text_color="#ffffff",
++            fg_color="#7c3aed",
++            hover_color="#6d28d9",
+             height=32,
+-            font=("Segoe UI", 11, "bold"),
+-            fg_color="#007B43",
+-            hover_color="#005C32",
+-            text_color="white",
+-            corner_radius=6,
++            width=148,
++            corner_radius=12,
++            font=("Segoe UI", 13, "bold"),
+             command=self._on_action_clicked
+         )
+-        self.action_btn.pack(side="left", padx=(0, 10))
++        self.action_btn.pack(side="left", padx=(0, 8))
+ 
+-        self.edit_btn = ModernButton(
+-            btn_frame,
+-            text="Γ£Å∩╕Å Edit Item",
+-            width=140,
++        # Edit Item ΓÇö btn-secondary style: white glass + violet border
++        self.edit_btn = ctk.CTkButton(
++            buttons_wrapper,
++            text="Γ£Å∩╕Å  Edit Item",
++            text_color="#4f46e5",
++            fg_color="#ffffff",
++            hover_color="#ede9fe",
++            border_width=1,
++            border_color="#a78bfa",
+             height=32,
+-            font=("Segoe UI", 11, "bold"),
+-            fg_color="#007B43",
+-            hover_color="#005C32",
+-            text_color="white",
+-            corner_radius=6,
++            width=148,
++            corner_radius=12,
++            font=("Segoe UI", 13, "bold"),
+             command=self._edit_selected,
+             state="disabled"
+         )
+-        self.edit_btn.pack(side="left", padx=(0, 10))
++        self.edit_btn.pack(side="left", padx=(0, 8))
+ 
+-        self.del_btn = ModernButton(
+-            btn_frame,
+-            text="≡ƒùæ Delete Selected",
+-            width=150,
++        # Delete ΓÇö white glass + red border (matches "Delete Selected" in ReportPage)
++        self.del_btn = ctk.CTkButton(
++            buttons_wrapper,
++            text="≡ƒùæ∩╕Å  Delete Selected",
++            text_color="#dc2626",
++            fg_color="#ffffff",
++            hover_color="#fef2f2",
++            border_width=1,
++            border_color="#f87171",
+             height=32,
+-            font=("Segoe UI", 11, "bold"),
+-            fg_color="#B0050E",
+-            hover_color="#90040B",
+-            text_color="white",
+-            corner_radius=6,
++            width=158,
++            corner_radius=12,
++            font=("Segoe UI", 13, "bold"),
+             command=self._delete_selected
+         )
+         self.del_btn.pack(side="left")
+ 
+-        # ====== TABLE ======
+-        table_card = ModernCardFrame(self)
+-        table_card.pack(fill="both", expand=True, padx=20, pady=(6, 12))
+-        table_card.grid_rowconfigure(0, weight=1)
+-        table_card.grid_columnconfigure(0, weight=1)
++        # ====== TABLE (glass panel ΓÇö matches ReportPage _build_table_area) ======
++        table_shadow = ctk.CTkFrame(
++            self,
++            fg_color="#ede9fe",
++            corner_radius=18
++        )
++        table_shadow.pack(fill="both", expand=True, padx=20, pady=(4, 12))
++
++        table_card = ctk.CTkFrame(
++            table_shadow,
++            fg_color="#fdf4ff",
++            corner_radius=16,
++            border_width=1,
++            border_color="#a78bfa"
++        )
++        table_card.pack(fill="both", expand=True, padx=(1, 3), pady=(1, 3))
++
++        # Section label ΓÇö RESULTS SHOWCASE style
++        ctk.CTkLabel(
++            table_card,
++            text="ITEM RECORDS",
++            font=("Segoe UI", 10, "bold"),
++            text_color="#94a3b8",
++            anchor="w"
++        ).pack(side="top", anchor="w", padx=18, pady=(8, 4))
+ 
+         # Try import tksheet
+         try:
+@@ -7622,100 +7727,83 @@ class ItemMasterPage(ctk.CTkFrame):
+             except Exception:
+                 SheetClass = None
+ 
+-        self._col_widths = [130, 550, 212, 212]  # Code, Name, Drawing, Revision
+-        cols = ["Item Code", "Item Name", "Drawing No", "Revision No"]
+-        header_info = [
+-            ("Item Code", "≡ƒöæ\ufe0e"),
+-            ("Item Name", "≡ƒôª\ufe0e"),
+-            ("Drawing No", "≡ƒôä\ufe0e"),
+-            ("Revision No", "≡ƒöä\ufe0e")
+-        ]
+-
+         if SheetClass is not None:
+             self.use_tksheet = True
++            cols = ["S.No", "Item Code", "Item Name", "Drawing No", "Revision No"]
+             
+-            # --- Custom Horizontal Scroll-Synced Header Frame ---
+-            self.header_row_frame = tk.Frame(table_card, bg="white", height=42)
+-            self.header_row_frame.pack(fill="x", padx=10, pady=(10, 0))
+-            self.header_row_frame.pack_propagate(False)
+-
+-            # Canvas inside header frame for scrolling
+-            self.header_canvas = tk.Canvas(self.header_row_frame, bg="white", highlightthickness=0, height=42)
+-            self.header_canvas.pack(side="left", fill="both", expand=True)
+-
+-            # Frame inside canvas for custom header cells
+-            self.header_inner_frame = tk.Frame(self.header_canvas, bg="white")
+-            self.header_canvas.create_window(0, 0, window=self.header_inner_frame, anchor="nw")
+-
+-            # Vertical scrollbar spacer on the right of header
+-            tk.Frame(self.header_row_frame, bg="white", width=16).pack(side="right", fill="y")
+-
+-            # Row index spacer cell on the far left (40px, matches row_index_width)
+-            row_idx_cell = tk.Frame(self.header_inner_frame, bg="white", width=40, height=42)
+-            row_idx_cell.pack(side="left", fill="y")
+-            row_idx_cell.pack_propagate(False)
+-            tk.Label(row_idx_cell, text="Γû▓", font=("Segoe UI", 9),
+-                     fg="#007B43", bg="white").place(relx=0.5, rely=0.5, anchor="center")
+-
+-            self.header_widgets = []
+-            for i, (name, _) in enumerate(header_info):
+-                cell = tk.Frame(self.header_inner_frame, bg="white", height=42)
+-                cell.pack(side="left", fill="y")
+-                cell.pack_propagate(False)
+-
+-                tk.Label(
+-                    cell, text=name,
+-                    font=("Segoe UI", 9),
+-                    fg="#1A1A1A", bg="white",
+-                    anchor="center", justify="center"
+-                ).place(relx=0.5, rely=0.5, anchor="center")
+-
+-                # 1px right separator (skip last)
+-                if i < len(header_info) - 1:
+-                    tk.Frame(cell, bg="#E0E0E0", width=1).pack(side="right", fill="y")
+-
+-                self.header_widgets.append(cell)
+-
+-            # Green border line under headers
+-            self.border_line = ctk.CTkFrame(table_card, fg_color="#007B43", height=2, corner_radius=0)
+-            self.border_line.pack(fill="x", padx=10, pady=(0, 0))
+-
+-            # Table sheet frame
+-            self.table_sheet_frame = ctk.CTkFrame(table_card, fg_color="white", corner_radius=0)
+-            self.table_sheet_frame.pack(fill="both", expand=True, padx=10, pady=(0, 10))
+-            self.table_sheet_frame.grid_rowconfigure(0, weight=1)
+-            self.table_sheet_frame.grid_columnconfigure(0, weight=1)
+-
+-            data = [[it.get("code", ""), it.get("name", ""), it.get("drawing", ""), it.get("revision", "")] for it in self.items]
+-
+             self.sheet = SheetClass(
+-                self.table_sheet_frame,
++                table_card,
+                 headers=cols,
+-                data=data,
+-                show_header=False,        # Hide native header
+-                show_row_index=True,       # Show row numbers index
+-                row_index_width=40,        # Width matches spacer (40px)
+                 show_x_scrollbar=False,
+-                show_y_scrollbar=True
++                show_y_scrollbar=True,
++                show_row_index=False
+             )
+-            self.sheet.grid(row=0, column=0, sticky="nsew")
+-
+-            # Style tksheet cells to match
+             try:
+                 self.sheet.set_options(
+-                    grid_fg="#E0E0E0",
+-                    table_bg="white",
+-                    table_fg="#202124",
+-                    frame_bg="white",
+-                    select_bg="#E8F5EE",
+-                    select_fg="#007B43",
+-                    font=("Segoe UI", 10, "normal")
++                    table_bg="#fdf4ff",
++                    frame_bg="#fdf4ff",
++                    grid_color="#ddd6fe",
++                    show_vertical_grid=False,
++                    show_horizontal_grid=True,
++                    show_row_index=False,
++                    header_bg="#f5f3ff",
++                    header_fg="#0f172a",
++                    header_grid_color="#ddd6fe",
++                    show_vertical_header_grid=False,
++                    show_horizontal_header_grid=True,
++                    font=("Segoe UI", 11, "normal"),
++                    header_font=("Segoe UI", 11, "bold"),
++                    row_height=44,
++                    header_height=38,
++                    select_bg="#ede9fe",
++                    select_fg="#6d28d9",
++                    selected_cells_border_color="#7c3aed"
+                 )
+-            except Exception:
+-                pass
++            except Exception as e:
++                print("Error setting options for Item Master sheet:", e)
+ 
++            # Center align all columns and headers
+             try:
+-                self.sheet.enable_bindings(("single_select", "row_select", "arrowkeys", "copy", "select_all","right_click_popup_menu"))
++                self.sheet.align_columns(columns=list(range(len(cols))), align="center", align_header=True)
++            except Exception as e:
++                print("Error setting column alignment on Item Master sheet:", e)
++
++            self.sheet.pack(side="top", fill="both", expand=True, padx=10, pady=(4, 10))
++
++            self.col_weights = [5, 15, 25, 15, 10]
++            
++            def do_resize(event=None):
++                w = table_card.winfo_width() - 42
++                if w > 100:
++                    total_w = sum(self.col_weights)
++                    for i, wt in enumerate(self.col_weights):
++                        try:
++                            self.sheet.column_width(column=i, width=max(44, int(w * wt / total_w)))
++                        except:
++                            pass
++                    try:
++                        self.sheet.refresh()
++                    except:
++                        pass
++
++            table_card._resize_timer = None
++            def on_configure(event=None):
++                if getattr(table_card, "_resize_timer", None):
++                    try:
++                        table_card.after_cancel(table_card._resize_timer)
++                    except:
++                        pass
++                table_card._resize_timer = table_card.after(80, do_resize)
++
++            table_card.bind("<Configure>", on_configure)
++            try:
++                self.sheet.bind("<Configure>", on_configure)
++            except:
++                pass
++            
++            # Bind events on sheet selection/edit
++            try:
++                self.sheet.enable_bindings(("single_select", "row_select", "arrowkeys", "copy", "select_all", "right_click_popup_menu"))
+                 extra_bindings = [
+                     ("row_select", lambda event=None: self._update_edit_btn_state()),
+                     ("deselect_all", lambda event=None: self._update_edit_btn_state()),
+@@ -7733,51 +7821,6 @@ class ItemMasterPage(ctk.CTkFrame):
+             except Exception:
+                 pass
+ 
+-            # Resize columns ΓÇö syncs both sheet widths and header cell widths
+-            def resize_sheet(event=None):
+-                try:
+-                    total_width = self.table_sheet_frame.winfo_width() or 1
+-                    if total_width < 120:
+-                        self.after(60, self.resize_sheet)
+-                        return
+-                    col_count = len(cols)
+-                    # Deduct spacing for row index column (40px)
+-                    available = total_width - 40
+-                    col_width = int(available / col_count)
+-                    for c in range(col_count):
+-                        try:
+-                            self.sheet.column_width(column=c, width=col_width, only_set_if_too_small=False)
+-                        except TypeError:
+-                            self.sheet.column_width(c, col_width)
+-
+-                        # Sync header cell width and wraplength
+-                        if c < len(self.header_widgets):
+-                            cell = self.header_widgets[c]
+-                            cell.config(width=col_width)
+-                            for child in cell.place_slaves():
+-                                try:
+-                                    child.config(wraplength=max(20, col_width - 6))
+-                                except Exception:
+-                                    pass
+-                    try:
+-                        self.sheet.refresh()
+-                    except Exception:
+-                        pass
+-                    try:
+-                        self.header_inner_frame.update_idletasks()
+-                        self.header_canvas.configure(scrollregion=self.header_canvas.bbox("all"))
+-                    except Exception:
+-                        pass
+-                except Exception as e:
+-                    print("Error resizing Item Master sheet:", e)
+-
+-            self.resize_sheet = resize_sheet
+-            self.table_sheet_frame.bind("<Configure>", self.resize_sheet)
+-            try:
+-                self.after(80, self.resize_sheet)
+-            except Exception:
+-                pass
+-            
+         else:
+             # Treeview fallback
+             self.use_tksheet = False
+@@ -7793,7 +7836,6 @@ class ItemMasterPage(ctk.CTkFrame):
+             self.tree.grid(row=0, column=0, sticky="nsew")
+             vsb.grid(row=0, column=1, sticky="ns")
+             hsb.grid(row=1, column=0, sticky="ew")
+-            # bind double click and selection for treeview
+             self.tree.bind("<Double-1>", lambda e: self._edit_selected())
+             self.tree.bind("<<TreeviewSelect>>", lambda e: self._update_edit_btn_state())
+ 
+@@ -7815,11 +7857,22 @@ class ItemMasterPage(ctk.CTkFrame):
+         try:
+             if self.use_tksheet and self.sheet is not None:
+                 selected = self.sheet.get_selected_rows()
++                row_idx = None
+                 if selected:
+-                    return next(iter(selected))
+-                selected_cells = self.sheet.get_selected_cells()
+-                if selected_cells:
+-                    return next(iter(selected_cells))[0]
++                    row_idx = next(iter(selected))
++                else:
++                    selected_cells = self.sheet.get_selected_cells()
++                    if selected_cells:
++                        row_idx = next(iter(selected_cells))[0]
++                if row_idx is not None:
++                    # Column 1 is Item Code when S.No is present.
++                    try:
++                        code = self.sheet.get_cell_data(row_idx, 1)
++                    except:
++                        code = self.sheet.get_cell_data(row_idx, 0)
++                    for i, rec in enumerate(self.items):
++                        if str(rec.get("code", "")) == str(code):
++                            return i
+                 return None
+             else:
+                 sel = self.tree.selection()
+@@ -8151,16 +8204,19 @@ class ItemMasterPage(ctk.CTkFrame):
+                     q in str(rec.get("revision","")).lower())
+         if getattr(self, "use_tksheet", False) and getattr(self, "sheet", None):
+             try:
+-                data = [[rec.get("code",""), rec.get("name",""), rec.get("drawing",""), rec.get("revision","")] for rec in self.items if matches(rec)]
++                matched_items = [rec for rec in self.items if matches(rec)]
++                data = [[i + 1, rec.get("code",""), rec.get("name",""), rec.get("drawing",""), rec.get("revision","")] for i, rec in enumerate(matched_items)]
+                 self.sheet.set_sheet_data(data)
+-                # Reapply fixed widths every refresh
+                 try:
+-                    for i, w in enumerate(self._col_widths):
+-                        self.sheet.column_width(i, w)
++                    w = self.sheet.master.winfo_width() - 42
++                    if w > 100:
++                        total_w = sum(self.col_weights)
++                        for i, wt in enumerate(self.col_weights):
++                            try: self.sheet.column_width(column=i, width=max(44, int(w * wt / total_w)))
++                            except: pass
+                 except Exception:
+                     pass
+                 try:
+-                    self.resize_sheet()
+                     self.sheet.refresh()
+                 except Exception:
+                     pass
+@@ -8170,16 +8226,13 @@ class ItemMasterPage(ctk.CTkFrame):
+             try:
+                 for r in self.tree.get_children():
+                     self.tree.delete(r)
+-                for rec in self.items:
++                for i, rec in enumerate(self.items):
+                     if not matches(rec):
+                         continue
+-                    self.tree.insert("", "end", values=(rec.get("code",""), rec.get("name",""), rec.get("drawing",""), rec.get("revision","")))
++                    self.tree.insert("", "end", values=(i + 1, rec.get("code",""), rec.get("name",""), rec.get("drawing",""), rec.get("revision","")))
+             except Exception:
+                 pass
+ 
+-    # -------------------------
+-    # Reset form helper
+-    # -------------------------
+     def reset_form(self):
+         self._clear_inputs()
+ 
