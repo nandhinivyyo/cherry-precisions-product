@@ -10789,8 +10789,8 @@ class RunChatPage(ctk.CTkFrame):
 
         # === Load previous layout ===
         initial_count, saved_state = self.load_runchat_state()
-        if initial_count <= 0:
-            initial_count = 1
+        
+        # Start empty if no saved state
 
         self.saved_selections = saved_state if saved_state else []
 
@@ -10864,7 +10864,8 @@ class RunChatPage(ctk.CTkFrame):
         if bbox:
             x1, y1, x2, y2 = bbox
             self.canvas.configure(scrollregion=(x1, y1, x2, y2 + 100))
-            self.canvas.itemconfig(self.window_id, width=self.canvas.winfo_width())
+            min_height = self.canvas.winfo_height()
+            self.canvas.itemconfig(self.window_id, width=self.canvas.winfo_width(), height=max(min_height, y2))
 
     def fix_grid_layout(self):
         """Rebuild the RunChat grid ensuring equal box size and balanced columns."""
@@ -10881,7 +10882,7 @@ class RunChatPage(ctk.CTkFrame):
 
         # Calculate number of rows needed
         cols = 2
-        rows = (n + 1) // cols
+        rows = max(1, (n + 1) // cols)
 
         # Set uniform column & row weights for equal sizing
         for i in range(cols):
@@ -10906,7 +10907,10 @@ class RunChatPage(ctk.CTkFrame):
         self.add_button.grid_forget()
         row = n // 2
         col = n % 2
-        self.add_button.grid(row=row, column=col, padx=8, pady=8, sticky="")
+        self.add_button.grid(row=row, column=col, columnspan=1, padx=8, pady=(40, 40), sticky="")
+        
+        if col == 0:
+            self.scrollable_frame.grid_rowconfigure(row, minsize=0)
         self.scrollable_frame.grid_rowconfigure(row + 2, minsize=12)
 
     # ------------------------------------------------------
@@ -10915,13 +10919,13 @@ class RunChatPage(ctk.CTkFrame):
     def add_chart(self):
         idx = len(self.chart_frames)
         # Main container with a fixed height and a very light purple border
-        frame = ctk.CTkFrame(self.scrollable_frame, fg_color="#f8f7fb", corner_radius=12, border_width=2, border_color="#f3e8ff", height=420)
+        frame = ctk.CTkFrame(self.scrollable_frame, fg_color="#f8f7fb", corner_radius=12, border_width=2, border_color="#f3e8ff", height=520)
         frame.pack_propagate(False)
         frame._chart_index = idx
 
         # Card 1: Header
         header_card = ctk.CTkFrame(frame, fg_color="#ffffff", corner_radius=12, border_width=1, border_color="#e2e8f0")
-        header_card.pack(fill="x", padx=16, pady=(16, 8))
+        header_card.pack(fill="x", padx=16, pady=(4, 4))
 
         # --- Add internal scrollable area (for chart + table) ---
         inner_canvas = tk.Canvas(frame, bg="#f8f7fb", highlightthickness=0)
@@ -10973,7 +10977,7 @@ class RunChatPage(ctk.CTkFrame):
     def build_chart_panel(self, idx, chart_info, outer_frame, header_card, chart_card, table_card):
         # === Header Card ===
         control = tk.Frame(header_card, bg="#ffffff")
-        control.pack(fill="x", pady=12, padx=16)
+        control.pack(fill="x", pady=(4, 8), padx=16)
 
         expanded = False
         def toggle_expand():
@@ -11133,44 +11137,14 @@ class RunChatPage(ctk.CTkFrame):
                 chart_info["auto_follow"] = True
             chart_info["update_visible"]()
 
-        def on_slider_change(value):
-            if chart_info.get("_ignore_slider"): return
-            data_len = len(self.global_data[idx]["x"])
-            max_start = max(0, data_len - chart_info["win_size"])
-            if max_start == 0: return
-            
-            fraction = float(value)
-            new_start = int(round(fraction * max_start))
+        nav_btn_frame = tk.Frame(nav_bar, bg="#fdf4ff")
+        nav_btn_frame.pack(side="top", pady=(8, 8))
 
-            try:
-                chart_info["pos_var"].set(f"Position : {int(fraction * 100)}%")
-            except:
-                pass
+        l_btn = ctk.CTkButton(nav_btn_frame, text="◀", font=("Segoe UI", 16), width=32, height=32, corner_radius=8, fg_color="#ffffff", text_color="#5b21b6", border_width=1, border_color="#e2e8f0", hover_color="#f3f0f8", command=move_left)
+        l_btn.pack(side="left", padx=40)
 
-            if new_start != chart_info["start"]:
-                chart_info["auto_follow"] = (new_start >= max_start)
-                chart_info["start"] = new_start
-                chart_info["update_visible"]()
-
-        slider_frame = tk.Frame(nav_bar, bg="#fdf4ff")
-        slider_frame.pack(side="left", fill="x", expand=True, padx=16)
-
-        l_btn = ctk.CTkButton(slider_frame, text="◀", font=("Segoe UI", 16), width=32, height=32, corner_radius=8, fg_color="#ffffff", text_color="#5b21b6", border_width=1, border_color="#e2e8f0", hover_color="#f3f0f8", command=move_left)
-        l_btn.pack(side="left", padx=(0, 10))
-
-        slider = ctk.CTkSlider(slider_frame, orientation="horizontal", command=on_slider_change,
-                               fg_color="#e9d5ff", progress_color="#a855f7", button_color="#8b5cf6", button_hover_color="#7c3aed")
-        slider.pack(side="left", fill="x", expand=True, pady=(8, 0))
-        slider.set(1.0)
-        chart_info["slider"] = slider
-        
-        r_btn = ctk.CTkButton(slider_frame, text="▶", font=("Segoe UI", 16), width=32, height=32, corner_radius=8, fg_color="#ffffff", text_color="#5b21b6", border_width=1, border_color="#e2e8f0", hover_color="#f3f0f8", command=move_right)
-        r_btn.pack(side="left", padx=(10, 0))
-
-        pos_var = tk.StringVar(value="Position : 100%")
-        chart_info["pos_var"] = pos_var
-        pos_lbl = tk.Label(nav_frame, textvariable=pos_var, bg="#fdf4ff", fg="#6b7280", font=("Segoe UI", 9))
-        pos_lbl.pack(pady=(0, 6))
+        r_btn = ctk.CTkButton(nav_btn_frame, text="▶", font=("Segoe UI", 16), width=32, height=32, corner_radius=8, fg_color="#ffffff", text_color="#5b21b6", border_width=1, border_color="#e2e8f0", hover_color="#f3f0f8", command=move_right)
+        r_btn.pack(side="left", padx=40)
 
         chart_info["limit_annotations"] = []
 
@@ -13189,7 +13163,8 @@ class LiveDataPage(ctk.CTkFrame):
 
     def delete_all_data(self):
         from tkinter import messagebox
-        if not messagebox.askyesno("Confirm Delete", "Are you sure you want to clear all data from the live view?"):
+        import sqlite3
+        if not messagebox.askyesno("Confirm Delete", "Are you sure you want to clear ALL data from the live view AND the reports database?"):
             return
             
         self.serial_no = 0
@@ -13206,6 +13181,21 @@ class LiveDataPage(ctk.CTkFrame):
             print("Error clearing table:", e)
             
         self.save_to_file()
+        
+        # Clear from the production database so it removes from Report Page as well
+        try:
+            conn = sqlite3.connect(resource_path("production_data.db"))
+            conn.execute("DELETE FROM measurements")
+            conn.commit()
+            conn.close()
+            print("✅ Production database cleared.")
+            
+            # Refresh report page if it exists
+            if hasattr(self.app, "report_page") and self.app.report_page:
+                try: self.app.report_page.load_data()
+                except Exception: pass
+        except Exception as e:
+            print("Error clearing production database:", e)
 
     def append_to_all_data(self, parsed_tuple, customer_name):
         """Queue a DB write to the background thread — never blocks the UI."""
@@ -13423,6 +13413,10 @@ class LiveDataPage(ctk.CTkFrame):
                     self.sheet.highlight_rows([row_idx], bg=bg)
 
                 self.sheet.see(row_idx, 0)
+                try:
+                    self.sheet.deselect("all")
+                except Exception:
+                    pass
 
             else:
                 tag = "mismatch" if mismatch else ("evenrow" if self.serial_no % 2 == 0 else "oddrow")
@@ -16077,9 +16071,19 @@ class AnalysisPage(ctk.CTkFrame):
             width=110,
             fg_color="#2E7D32",
             hover_color="#1B5E20",
-            command=self.print_spc_report
+            command=lambda: self.print_spc_report(is_download=False)
         )
         print_btn.pack(side="left", padx=6)
+
+        download_btn = ModernButton(
+            right_btn_frame,
+            text="📥 Download",
+            width=110,
+            fg_color="#FF9800",
+            hover_color="#F57C00",
+            command=lambda: self.print_spc_report(is_download=True)
+        )
+        download_btn.pack(side="left", padx=6)
 
         # -------------------------------------------------------------------
         #  FILTER SUMMARY GRID (Excel-style 2 rows × 10 columns)
@@ -16172,12 +16176,25 @@ class AnalysisPage(ctk.CTkFrame):
         # -------------------------------------------------
         # LEFT : Data Collection label
         # -------------------------------------------------
+        left_container = tk.Frame(data_row, bg="white")
+        left_container.grid(row=0, column=0, sticky="w")
+
         ctk.CTkLabel(
-            data_row,
+            left_container,
             text="💾 Data Collection (10×N)",
             font=("Segoe UI", 13, "bold"),
             text_color="#2E7D32"
-        ).grid(row=0, column=0, sticky="w")
+        ).pack(side="left")
+
+        self.n_size_combo = ctk.CTkComboBox(
+            left_container,
+            values=["5", "10", "25"],
+            width=70,
+            state="readonly",
+            command=self._on_n_size_changed
+        )
+        self.n_size_combo.set("5")
+        self.n_size_combo.pack(side="left", padx=(10, 0))
 
         tol_frame = tk.Frame(
             data_row,
@@ -16765,9 +16782,9 @@ class AnalysisPage(ctk.CTkFrame):
             self.charts_and_table_row.grid_columnconfigure(0, weight=0, minsize=540)  # Chart column (520px chart + 20px padding)
             self.charts_and_table_row.grid_columnconfigure(1, weight=1, minsize=535)  # Table column (flexible)
 
-        # 2. Create the Frequency Holder in grid column 1 (right side)
+        # 2. Create the Frequency Holder (hidden from UI, accessed via print or expanded view)
         self.freq_holder = tk.Frame(self.charts_and_table_row, bg="white")
-        self.freq_holder.grid(row=0, column=1, sticky="nw", padx=(16, 0))
+        # self.freq_holder.grid(row=0, column=1, sticky="nw", padx=(16, 0))
 
         headers = ["INTERVAL FROM", "INTERVAL TO", "CUM FREQ", "FREQ"]
         TOTAL_WIDTH = 450 
@@ -16880,6 +16897,7 @@ class AnalysisPage(ctk.CTkFrame):
         Ensure the frequency table exists (build if needed) and populate it with freq_rows.
         freq_rows should be a list of lists as returned by _compute_histogram_frequency.
         """
+        self._last_hist_freq_rows = freq_rows
         # Lazy-build the UI if not already present
         if not hasattr(self, "freq_table") or self.freq_table is None:
             try:
@@ -16923,8 +16941,13 @@ class AnalysisPage(ctk.CTkFrame):
                 except Exception:
                     pass
 
+            n = 10
+            if hasattr(self, "n_size_combo"):
+                try: n = int(self.n_size_combo.get())
+                except: pass
+
             total = len(vals)
-            usable = total - (total % 10)
+            usable = total - (total % n)
             
             # Basic validation
             if usable <= 0:
@@ -16937,9 +16960,9 @@ class AnalysisPage(ctk.CTkFrame):
             # or could be deferred. We do it here to show "something" immediately)
             table_data = []
             row_no = 0
-            for i in range(0, len(vals), 10):
+            for i in range(0, len(vals), n):
                 row_no += 1
-                group = vals[i:i+10]
+                group = vals[i:i+n]
                 row = [row_no] + [f"{x:.5f}" for x in group]
                 table_data.append(row)
 
@@ -16957,7 +16980,7 @@ class AnalysisPage(ctk.CTkFrame):
             # Run in thread
             import threading
             t = threading.Thread(target=self._run_analysis_thread, 
-                                 args=(vals, air, ch), 
+                                 args=(vals, air, ch, n), 
                                  daemon=True)
             t.start()
 
@@ -16967,12 +16990,17 @@ class AnalysisPage(ctk.CTkFrame):
 
     def _reset_to_blank_state(self):
         try:
+            n = 10
+            if hasattr(self, "n_size_combo"):
+                try: n = int(self.n_size_combo.get())
+                except: pass
+            
             self.table.set_sheet_data([])
             blank_data = [
-                ["Xlarge"] + ["–"] * 10 + ["X Max=", "–"],
-                ["Xsmall"] + ["–"] * 10 + ["X Min=", "–"],
-                ["Range"]  + ["–"] * 10 + ["R-Bar=", "–"],
-                ["Avg"]    + ["–"] * 10 + ["X-Bar=", "–"],
+                ["Xlarge"] + ["–"] * n + ["X Max=", "–"],
+                ["Xsmall"] + ["–"] * n + ["X Min=", "–"],
+                ["Range"]  + ["–"] * n + ["R-Bar=", "–"],
+                ["Avg"]    + ["–"] * n + ["X-Bar=", "–"],
             ]
             for i in range(len(blank_data)):
                 blank_data[i] = blank_data[i][:len(self.calc_columns)]
@@ -16990,12 +17018,34 @@ class AnalysisPage(ctk.CTkFrame):
             self.table.refresh()
             if hasattr(self, "canvas"):
                 self.canvas.yview_moveto(0.0)
-        except: pass
+        except Exception:
+            pass
+
+    def _on_n_size_changed(self, choice):
+        try:
+            n = int(choice)
+            # Update columns
+            self.columns = ["S.No"] + [f"C{i}" for i in range(1, n + 1)]
+            self.table.headers(self.columns)
+            
+            self.calc_columns = [f"C{i}" for i in range(1, n + 4)]
+            self.calc_table.headers(self.calc_columns)
+            
+            # Reload readings
+            if hasattr(self, "readings"):
+                self.load_from_readings(self.readings)
+                
+            # Base header height approx 20px, each row 30px
+            new_height = 20 + (n * 30)
+            self.table.config(height=new_height)
+        except Exception as e:
+            print("Failed to resize table:", e)
+
 
     # ------------------------------
     # Background Worker
     # ------------------------------
-    def _run_analysis_thread(self, vals, air, ch):
+    def _run_analysis_thread(self, vals, air, ch, n):
         """
         Executed in a separate thread. 
         Performs all calculations and generates chart images.
@@ -17006,7 +17056,7 @@ class AnalysisPage(ctk.CTkFrame):
             
             # B. Core Calculations
             # 1. Table columnar (Xmax, Xmin, etc.) - needed for Calc Table
-            rows = [vals[i:i + 10] for i in range(0, len(vals), 10)]
+            rows = [vals[i:i + n] for i in range(0, len(vals), n)]
             numeric_rows = [ [float(x) for x in r] for r in rows]
             cols = list(zip(*numeric_rows))
             
@@ -17040,7 +17090,7 @@ class AnalysisPage(ctk.CTkFrame):
             }
 
             # 3. SPC Metrics (Cp, Cpk)
-            spc_metrics = self._compute_spc_metrics(vals)
+            spc_metrics = self._compute_spc_metrics(vals, n)
             
             # 4. PP Metrics
             pp_metrics = {}
@@ -17684,14 +17734,29 @@ class AnalysisPage(ctk.CTkFrame):
 
         # ================= INTERVAL HISTOGRAM =================
         if hasattr(self, "_hist_interval_img_path") and self._hist_interval_img_path:
-            hist_img = load_img(self._hist_interval_img_path, w=590, h=300)
-            lbl_h = ctk.CTkLabel(left, image=hist_img, text="")
-            lbl_h.image = hist_img
-            lbl_h.pack(pady=(12, 0), anchor="nw")
+            self.hist_card = ctk.CTkFrame(left, fg_color="white", corner_radius=12, border_width=1, border_color="#e0e4e8")
+            self.hist_card.pack(pady=(12, 0), fill="x", expand=True)
 
-        # Ensure frequency table is visible in grid column 1
+            hdr_h = tk.Frame(self.hist_card, bg="white", height=30)
+            hdr_h.pack(fill="x", padx=15, pady=(15, 0))
+            lbl_h_title = tk.Label(hdr_h, text="Histogram - Interval Frequency Distribution", font=("Arial", 12, "bold"), bg="white", fg="#1E293B")
+            lbl_h_title.place(relx=0.5, rely=0.5, anchor="center")
+            
+            btn_h = ctk.CTkButton(hdr_h, text="Expand", width=60, height=24, fg_color="#F1F5F9", text_color="#1E293B", hover_color="#E2E8F0")
+            btn_h.configure(command=lambda: self._open_expanded_chart("Histogram"))
+            btn_h.pack(side="right")
+
+            hist_container = tk.Frame(self.hist_card, bg="white")
+            hist_container.pack(pady=15)
+
+            hist_img = load_img(self._hist_interval_img_path, w=540, h=260)
+            lbl_h = ctk.CTkLabel(hist_container, image=hist_img, text="")
+            lbl_h.image = hist_img
+            lbl_h.pack(anchor="n")
+
+        # Ensure frequency table is hidden from the main UI (it's in the expanded view)
         if hasattr(self, "freq_holder"):
-            self.freq_holder.grid(row=0, column=1, sticky="nw", padx=(16, 0))
+            self.freq_holder.grid_forget()
 
 
 
@@ -17841,12 +17906,13 @@ class AnalysisPage(ctk.CTkFrame):
             "D4": None
         })
 
-    def _compute_spc_metrics(self, values):
+    def _compute_spc_metrics(self, values, n=10):
         """
         Computes SPC metrics using true SPC formulas.
         Returns a dict with all final values needed for GUI/PDF.
 
         values: flat list of floats (already validated)
+        n: subgroup size (e.g. 5, 10, 25)
         """
 
         import statistics
@@ -17869,9 +17935,9 @@ class AnalysisPage(ctk.CTkFrame):
             return result
 
         # --------------------------------------------------
-        # Subgrouping (10 per group)
+        # Subgrouping (N per group)
         # --------------------------------------------------
-        subgroup_size = 10
+        subgroup_size = n
         rows = [values[i:i + subgroup_size]
                 for i in range(0, len(values), subgroup_size)
                 if len(values[i:i + subgroup_size]) == subgroup_size]
@@ -18057,7 +18123,7 @@ class AnalysisPage(ctk.CTkFrame):
         except Exception as e:
             print("Failed to go back:", e)
 
-    def print_spc_report(self):
+    def print_spc_report(self, is_download=False):
         """
         Generates a COMPLETE Professional SPC PDF Report.
         Replicates ALL content from AnalysisPage.
@@ -18069,9 +18135,21 @@ class AnalysisPage(ctk.CTkFrame):
 
             timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"SPC_Analysis_{timestamp}.pdf"
-            report_dir = os.path.join(os.getcwd(), "Reports")
-            os.makedirs(report_dir, exist_ok=True)
-            filepath = os.path.join(report_dir, filename)
+            
+            if is_download:
+                from tkinter import filedialog
+                filepath = filedialog.asksaveasfilename(
+                    defaultextension=".pdf",
+                    initialfile=filename,
+                    title="Save SPC Report As",
+                    filetypes=[("PDF Files", "*.pdf")]
+                )
+                if not filepath:
+                    return
+            else:
+                report_dir = os.path.join(os.getcwd(), "Reports")
+                os.makedirs(report_dir, exist_ok=True)
+                filepath = os.path.join(report_dir, filename)
 
             # INCREASE TOP MARGIN TO 20mm (Approx 2cm) as requested
             doc = SimpleDocTemplate(filepath, pagesize=A4, rightMargin=8*mm, leftMargin=8*mm, topMargin=20*mm, bottomMargin=15*mm)
@@ -18330,20 +18408,7 @@ class AnalysisPage(ctk.CTkFrame):
                 
                 add_section_table("Column Statistics", [], calc_rows, [w_calc]*n_cols, is_header_row=False, keep_together=True, custom_style=stats_style)
 
-            # 3. FREQUENCY DISTRIBUTION
-            freq_rows = []
-            if hasattr(self, "freq_table") and self.freq_table:
-               try: freq_rows = self.freq_table.get_sheet_data()
-               except: pass
-            
-            if freq_rows:
-                freq_header = ["Interval From", "Interval To", "Cumulative", "Frequency"]
-                w_freq = page_w / 4.0
-                add_section_table("Frequency Distribution", freq_header, freq_rows, [w_freq]*4, keep_together=True, is_header_row=True)
-
-            elements.append(Spacer(1, 4*mm))
-
-            # --- CHARTS ---
+            # --- CHARTS (X-Bar & R-Bar) ---
             # Regenerate high res if needed, or use cached
             flat_vals = []
             if hasattr(self, "table") and self.table:
@@ -18359,7 +18424,9 @@ class AnalysisPage(ctk.CTkFrame):
                 if hasattr(self, "_xbar_img_path"):
                     xbar_img = self._xbar_img_path
                     rbar_img = self._rbar_img_path
-                    hist_img = self._hist_img_path
+                    hist_img = getattr(self, "_hist_interval_img_path", getattr(self, "_hist_img_path", None))
+                    if hist_img is None and hasattr(self, "_hist_img_path"):
+                        hist_img = self._hist_img_path
                 else:
                     xbar_img, rbar_img, hist_img = self._generate_spc_charts(flat_vals)
 
@@ -18372,6 +18439,11 @@ class AnalysisPage(ctk.CTkFrame):
                     RLImage(xbar_img, width=img_w, height=img_h),
                     Spacer(1, 2*mm)
                 ]))
+                
+                # X-Bar Table
+                if hasattr(self, "_xbar_table_data") and self._xbar_table_data:
+                    add_section_table("", ["Sample", "X-Bar"], self._xbar_table_data, [page_w/2.0]*2, keep_together=True, is_header_row=True)
+                    elements.append(Spacer(1, 4*mm))
 
                 elements.append(KeepTogether([
                     Paragraph("R-Bar Chart", styles["Heading3"]),
@@ -18379,10 +18451,33 @@ class AnalysisPage(ctk.CTkFrame):
                     Spacer(1, 2*mm)
                 ]))
                 
+                # R-Bar Table
+                if hasattr(self, "_rbar_table_data") and self._rbar_table_data:
+                    add_section_table("", ["Sample", "R-Bar"], self._rbar_table_data, [page_w/2.0]*2, keep_together=True, is_header_row=True)
+                    elements.append(Spacer(1, 4*mm))
+
+            # --- HISTOGRAM CHART ---
+            if flat_vals and hist_img:
                 elements.append(KeepTogether([
                     Paragraph("Histogram", styles["Heading3"]),
-                    RLImage(hist_img, width=img_w, height=img_h)
+                    RLImage(hist_img, width=img_w, height=img_h),
+                    Spacer(1, 2*mm)
                 ]))
+
+            # 3. FREQUENCY DISTRIBUTION (Histogram Table)
+            freq_rows = []
+            if hasattr(self, "freq_table") and self.freq_table:
+               try: freq_rows = self.freq_table.get_sheet_data()
+               except: pass
+            if not freq_rows and hasattr(self, "_last_hist_freq_rows"):
+               freq_rows = getattr(self, "_last_hist_freq_rows", [])
+            
+            if freq_rows:
+                freq_header = ["Interval From", "Interval To", "Cumulative", "Frequency"]
+                w_freq = page_w / 4.0
+                add_section_table("Frequency Distribution", freq_header, freq_rows, [w_freq]*4, keep_together=True, is_header_row=True)
+
+            elements.append(Spacer(1, 4*mm))
 
             # --- HEADER & FOOTER ON EACH PAGE ---
             # --- HEADER & FOOTER ON EACH PAGE ---
@@ -18449,9 +18544,12 @@ class AnalysisPage(ctk.CTkFrame):
                 canvas.restoreState()
 
             doc.build(elements, onFirstPage=_header_footer, onLaterPages=_header_footer)
-            try: os.startfile(filepath)
-            except: pass
-            messagebox.showinfo("Export Success", f"Analysis Report generated:\n{filepath}")
+            if is_download:
+                messagebox.showinfo("Download Success", f"Analysis Report downloaded to:\n{filepath}")
+            else:
+                try: os.startfile(filepath)
+                except: pass
+                messagebox.showinfo("Export Success", f"Analysis Report generated:\n{filepath}")
 
         except Exception as e:
             messagebox.showerror("Export Error", f"Failed to generate SPC PDF: {str(e)}")                # 11 cols: SNo, C1-C10
