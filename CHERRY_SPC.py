@@ -10955,7 +10955,7 @@ class RunChatPage(ctk.CTkFrame):
     def add_chart(self):
         idx = len(self.chart_frames)
         # Main container with a fixed height and a very light purple border
-        frame = ctk.CTkFrame(self.scrollable_frame, fg_color="#f8f7fb", corner_radius=12, border_width=2, border_color="#f3e8ff", height=520)
+        frame = ctk.CTkFrame(self.scrollable_frame, fg_color="#f8f7fb", corner_radius=12, border_width=2, border_color="#f3e8ff", height=620)
         frame.pack_propagate(False)
         frame._chart_index = idx
 
@@ -11031,7 +11031,7 @@ class RunChatPage(ctk.CTkFrame):
                 op_label.pack(side="right", padx=(0, 24))
                 expanded = True
             else:
-                outer_frame.configure(height=520)
+                outer_frame.configure(height=620)
                 self.fix_grid_layout()
                 expand_btn.configure(text="□")
                 op_label.pack_forget()
