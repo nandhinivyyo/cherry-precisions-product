@@ -3219,6 +3219,15 @@ class CherryApp(ctk.CTk):
                 self.serial_conn.close()
         except Exception:
             pass
+        # Cancel all pending scheduled after callbacks
+        try:
+            for after_id in self.tk.call('after', 'info'):
+                try:
+                    self.after_cancel(after_id)
+                except Exception:
+                    pass
+        except Exception:
+            pass
         try:
             self.quit()
             self.destroy()
@@ -10892,8 +10901,7 @@ class RunChatPage(ctk.CTkFrame):
         if bbox:
             x1, y1, x2, y2 = bbox
             self.canvas.configure(scrollregion=(x1, y1, x2, y2 + 100))
-            min_height = self.canvas.winfo_height()
-            self.canvas.itemconfig(self.window_id, width=self.canvas.winfo_width(), height=max(min_height, y2))
+            self.canvas.itemconfig(self.window_id, width=self.canvas.winfo_width())
 
     def fix_grid_layout(self):
         """Rebuild the RunChat grid ensuring equal box size and balanced columns."""
@@ -10912,11 +10920,11 @@ class RunChatPage(ctk.CTkFrame):
         cols = 2
         rows = max(1, (n + 1) // cols)
 
-        # Set uniform column & row weights for equal sizing
+        # Set uniform column weights for equal sizing, but let rows define their natural height
         for i in range(cols):
             self.scrollable_frame.grid_columnconfigure(i, weight=1, uniform="col")
         for r in range(rows):
-            self.scrollable_frame.grid_rowconfigure(r, weight=1, uniform="row")
+            self.scrollable_frame.grid_rowconfigure(r, weight=0, uniform="")
 
         # Re-grid all frames in order (2 per row)
         for i, f in enumerate(self.chart_frames):
@@ -11023,7 +11031,7 @@ class RunChatPage(ctk.CTkFrame):
                 op_label.pack(side="right", padx=(0, 24))
                 expanded = True
             else:
-                outer_frame.configure(height=420)
+                outer_frame.configure(height=520)
                 self.fix_grid_layout()
                 expand_btn.configure(text="□")
                 op_label.pack_forget()
@@ -11245,12 +11253,12 @@ class RunChatPage(ctk.CTkFrame):
             chart_info["line"], = ax.plot([], [], marker="o", color="#10b981", markersize=6, 
                                           linewidth=2, linestyle="-", zorder=3)
             chart_info["texts"] = [] 
+            try:
+                fig.tight_layout(pad=0.2, rect=[0.02, 0.05, 0.98, 0.95])
+            except Exception:
+                pass
 
         setup_chart()
-        try:
-            fig.tight_layout(pad=0.5, rect=[0.02, 0, 0.98, 1])
-        except Exception:
-            pass
 
         # === Enhanced Data Table ===
         # === Bordered Data Table using Canvas ===
