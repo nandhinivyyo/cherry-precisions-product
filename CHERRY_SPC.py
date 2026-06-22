@@ -3839,11 +3839,46 @@ class CherryApp(ctk.CTk):
 
         self.status_label = ctk.CTkLabel(
             status_frame,
-            text="Disconnected",
+            text="Offline",
             font=("Segoe UI", 13, "bold"),
             text_color="black"
         )
         self.status_label.pack(side="left", padx=(0, 12), pady=8)
+
+        # Hook status_label configure to only allow the 4 live data notifications
+        orig_configure = self.status_label.configure
+        def safe_configure(*args, **kwargs):
+            if "text" in kwargs:
+                txt = str(kwargs["text"]).strip()
+                txt_upper = txt.upper()
+                
+                # Check for the 4 valid live data notifications
+                is_offline = any(x in txt_upper for x in ("OFFLINE", "DISCONNECTED", "NOT DETECTED", "FAILED TO OPEN", "ACCESS CANCELLED"))
+                is_online = any(x in txt_upper for x in ("ONLINE", "WAITING FOR ESP32", "PORT", "CONNECTED TO"))
+                is_streaming = any(x in txt_upper for x in ("STREAMING", "STREAMING STARTED"))
+                is_ready = any(x in txt_upper for x in ("READY", "DATA LOADED SUCCESSFULLY"))
+
+                if is_offline:
+                    kwargs["text"] = "Offline"
+                    try: self.status_light.configure(text_color="#F44336")
+                    except Exception: pass
+                elif is_streaming:
+                    kwargs["text"] = "Data streaming started"
+                    try: self.status_light.configure(text_color="#4CAF50")
+                    except Exception: pass
+                elif is_online:
+                    kwargs["text"] = "Online"
+                    try: self.status_light.configure(text_color="#4CAF50")
+                    except Exception: pass
+                elif is_ready:
+                    kwargs["text"] = "Ready"
+                    try: self.status_light.configure(text_color="#4CAF50")
+                    except Exception: pass
+                else:
+                    # Ignore all other notifications
+                    return
+            orig_configure(*args, **kwargs)
+        self.status_label.configure = safe_configure
         
         # Start pulsing animation for status light
         self._pulse_status_light()
@@ -5252,22 +5287,15 @@ class SettingsPage(ctk.CTkFrame):
         title_center = ctk.CTkFrame(header_bar, fg_color="transparent")
         title_center.place(relx=0.5, rely=0.5, anchor="center")
 
-        gear_lbl = ctk.CTkLabel(
-            title_center, text="\u2699",
-            font=("Segoe UI", 28, "bold"),
-            text_color="#007B43"
-        )
-        gear_lbl.pack(side="left", padx=(0, 6))
-
         settings_lbl = ctk.CTkLabel(
             title_center, text="Settings",
             font=("Segoe UI", 24, "bold"),
-            text_color="#007B43"
+            text_color="black"
         )
         settings_lbl.pack(side="left")
 
-        # Thin green separator line below header
-        sep = ctk.CTkFrame(self, fg_color="#007B43", height=3, corner_radius=0)
+        # Thin black separator line below header
+        sep = ctk.CTkFrame(self, fg_color="black", height=3, corner_radius=0)
         sep.pack(fill="x", side="top")
 
         # ===========================================================
@@ -5321,7 +5349,7 @@ class SettingsPage(ctk.CTkFrame):
                 icon_lbl = ctk.CTkLabel(
                     inner, text="\u2699",
                     font=("Segoe UI", 40, "bold"),
-                    text_color="#007B43"
+                    text_color="black"
                 )
             icon_lbl.pack(pady=(0, 8))
 
@@ -5335,8 +5363,8 @@ class SettingsPage(ctk.CTkFrame):
             )
             text_lbl.pack(pady=(0, 6))
 
-            # Green underline bar — centred
-            bar = ctk.CTkFrame(inner, fg_color="#007B43", height=4, corner_radius=2, width=36)
+            # Black underline bar — centred
+            bar = ctk.CTkFrame(inner, fg_color="black", height=4, corner_radius=2, width=36)
             bar.pack()
 
             # Hover / click bindings
