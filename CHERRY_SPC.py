@@ -11223,16 +11223,13 @@ class RunChatPage(ctk.CTkFrame):
                         f.grid_remove()
                 outer_frame.configure(height=800)
                 outer_frame.grid(row=0, column=0, columnspan=2, sticky="nsew", padx=8, pady=8)
-<<<<<<< Updated upstream
                 table_card.pack(fill="x", padx=(0, 16), pady=(8, 16))
                 try: self.add_button.grid_forget()
                 except: pass
-=======
                 try:
                     self.add_button.place_forget()
                 except:
                     pass
->>>>>>> Stashed changes
                 expand_btn.configure(text="🗗")
                 cpk_label.pack(side="right", padx=(0, 24))
                 op_label.pack(side="right", padx=(0, 24))

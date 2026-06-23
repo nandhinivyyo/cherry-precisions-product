@@ -1,26 +1,4 @@
 {
-<<<<<<< Updated upstream
-  "chart_count": 4,
-  "saved_selections": [
-    {
-      "air_id": "432235",
-      "channel": "CH1"
-    },
-    {
-      "air_id": "43223",
-      "channel": "CH2"
-    },
-    {
-      "air_id": "45634563464543",
-      "channel": "CH3"
-    },
-    {
-      "air_id": "781",
-      "channel": "CH4"
-    }
-  ]
-=======
   "chart_count": 0,
   "saved_selections": []
->>>>>>> Stashed changes
 }
