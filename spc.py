@@ -3597,6 +3597,21 @@ class CherryApp(ctk.CTk):
             self.report_page.pack(fill="both", expand=True)
         self.active_page = "Report"
 
+    def load_about_us_page(self):
+        """Show the About Us page."""
+        self._switch_page_with_overlay(self._do_load_about_us_page,
+                                       page_attr="about_us_page")
+
+    def _do_load_about_us_page(self):
+        for widget in self.content_frame.winfo_children():
+            widget.pack_forget()
+        if hasattr(self, "about_us_page") and self.about_us_page.winfo_exists():
+            self.about_us_page.pack(fill="both", expand=True)
+        else:
+            self.about_us_page = AboutUsPage(self.content_frame, self)
+            self.about_us_page.pack(fill="both", expand=True)
+        self.active_page = "AboutUs"
+
     def load_logout(self):
         """Show the Logout page."""
         self._switch_page_with_overlay(self._do_load_logout,
@@ -3887,6 +3902,7 @@ class CherryApp(ctk.CTk):
             ("📡", "Live Data", self.load_live_data, "livedata"),
             ("🔌", "USB", self.load_usb_data, "usbdata"),
             ("📊", "Report", self.load_report_page, "report"),
+            ("ℹ️", "About Us", self.load_about_us_page, "aboutus"),
         ]
 
         # Store buttons for active state management
@@ -18541,6 +18557,607 @@ class HomePage(tk.Frame):
         except Exception as e:
             print("HomePage resize error:", e)
 
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  About Us Page — Designed premiumly with verbatim details and dynamic layout
+# ─────────────────────────────────────────────────────────────────────────────
+class AboutUsPage(ctk.CTkFrame):
+    """
+    Corporate, elegant and premium About Us page for Cherry Precision Products.
+    Displays all brochure details verbatim with high readability, justified
+    wrap-lengths, and responsive column grid structuring.
+    """
+    def __init__(self, parent, app):
+        super().__init__(parent, fg_color="#F8FAFC")
+        self.app = app
+        
+        # Main Scrollable Frame to avoid screen overflow
+        self.scroll_area = ctk.CTkScrollableFrame(
+            self, fg_color="#F8FAFC",
+            scrollbar_button_color="#a78bfa",
+            scrollbar_button_hover_color="#7c3aed"
+        )
+        self.scroll_area.pack(fill="both", expand=True, padx=5, pady=5)
+        
+        # Central container for all sections
+        self.main_container = ctk.CTkFrame(self.scroll_area, fg_color="transparent")
+        self.main_container.pack(fill="x", expand=True, padx=20, pady=20)
+        
+        self.about_sidebar_frame = None
+        self.contact_right = None
+        
+        self._build_ui()
+        
+        # Bind configure event to outer frame to avoid recursive size changes
+        self.bind("<Configure>", self._on_configure)
+
+    def load_image_asset(self, filename, size):
+        try:
+            path = resource_path(os.path.join("settings", filename))
+            if os.path.exists(path):
+                img = Image.open(path)
+                return ctk.CTkImage(img, size=size)
+        except Exception as e:
+            print(f"Error loading image {filename}: {e}")
+        return None
+
+    def make_wrappable(self, label, parent_widget, padding=30):
+        def _on_parent_configure(event):
+            if label.winfo_exists() and parent_widget.winfo_exists():
+                new_width = parent_widget.winfo_width() - padding
+                if new_width > 10:
+                    try:
+                        if label.cget("wraplength") != new_width:
+                            label.configure(wraplength=new_width)
+                    except Exception:
+                        pass
+        parent_widget.bind("<Configure>", _on_parent_configure, add="+")
+
+    def make_wrappable_about(self, label, parent_widget):
+        def _on_parent_configure(event):
+            if label.winfo_exists() and parent_widget.winfo_exists():
+                mode = getattr(self, "_current_mode", "desktop")
+                padding = 210 if mode == "desktop" else 30
+                new_width = parent_widget.winfo_width() - padding
+                if new_width > 10:
+                    try:
+                        if label.cget("wraplength") != new_width:
+                            label.configure(wraplength=new_width)
+                    except Exception:
+                        pass
+        parent_widget.bind("<Configure>", _on_parent_configure, add="+")
+
+    def create_section_header(self, parent, title, icon_char):
+        frame = ctk.CTkFrame(parent, fg_color="transparent")
+        
+        lbl = ctk.CTkLabel(
+            frame,
+            text=f"{icon_char}  {title}",
+            font=("Poppins", 20, "bold"),
+            text_color="#1E293B",
+            anchor="w"
+        )
+        lbl.pack(side="top", anchor="w", pady=(0, 2))
+        
+        # Accent line in Cherry Red (#DC2626)
+        line = ctk.CTkFrame(frame, fg_color="#DC2626", height=3, width=70)
+        line.pack(side="top", anchor="w")
+        
+        return frame
+
+    def create_card(self, parent, title="", icon="", fg_color="white", border_color="#E2E8F0"):
+        card = ctk.CTkFrame(
+            parent,
+            fg_color=fg_color,
+            corner_radius=12,
+            border_width=1,
+            border_color=border_color
+        )
+        if title:
+            h_frame = ctk.CTkFrame(card, fg_color="transparent")
+            h_frame.pack(fill="x", padx=15, pady=(15, 2))
+            
+            icon_prefix = f"{icon}  " if icon else ""
+            lbl = ctk.CTkLabel(
+                h_frame,
+                text=f"{icon_prefix}{title}",
+                font=("Poppins", 15, "bold"),
+                text_color="#1E293B",
+                anchor="w"
+            )
+            lbl.pack(side="left")
+            
+            line = ctk.CTkFrame(card, fg_color="#DC2626", height=2, width=45)
+            line.pack(anchor="w", padx=15, pady=(0, 10))
+            
+        return card
+
+    def scroll_to_contact(self):
+        try:
+            self.scroll_area._parent_canvas.yview_moveto(1.0)
+        except Exception as e:
+            print("Scroll error:", e)
+
+    def _build_ui(self):
+        # 1. Hero Section Frames (Centered layout)
+        self.hero_frame = ctk.CTkFrame(self.main_container, fg_color="white", corner_radius=16, border_width=1, border_color="#E2E8F0")
+        
+        logo_img = self.load_image_asset("cherry_full_logo.png", size=(180, 50))
+        if logo_img:
+            self.hero_logo = ctk.CTkLabel(self.hero_frame, image=logo_img, text="")
+        else:
+            self.hero_logo = None
+            
+        self.hero_title = ctk.CTkLabel(
+            self.hero_frame,
+            text="About Cherry Precision Products",
+            font=("Poppins", 30, "bold"),
+            text_color="#1E293B",
+            anchor="center"
+        )
+        
+        self.hero_accent = ctk.CTkFrame(self.hero_frame, fg_color="#DC2626", height=3, width=80)
+        
+        self.hero_subtitle = ctk.CTkLabel(
+            self.hero_frame,
+            text="Manufacturer of Nitrogen Generators, Nitrogen Tyre Inflators, Air Tyre Inflators, Digital Airgauge Measuring System etc.,",
+            font=("Poppins", 14, "italic"),
+            text_color="#475569",
+            justify="center",
+            anchor="center"
+        )
+        self.make_wrappable(self.hero_subtitle, self.hero_frame, padding=80)
+        
+        self.hero_cta = ctk.CTkButton(
+            self.hero_frame,
+            text="Get in Touch",
+            font=("Poppins", 13, "bold"),
+            fg_color="#DC2626",
+            hover_color="#B91C1C",
+            text_color="white",
+            corner_radius=20,
+            height=40,
+            width=160,
+            command=self.scroll_to_contact
+        )
+        
+        hero_ill = self.load_image_asset("aboutus_hero.png", size=(400, 250))
+        if hero_ill:
+            self.hero_ill_lbl = ctk.CTkLabel(self.hero_frame, image=hero_ill, text="")
+        else:
+            self.hero_ill_lbl = ctk.CTkLabel(self.hero_frame, text="⚙️ Cherry Precision Products", font=("Poppins", 18, "bold"), text_color="#DC2626")
+
+        # 2. About Us Section with Side Headings
+        self.about_header = self.create_section_header(self.main_container, "About Us", "📘")
+        self.about_main_frame = ctk.CTkFrame(self.main_container, fg_color="transparent")
+        
+        # About Text Card (verbatim text paragraphs with side headings)
+        self.about_text_card = ctk.CTkFrame(self.about_main_frame, fg_color="white", corner_radius=12, border_width=1, border_color="#E2E8F0")
+        
+        about_data = [
+            ("Company Profile", 
+             "Cherry Precision Products was established in the year 2009 at Coimbatore, Tamil Nadu, and since then it is engaged in manufacturing and supplying of Digital Measuring Air Gauges, Nitrogen Generators, Automatic Tyre Inflators and Automatic Drain Valves. Owing to the industrial expertise of our dexterous team, we are able to offer a wide range of impeccable quality products that comprise of Nitrogen Gas Generators, Mobile Nitrogen Generators, Industrial Nitrogen Generators, Digital Automatic Tyre Inflators and Digital Air Gauges, etc."),
+            ("Manufacturing Excellence",
+             "Our manufacturing unit is well equipped with advanced technology and modern machinery that facilitates the production of supreme quality products that are at par with industry standards. We make use of the finest quality raw materials that are well tested and verified on several quality parameters as per international standards. Being a customer-centric organization, we strive extremely hard to achieve the highest level of customer satisfaction."),
+            ("Leadership",
+             "Under the astute guidance of Mr. T. Nachiappan, we have carved a distinct niche for ourselves in the industry. He has always motivated us to practice stringent quality parameters, which have made us set high standards in the industry."),
+            ("Infrastructure & Technology",
+             "We have a state-of-the-art infrastructure that is outfitted with advanced tools driven by cutting-edge technology. Our infrastructure enables us to offer a range of products that are designed as per market demands and customer requirements. Our quality-driven products are appreciated and demanded by customers for their robust performance and high durability. Our products have accurate dimensions and are sturdy in construction."),
+            ("Commitment & Reach",
+             "For us, it is the culmination of years of effort to design a range of products that are in compliance with industry standards and deliver precise performance. Our wide distribution network enables us to reach everywhere in the country.")
+        ]
+        
+        self.about_rows = []
+        for title, text in about_data:
+            row_frame = ctk.CTkFrame(self.about_text_card, fg_color="transparent")
+            row_frame.pack(fill="x", padx=15, pady=10)
+            
+            title_lbl = ctk.CTkLabel(
+                row_frame,
+                text=title,
+                font=("Poppins", 13, "bold"),
+                text_color="#7c3aed",
+                anchor="w",
+                justify="left"
+            )
+            text_lbl = ctk.CTkLabel(
+                row_frame,
+                text=text,
+                font=("Poppins", 11),
+                text_color="#475569",
+                justify="left",
+                anchor="w"
+            )
+            self.about_rows.append((row_frame, title_lbl, text_lbl))
+            self.make_wrappable_about(text_lbl, row_frame)
+
+        # Product Images Sidebar (About Us section)
+        self.about_sidebar_frame = ctk.CTkFrame(self.about_main_frame, fg_color="transparent", width=220)
+        self.about_sidebar_frame.pack_propagate(False)
+        
+        prod_renders = [
+            ("prod_nitrogen_gen.png", "Nitrogen Gas Generator"),
+            ("prod_air_gauge.png", "Digital Air Gauge"),
+            ("prod_tyre_inflator.png", "Automatic Tyre Inflator")
+        ]
+        self.about_prod_cards = []
+        for fn, title in prod_renders:
+            card = self.create_card(self.about_sidebar_frame, title="", border_color="#E2E8F0")
+            img = self.load_image_asset(fn, size=(100, 100))
+            if img:
+                img_lbl = ctk.CTkLabel(card, image=img, text="")
+                img_lbl.pack(pady=(10, 5))
+            else:
+                img_lbl = ctk.CTkLabel(card, text="📦", font=("Poppins", 24))
+                img_lbl.pack(pady=(10, 5))
+            title_lbl = ctk.CTkLabel(card, text=title, font=("Poppins", 10, "bold"), text_color="#475569")
+            title_lbl.pack(pady=(0, 10))
+            card.pack(fill="x", pady=5)
+            self.about_prod_cards.append(card)
+
+        # 3. Customer Satisfaction Section
+        self.satisfaction_header = self.create_section_header(self.main_container, "Customer Satisfaction", "😊")
+        self.satisfaction_grid = ctk.CTkFrame(self.main_container, fg_color="transparent")
+        
+        satisfaction_data = [
+            ("Packaging & Trust",
+             "We offer our products in customized packaging to ensure damage-free delivery of our products. We follow an ethical business approach and have a transparent business policy, which has earned us the valuable confidence and trust of our customers."),
+            ("Quality Control",
+             "We have a quality control unit that organizes frequent quality checks in order to ensure desired quality standards. We have a better pricing policy which makes our products available at very pocket-friendly prices."),
+            ("Service & Feedback",
+             "We are associated with reputed transporters which ensure timely delivery of our products. We are always open to customer feedback and suggestions to further improve our services. Customer concerns are handled with utmost care to provide the best solutions before they invest their money.")
+        ]
+        self.satisfaction_cards = []
+        self.satisfaction_labels = []
+        for title, text in satisfaction_data:
+            card = self.create_card(self.satisfaction_grid, title=title, icon="✓", border_color="#E2E8F0")
+            txt_lbl = ctk.CTkLabel(card, text=text, font=("Poppins", 11), text_color="#475569", justify="left", anchor="w")
+            txt_lbl.pack(fill="both", expand=True, padx=15, pady=(0, 15))
+            self.satisfaction_cards.append(card)
+            self.satisfaction_labels.append(txt_lbl)
+            self.make_wrappable(txt_lbl, card, padding=30)
+
+        # 4. Employees Section
+        self.employees_header = self.create_section_header(self.main_container, "Employees", "👥")
+        self.employees_grid = ctk.CTkFrame(self.main_container, fg_color="transparent")
+        
+        emp_divisions = [
+            ("Management & Overview", 
+             "We have a good management team to guide the company. We provide a free working atmosphere inside the company. We have a good team of employees around 15 members as on June 2016, and it goes on increasing as the company develops ahead.",
+             "💼"),
+            ("Research & Development & Production", 
+             "We have a good team for Research and Development, Production, Service and Marketing. The Research and Development team dedicatedly works on designing, product development and product improvement, whereas the production team works with full strength to manufacture high-quality products.", 
+             "🔬"),
+            ("Service & Marketing", 
+             "The service team plays a vital role in the improvement of the company. We have a good marketing team and dealers to sell our products in the wider market.", 
+             "📈")
+        ]
+        self.emp_cards = []
+        self.emp_labels = []
+        for dept, text, icon in emp_divisions:
+            card = self.create_card(self.employees_grid, title=dept, icon=icon, border_color="#E2E8F0")
+            txt_lbl = ctk.CTkLabel(card, text=text, font=("Poppins", 11), text_color="#475569", justify="left", anchor="w")
+            txt_lbl.pack(fill="both", expand=True, padx=15, pady=(0, 15))
+            self.emp_cards.append(card)
+            self.emp_labels.append(txt_lbl)
+            self.make_wrappable(txt_lbl, card, padding=30)
+
+        # 5. Factory Section
+        self.factory_header = self.create_section_header(self.main_container, "Factory", "🏭")
+        self.factory_grid = ctk.CTkFrame(self.main_container, fg_color="transparent")
+        
+        factory_items = [
+            ("Location & Equipment",
+             "Our factory is located at the industrial hub of South India, Coimbatore. Our manufacturing unit is well equipped with advanced technology and modern machinery that facilitates the production of supreme quality products that are at par with industry standards.",
+             "🏢"),
+            ("Raw Materials & Testing",
+             "We make use of the finest quality raw materials that are well tested and verified on several quality parameters as per international standards. All our products are tested and certified with state-of-the-art testing facilities available with us. Testing instruments are calibrated on a regular basis by NABL-accredited laboratories.",
+             "🔬")
+        ]
+        self.factory_cards = []
+        self.factory_labels = []
+        for title, text, icon in factory_items:
+            card = self.create_card(self.factory_grid, title=title, icon=icon, border_color="#E2E8F0")
+            txt_lbl = ctk.CTkLabel(card, text=text, font=("Poppins", 11), text_color="#475569", justify="left", anchor="w")
+            txt_lbl.pack(fill="both", expand=True, padx=15, pady=(0, 15))
+            self.factory_cards.append(card)
+            self.factory_labels.append(txt_lbl)
+            self.make_wrappable(txt_lbl, card, padding=30)
+
+        # 6. Major Customers Section
+        self.customers_header = self.create_section_header(self.main_container, "Locations & Major Customers", "🤝")
+        self.customers_grid = ctk.CTkFrame(self.main_container, fg_color="transparent")
+        
+        # Locations list
+        self.loc_card = self.create_card(self.customers_grid, title="Locations", icon="📍", border_color="#7C3AED")
+        loc_text = """• Head Quarters: Coimbatore, Tamil Nadu
+• Branch Office: Chennai, Tamil Nadu
+• Dealer Offices: Bangalore (Karnataka), Delhi, Indore (Madhya Pradesh) & Thrissur (Kerala)"""
+        self.loc_lbl = ctk.CTkLabel(self.loc_card, text=loc_text, font=("Poppins", 11), text_color="#475569", justify="left", anchor="w")
+        self.loc_lbl.pack(anchor="w", padx=15, pady=(0, 15))
+        self.make_wrappable(self.loc_lbl, self.loc_card, padding=30)
+        
+        # Metal Cutting list
+        self.mc_card = self.create_card(self.customers_grid, title="Metal Cutting Industries", icon="⚙️", border_color="#E2E8F0")
+        mc_text = """• Roots India Pvt Ltd, Coimbatore
+• Integro Automation Pvt Ltd, Coimbatore
+• Indore CNC, Indore
+• DMW CNC Solutions India Pvt Ltd, Coimbatore"""
+        self.mc_lbl = ctk.CTkLabel(self.mc_card, text=mc_text, font=("Poppins", 11), text_color="#475569", justify="left", anchor="w")
+        self.mc_lbl.pack(anchor="w", padx=15, pady=(0, 15))
+        self.make_wrappable(self.mc_lbl, self.mc_card, padding=30)
+        
+        # Automotive list
+        self.auto_card = self.create_card(self.customers_grid, title="Automotive", icon="🚗", border_color="#E2E8F0")
+        auto_text = """• Wheels India Pvt Ltd
+• Hero Honda
+• Mercedes Benz
+• Maruti Service Centers"""
+        self.auto_lbl = ctk.CTkLabel(self.auto_card, text=auto_text, font=("Poppins", 11), text_color="#475569", justify="left", anchor="w")
+        self.auto_lbl.pack(anchor="w", padx=15, pady=(0, 15))
+        self.make_wrappable(self.auto_lbl, self.auto_card, padding=30)
+        
+        # Other lists card
+        self.other_card = self.create_card(self.customers_grid, title="Other Industries", icon="🏢", border_color="#E2E8F0")
+        other_text = """• Plasma Cutting
+• Inert Blanketing
+• Food Packing Industries"""
+        self.other_lbl = ctk.CTkLabel(self.other_card, text=other_text, font=("Poppins", 11), text_color="#475569", justify="left", anchor="w")
+        self.other_lbl.pack(anchor="w", padx=15, pady=(0, 15))
+        self.make_wrappable(self.other_lbl, self.other_card, padding=30)
+        
+        # Laboratories list
+        self.lab_card = self.create_card(self.customers_grid, title="Laboratories", icon="🔬", border_color="#E2E8F0")
+        lab_text = """• Aventtec Laboratories, Chennai
+• TNAU, Coimbatore
+• BVN Instruments, Chennai"""
+        self.lab_lbl = ctk.CTkLabel(self.lab_card, text=lab_text, font=("Poppins", 11), text_color="#475569", justify="left", anchor="w")
+        self.lab_lbl.pack(anchor="w", padx=15, pady=(0, 15))
+        self.make_wrappable(self.lab_lbl, self.lab_card, padding=30)
+        
+        # Pharmaceutical list
+        self.pharm_card = self.create_card(self.customers_grid, title="Pharmaceutical", icon="💊", border_color="#E2E8F0")
+        pharm_text = """• Pharma Fabricon, Madurai"""
+        self.pharm_lbl = ctk.CTkLabel(self.pharm_card, text=pharm_text, font=("Poppins", 11), text_color="#475569", justify="left", anchor="w")
+        self.pharm_lbl.pack(anchor="w", padx=15, pady=(0, 15))
+        self.make_wrappable(self.pharm_lbl, self.pharm_card, padding=30)
+        
+        # Petrol Retail Outlets list
+        self.petrol_card = self.create_card(self.customers_grid, title="Petrol Retail Outlets", icon="⛽", border_color="#E2E8F0")
+        petrol_text = """• IOCL
+• BPCL
+• HP
+• ESSAR"""
+        self.petrol_lbl = ctk.CTkLabel(self.petrol_card, text=petrol_text, font=("Poppins", 11), text_color="#475569", justify="left", anchor="w")
+        self.petrol_lbl.pack(anchor="w", padx=15, pady=(0, 15))
+        self.make_wrappable(self.petrol_lbl, self.petrol_card, padding=30)
+
+        self.cust_labels = [
+            self.loc_lbl, self.mc_lbl, self.auto_lbl,
+            self.other_lbl, self.lab_lbl, self.pharm_lbl, self.petrol_lbl
+        ]
+
+        # 7. Vision & Mission Section
+        self.vision_header = self.create_section_header(self.main_container, "Vision & Mission", "🎯")
+        self.vision_grid = ctk.CTkFrame(self.main_container, fg_color="transparent")
+        
+        # Vision card
+        self.vis_card = self.create_card(self.vision_grid, title="VISION", icon="✨", border_color="#7C3AED")
+        vis_text = "Cherry Precision Products will provide the highest quality end products to our customers while striving to make them leaders in their respective industries. We will become the leader in the industry through individual and combined dedication, innovation and integrity. We will give our employees opportunities for both personal and professional growth."
+        self.vis_lbl = ctk.CTkLabel(self.vis_card, text=vis_text, font=("Poppins", 12), text_color="#475569", justify="left", anchor="w")
+        self.vis_lbl.pack(fill="both", expand=True, padx=20, pady=(0, 20))
+        self.make_wrappable(self.vis_lbl, self.vis_card, padding=40)
+        
+        # Mission card
+        self.mis_card = self.create_card(self.vision_grid, title="MISSION", icon="🚀", border_color="#7C3AED")
+        mis_text = "Cherry Precision Products is dedicated to providing superior, cost-effective, reliable quality products to reduce manual effort with simple and easy automation processes. We offer the highest standard of service to our customers and dealers."
+        self.mis_lbl = ctk.CTkLabel(self.mis_card, text=mis_text, font=("Poppins", 12), text_color="#475569", justify="left", anchor="w")
+        self.mis_lbl.pack(fill="both", expand=True, padx=20, pady=(0, 20))
+        self.make_wrappable(self.mis_lbl, self.mis_card, padding=40)
+
+        # 8. Contact Details Section
+        self.contact_header = self.create_section_header(self.main_container, "Contact Details", "📞")
+        self.contact_card = ctk.CTkFrame(self.main_container, fg_color="white", corner_radius=12, border_width=1, border_color="#E2E8F0")
+        
+        self.contact_left = ctk.CTkFrame(self.contact_card, fg_color="transparent")
+        self.contact_right = ctk.CTkFrame(self.contact_card, fg_color="transparent", width=340)
+        self.contact_right.pack_propagate(False)
+        
+        # Contact details (verbatim)
+        details_txt = """Cherry Precision Products
+Manufacturer of Nitrogen Generators, Nitrogen Tyre Inflators, Air Tyre Inflators, Digital Air Gauge Measuring Systems, etc.
+
+📍 Address:
+No. 161/3, Lakshmi Thottam,
+Chinnavedampatti, Maniyakaranpalayam Road,
+Coimbatore - 641049, Tamil Nadu.
+
+📞 Phone: +91 422 4393361, +91 93645 02659
+✉️ Email: cherryprecision@gmail.com
+🌐 Website: www.cherryprecision.com
+
+🛠️ Service Support: +91 73580 33362"""
+        self.details_lbl = ctk.CTkLabel(self.contact_left, text=details_txt, font=("Poppins", 12), text_color="#475569", justify="left", anchor="w")
+        self.details_lbl.pack(fill="both", expand=True, padx=20, pady=20)
+        self.make_wrappable(self.details_lbl, self.contact_left, padding=40)
+        
+        # Map placeholder
+        self.map_frame = ctk.CTkFrame(self.contact_right, fg_color="#F1F5F9", corner_radius=10, border_width=1, border_color="#CBD5E1")
+        self.map_frame.pack(fill="both", expand=True, padx=20, pady=20)
+        
+        map_icon = ctk.CTkLabel(self.map_frame, text="📍", font=("Poppins", 40))
+        map_icon.pack(pady=(30, 5))
+        map_lbl = ctk.CTkLabel(self.map_frame, text="Map View\nCoimbatore, Tamil Nadu, India", font=("Poppins", 11, "bold"), text_color="#475569")
+        map_lbl.pack(pady=(0, 30))
+
+    def _on_configure(self, event=None):
+        """Responsive column restructuring based on frame width."""
+        w = self.winfo_width()
+        if w < 100:
+            return
+            
+        new_mode = "mobile" if w < 900 else "desktop"
+        
+        if not hasattr(self, "_current_mode") or self._current_mode != new_mode:
+            self._current_mode = new_mode
+            self._apply_layout(new_mode)
+            
+        self._update_wraplengths(w, new_mode)
+
+    def _update_wraplengths(self, w, mode):
+        pass
+
+    def _apply_layout(self, mode):
+        # Clear main layout packings
+        for widget in self.main_container.winfo_children():
+            widget.pack_forget()
+            widget.grid_forget()
+
+        # Clear hero frame packings to restructure centered elements
+        for widget in self.hero_frame.winfo_children():
+            widget.pack_forget()
+            widget.grid_forget()
+
+        if mode == "mobile":
+            # --- Mobile Layout (Single Column) ---
+            self.hero_frame.pack(fill="x", pady=10)
+            if self.hero_logo:
+                self.hero_logo.pack(anchor="center", pady=(30, 15))
+            self.hero_title.pack(anchor="center", pady=(0, 5))
+            self.hero_accent.pack(anchor="center", pady=(0, 15))
+            self.hero_subtitle.pack(anchor="center", fill="x", padx=20, pady=(0, 20))
+            self.hero_cta.pack(anchor="center", pady=(0, 25))
+            self.hero_ill_lbl.pack(anchor="center", pady=(0, 30))
+            
+            self.about_header.pack(fill="x", pady=(40, 10))
+            self.about_main_frame.pack(fill="x", pady=(0, 20))
+            self.about_text_card.pack(fill="x", pady=5)
+            
+            for row_frame, title_lbl, text_lbl in self.about_rows:
+                row_frame.columnconfigure(0, weight=1)
+                row_frame.columnconfigure(1, weight=0)
+                title_lbl.grid_forget()
+                text_lbl.grid_forget()
+                title_lbl.grid(row=0, column=0, sticky="w", padx=5, pady=(5, 2))
+                text_lbl.grid(row=1, column=0, sticky="w", padx=5, pady=(2, 5))
+                
+            self.about_sidebar_frame.pack(fill="x", pady=5)
+            for card in self.about_prod_cards:
+                card.pack(fill="x", pady=5)
+                
+            self.satisfaction_header.pack(fill="x", pady=(40, 10))
+            self.satisfaction_grid.pack(fill="x", pady=(0, 20))
+            for card in self.satisfaction_cards:
+                card.pack(fill="x", pady=5)
+                
+            self.employees_header.pack(fill="x", pady=(40, 10))
+            self.employees_grid.pack(fill="x", pady=(0, 20))
+            for card in self.emp_cards:
+                card.pack(fill="x", pady=5)
+                
+            self.factory_header.pack(fill="x", pady=(40, 10))
+            self.factory_grid.pack(fill="x", pady=(0, 20))
+            for card in self.factory_cards:
+                card.pack(fill="x", pady=5)
+            
+            self.customers_header.pack(fill="x", pady=(40, 10))
+            self.customers_grid.pack(fill="x", pady=(0, 20))
+            self.loc_card.pack(fill="x", pady=5)
+            self.mc_card.pack(fill="x", pady=5)
+            self.auto_card.pack(fill="x", pady=5)
+            self.other_card.pack(fill="x", pady=5)
+            self.lab_card.pack(fill="x", pady=5)
+            self.pharm_card.pack(fill="x", pady=5)
+            self.petrol_card.pack(fill="x", pady=5)
+            
+            self.vision_header.pack(fill="x", pady=(40, 10))
+            self.vision_grid.pack(fill="x", pady=(0, 20))
+            self.vis_card.pack(fill="x", pady=5)
+            self.mis_card.pack(fill="x", pady=5)
+            
+            self.contact_header.pack(fill="x", pady=(40, 10))
+            self.contact_card.pack(fill="x", pady=(0, 20))
+            self.contact_left.pack(fill="x", side="top")
+            self.contact_right.pack(fill="x", side="top")
+            
+        else:
+            # --- Desktop Layout (Two/Multi Column) ---
+            self.hero_frame.pack(fill="x", pady=10)
+            if self.hero_logo:
+                self.hero_logo.pack(anchor="center", pady=(30, 15))
+            self.hero_title.pack(anchor="center", pady=(0, 5))
+            self.hero_accent.pack(anchor="center", pady=(0, 15))
+            self.hero_subtitle.pack(anchor="center", fill="x", padx=40, pady=(0, 20))
+            self.hero_cta.pack(anchor="center", pady=(0, 25))
+            self.hero_ill_lbl.pack(anchor="center", pady=(0, 30))
+            
+            self.about_header.pack(fill="x", pady=(40, 10))
+            self.about_main_frame.pack(fill="x", pady=(0, 20))
+            self.about_text_card.pack(side="left", fill="both", expand=True, padx=(0, 15))
+            
+            for row_frame, title_lbl, text_lbl in self.about_rows:
+                row_frame.columnconfigure(0, minsize=180, weight=0)
+                row_frame.columnconfigure(1, weight=1)
+                title_lbl.grid_forget()
+                text_lbl.grid_forget()
+                title_lbl.grid(row=0, column=0, sticky="nw", padx=(5, 15), pady=10)
+                text_lbl.grid(row=0, column=1, sticky="nsew", padx=5, pady=10)
+                
+            self.about_sidebar_frame.pack(side="right", fill="y", padx=(15, 0))
+            for card in self.about_prod_cards:
+                card.pack(fill="x", pady=5)
+                
+            self.satisfaction_header.pack(fill="x", pady=(40, 10))
+            self.satisfaction_grid.pack(fill="x", pady=(0, 20))
+            self.satisfaction_grid.grid_columnconfigure(0, weight=1, uniform="sat")
+            self.satisfaction_grid.grid_columnconfigure(1, weight=1, uniform="sat")
+            self.satisfaction_grid.grid_columnconfigure(2, weight=1, uniform="sat")
+            for i, card in enumerate(self.satisfaction_cards):
+                card.grid(row=0, column=i, padx=8, pady=8, sticky="nsew")
+                
+            self.employees_header.pack(fill="x", pady=(40, 10))
+            self.employees_grid.pack(fill="x", pady=(0, 20))
+            self.employees_grid.grid_columnconfigure(0, weight=1, uniform="emp")
+            self.employees_grid.grid_columnconfigure(1, weight=1, uniform="emp")
+            self.employees_grid.grid_columnconfigure(2, weight=1, uniform="emp")
+            for i, card in enumerate(self.emp_cards):
+                card.grid(row=0, column=i, padx=8, pady=8, sticky="nsew")
+                
+            self.factory_header.pack(fill="x", pady=(40, 10))
+            self.factory_grid.pack(fill="x", pady=(0, 20))
+            self.factory_grid.grid_columnconfigure(0, weight=1, uniform="fact")
+            self.factory_grid.grid_columnconfigure(1, weight=1, uniform="fact")
+            for i, card in enumerate(self.factory_cards):
+                card.grid(row=0, column=i, padx=8, pady=8, sticky="nsew")
+            
+            self.customers_header.pack(fill="x", pady=(40, 10))
+            self.customers_grid.pack(fill="x", pady=(0, 20))
+            self.customers_grid.grid_columnconfigure(0, weight=1, uniform="cust")
+            self.customers_grid.grid_columnconfigure(1, weight=1, uniform="cust")
+            self.customers_grid.grid_columnconfigure(2, weight=1, uniform="cust")
+            
+            self.loc_card.grid(row=0, column=0, padx=8, pady=8, sticky="nsew")
+            self.mc_card.grid(row=0, column=1, padx=8, pady=8, sticky="nsew")
+            self.auto_card.grid(row=0, column=2, padx=8, pady=8, sticky="nsew")
+            
+            self.other_card.grid(row=1, column=0, padx=8, pady=8, sticky="nsew")
+            self.lab_card.grid(row=1, column=1, padx=8, pady=8, sticky="nsew")
+            self.pharm_card.grid(row=1, column=2, padx=8, pady=8, sticky="nsew")
+            
+            self.petrol_card.grid(row=2, column=0, columnspan=3, padx=8, pady=8, sticky="nsew")
+            
+            self.vision_header.pack(fill="x", pady=(40, 10))
+            self.vision_grid.pack(fill="x", pady=(0, 20))
+            self.vision_grid.grid_columnconfigure(0, weight=1, uniform="vis")
+            self.vision_grid.grid_columnconfigure(1, weight=1, uniform="vis")
+            self.vis_card.grid(row=0, column=0, padx=8, pady=8, sticky="nsew")
+            self.mis_card.grid(row=0, column=1, padx=8, pady=8, sticky="nsew")
+            
+            self.contact_header.pack(fill="x", pady=(40, 10))
+            self.contact_card.pack(fill="x", pady=(0, 20))
+            self.contact_left.pack(side="left", fill="both", expand=True, padx=10, pady=10)
+            self.contact_right.pack(side="right", fill="y", padx=10, pady=10)
 
 
 if __name__ == "__main__":
