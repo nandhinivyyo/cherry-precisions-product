@@ -2924,6 +2924,17 @@ class CherryApp(ctk.CTk):
             # Walk up the parent hierarchy to find a scrollable widget
             curr = widget
             while curr:
+                # Intercept for horizontal chart scrolling when over chart/table card
+                if getattr(curr, "_is_chart_card", False) or getattr(curr, "_is_table_card", False):
+                    # Find parent containing the chart index
+                    parent = curr
+                    while parent:
+                        if hasattr(parent, "_chart_index"):
+                            self._scroll_chart_horizontally(parent._chart_index, delta)
+                            return "break"
+                        parent = parent.master
+                    break
+
                 # Check if the widget is self-scrollable
                 name = type(curr).__name__
                 if name in ("Treeview", "Sheet", "Text", "CTkTextbox", "Listbox") or "sheet" in str(type(curr)).lower():
@@ -3052,6 +3063,36 @@ class CherryApp(ctk.CTk):
                     break
         except Exception:
             pass
+
+    def _scroll_chart_horizontally(self, idx, delta):
+        try:
+            if not (hasattr(self, "runchat_page") and self.runchat_page):
+                return
+            if idx >= len(self.runchat_page.chart_info):
+                return
+            chart_info = self.runchat_page.chart_info[idx]
+            data_len = len(self.runchat_page.global_data[idx]["x"])
+            win = chart_info["win_size"]
+            if data_len <= win:
+                return  # No need to scroll if data fits in window
+            
+            # Determine scroll direction: scroll down (delta < 0) moves chart right
+            # scroll up (delta > 0) moves chart left
+            scroll_dir = -1 if delta > 0 else 1
+            step = 1 # shift by 1 point per notch
+            
+            max_start = max(0, data_len - win)
+            new_start = min(max_start, max(0, chart_info["start"] + scroll_dir * step))
+            
+            chart_info["start"] = new_start
+            if new_start >= max_start:
+                chart_info["auto_follow"] = True
+            else:
+                chart_info["auto_follow"] = False
+                
+            chart_info["update_visible"]()
+        except Exception as e:
+            print("Scroll chart horizontally err:", e)
 
     def show_installer_login(self):
         """Show the Installer Login Page (Hardcoded)."""
@@ -11121,7 +11162,7 @@ class RunChatPage(ctk.CTkFrame):
     def add_chart(self):
         idx = len(self.chart_frames)
         # Main container with a fixed height and a very light purple border
-        frame = ctk.CTkFrame(self.scrollable_frame, fg_color="#f8f7fb", corner_radius=12, border_width=2, border_color="#f3e8ff", height=620)
+        frame = ctk.CTkFrame(self.scrollable_frame, fg_color="#f8f7fb", corner_radius=12, border_width=2, border_color="#f3e8ff", height=410)
         frame.pack_propagate(False)
         frame._chart_index = idx
 
@@ -11148,10 +11189,11 @@ class RunChatPage(ctk.CTkFrame):
         # Card 2: Chart (inside scrollable)
         chart_card = ctk.CTkFrame(scrollable_inner, fg_color="#ffffff", corner_radius=12, border_width=1, border_color="#e2e8f0")
         chart_card.pack(fill="x", padx=(0, 16), pady=8)
+        chart_card._is_chart_card = True
 
         # Card 3: Table (inside scrollable)
         table_card = ctk.CTkFrame(scrollable_inner, fg_color="#fdf4ff", corner_radius=12, border_width=1, border_color="#a78bfa")
-        table_card.pack(fill="x", padx=(0, 16), pady=(8, 16))
+        table_card._is_table_card = True
 
         self.chart_frames.append(frame)
 
@@ -11184,6 +11226,7 @@ class RunChatPage(ctk.CTkFrame):
                         f.grid_remove()
                 outer_frame.configure(height=800)
                 outer_frame.grid(row=0, column=0, columnspan=2, sticky="nsew", padx=8, pady=8)
+                table_card.pack(fill="x", padx=(0, 16), pady=(8, 16))
                 try: self.add_button.grid_forget()
                 except: pass
                 expand_btn.configure(text="🗗")
@@ -11191,7 +11234,8 @@ class RunChatPage(ctk.CTkFrame):
                 op_label.pack(side="right", padx=(0, 24))
                 expanded = True
             else:
-                outer_frame.configure(height=620)
+                outer_frame.configure(height=410)
+                table_card.pack_forget()
                 self.fix_grid_layout()
                 expand_btn.configure(text="⛶")
                 op_label.pack_forget()
@@ -11352,7 +11396,11 @@ class RunChatPage(ctk.CTkFrame):
                 except Exception as e:
                     print("Scroll scroll err:", e)
 
-        nav_slider = ctk.CTkScrollbar(nav_bar, orientation="horizontal", height=8, fg_color="#2F2F2F", button_color="#BDBDBD", button_hover_color="#A9A9A9", command=on_scroll)
+        nav_slider = ctk.CTkScrollbar(
+            nav_bar, orientation="horizontal", height=16,
+            fg_color="#f3e8ff", button_color="#7c3aed", button_hover_color="#6d28d9",
+            command=on_scroll
+        )
         nav_slider.pack(fill="x", expand=True, padx=40, pady=5)
         nav_slider.set(0, 1) # Initialize scrollbar
         chart_info["slider"] = nav_slider
@@ -11453,13 +11501,9 @@ class RunChatPage(ctk.CTkFrame):
         ROW_H       = 28
         WIN         = chart_info["win_size"]
 
-        # Outer frame removed, we pack directly to table_card with rounded corners
         tbl_canvas  = tk.Canvas(table_card, bg="#ffffff", highlightthickness=0,
                                 height=(ROW_H * 6 + 1))
-        tbl_scroll = ctk.CTkScrollbar(table_card, orientation="horizontal", command=tbl_canvas.xview)
-        tbl_scroll.pack(side="bottom", fill="x", padx=2, pady=2)
         tbl_canvas.pack(side="top", fill="x", expand=True, padx=2, pady=2)
-        tbl_canvas.configure(xscrollcommand=tbl_scroll.set)
 
         # We'll draw everything on the canvas as text + rectangles.
         # Store column label widget references so update_visible can refresh them.
@@ -11589,7 +11633,6 @@ class RunChatPage(ctk.CTkFrame):
                     start_frac = s / total
                     end_frac = min(1.0, start_frac + thumb_size)
 
-                    chart_info["_ignore_slider"] = True
                     slider.set(start_frac, end_frac)
                     if "pos_var" in chart_info:
                         chart_info["pos_var"].set(f"Position : {int(start_frac * 100)}%")
