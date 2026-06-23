@@ -3863,29 +3863,39 @@ class CherryApp(ctk.CTk):
                 
                 # Check for the 4 valid live data notifications
                 is_offline = any(x in txt_upper for x in ("OFFLINE", "DISCONNECTED", "NOT DETECTED", "FAILED TO OPEN", "ACCESS CANCELLED"))
-                is_online = any(x in txt_upper for x in ("ONLINE", "WAITING FOR ESP32", "PORT", "CONNECTED TO"))
+                is_online = any(x in txt_upper for x in ("ONLINE", "CONNECTED TO"))
                 is_streaming = any(x in txt_upper for x in ("STREAMING", "STREAMING STARTED"))
                 is_ready = any(x in txt_upper for x in ("READY", "DATA LOADED SUCCESSFULLY"))
+
+                # Check if serial connection is active
+                is_connected = False
+                if hasattr(self, "serial_conn") and self.serial_conn and self.serial_conn.is_open:
+                    is_connected = True
 
                 if is_offline:
                     kwargs["text"] = "Offline"
                     try: self.status_light.configure(text_color="#F44336")
                     except Exception: pass
-                elif is_streaming:
-                    kwargs["text"] = "Data streaming started"
-                    try: self.status_light.configure(text_color="#4CAF50")
-                    except Exception: pass
-                elif is_online:
-                    kwargs["text"] = "Online"
-                    try: self.status_light.configure(text_color="#4CAF50")
-                    except Exception: pass
-                elif is_ready:
-                    kwargs["text"] = "Ready"
-                    try: self.status_light.configure(text_color="#4CAF50")
-                    except Exception: pass
+                elif is_connected:
+                    if is_streaming:
+                        kwargs["text"] = "Data streaming started"
+                        try: self.status_light.configure(text_color="#4CAF50")
+                        except Exception: pass
+                    elif is_online:
+                        kwargs["text"] = "Online"
+                        try: self.status_light.configure(text_color="#4CAF50")
+                        except Exception: pass
+                    elif is_ready:
+                        kwargs["text"] = "Ready"
+                        try: self.status_light.configure(text_color="#4CAF50")
+                        except Exception: pass
+                    else:
+                        return
                 else:
-                    # Ignore all other notifications
-                    return
+                    # If not connected, force Offline state
+                    kwargs["text"] = "Offline"
+                    try: self.status_light.configure(text_color="#F44336")
+                    except Exception: pass
             orig_configure(*args, **kwargs)
         self.status_label.configure = safe_configure
         
@@ -4379,7 +4389,7 @@ class CherryApp(ctk.CTk):
             self.start_serial_reader()
             self.serial_conn.write(b"START\n")
 
-            self.status_label.configure(text=f"Connected to {port} ✅ (Streaming started)")
+            self.status_label.configure(text=f"Connected to {port} ✅ (Online)")
             self.status_light.configure(text_color="#4CAF50")  # 🟢 Connected
             self.connect_btn.configure(state="disabled", fg_color="#9E9E9E", hover_color="#9E9E9E")
 

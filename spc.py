@@ -4181,7 +4181,7 @@ class CherryApp(ctk.CTk):
             self.start_serial_reader()
             self.serial_conn.write(b"START\n")
 
-            self.status_label.configure(text=f"Connected to {port} ✅ (Streaming started)")
+            self.status_label.configure(text=f"Connected to {port} ✅ (Online)")
             self.status_light.configure(text_color="#4CAF50")  # 🟢 Connected
             self.connect_btn.configure(state="disabled", fg_color="#9E9E9E", hover_color="#9E9E9E")
 
