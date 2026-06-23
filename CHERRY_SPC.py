@@ -5257,7 +5257,7 @@ class SettingsPage(ctk.CTkFrame):
                 img = img.resize(size, Image.Resampling.LANCZOS)
                 
                 # Make white background transparent
-                data = img.getdata()
+                data = getattr(img, "get_flattened_data", img.getdata)()
                 new_data = []
                 for item in data:
                     if item[0] > 240 and item[1] > 240 and item[2] > 240:
@@ -11043,7 +11043,7 @@ class RunChatPage(ctk.CTkFrame):
             else:
                 outer_frame.configure(height=620)
                 self.fix_grid_layout()
-                expand_btn.configure(text="□")
+                expand_btn.configure(text="⛶")
                 op_label.pack_forget()
                 cpk_label.pack_forget()
                 expanded = False
@@ -11088,7 +11088,7 @@ class RunChatPage(ctk.CTkFrame):
         close_btn.pack(side="right", padx=(10, 0))
 
         expand_btn = ctk.CTkButton(
-            right_frame, text="□", font=("Segoe UI", 20, "bold"),
+            right_frame, text="⛶", font=("Segoe UI", 18, "bold"),
             width=36, height=36, corner_radius=8,
             fg_color="#ffffff", text_color="#1e293b", hover_color="#f1f5f9",
             border_width=1, border_color="#e2e8f0",
@@ -11119,34 +11119,34 @@ class RunChatPage(ctk.CTkFrame):
         air_lbl.pack(padx=10, pady=4)
         
         air_box = ctk.CTkComboBox(air_container, variable=air_var,
-                                  values=sorted(list(self.comp_map.keys())) or ["None"], state="readonly", width=110, font=("Segoe UI", 11, "bold"),
+                                  values=sorted(list(self.comp_map.keys())) or ["None"], state="readonly", width=90, font=("Segoe UI", 11, "bold"),
                                   fg_color="#ffffff", text_color="#1e293b", border_width=0, button_color="#ffffff", button_hover_color="#f8fafc",
                                   dropdown_fg_color="#ffffff", dropdown_text_color="#1e293b", dropdown_hover_color="#f1f5f9")
         air_box.pack(side="left", padx=(2, 2))
 
         # --- Channel selector ---
-        ch_var = ctk.StringVar()
+        ch_var = ctk.StringVar(value="CH1")
         
         ch_container = ctk.CTkFrame(left_frame, fg_color="#ffffff", border_width=1, border_color="#e2e8f0", corner_radius=6)
         ch_container.pack(side="left", padx=(0, 20), pady=4)
         
-        ch_lbl_frame = ctk.CTkFrame(ch_container, fg_color="#6366f1", corner_radius=4)
+        ch_lbl_frame = ctk.CTkFrame(ch_container, fg_color="#9333ea", corner_radius=4)
         ch_lbl_frame.pack(side="left", fill="y", padx=1, pady=1)
         
-        ch_lbl = tk.Label(ch_lbl_frame, text="Channel ⌄", bg="#6366f1", fg="#ffffff", font=("Segoe UI", 10, "bold"))
+        ch_lbl = tk.Label(ch_lbl_frame, text="Channel", bg="#9333ea", fg="#ffffff", font=("Segoe UI", 10, "bold"))
         ch_lbl.pack(padx=10, pady=4)
         
         ch_box = ctk.CTkComboBox(ch_container, variable=ch_var,
-                                 values=["CH1"], state="readonly", width=90, font=("Segoe UI", 11, "bold"),
+                                 values=["CH1"], state="readonly", width=150, font=("Segoe UI", 11, "bold"),
                                  fg_color="#ffffff", text_color="#1e293b", border_width=0, button_color="#ffffff", button_hover_color="#f8fafc",
                                  dropdown_fg_color="#ffffff", dropdown_text_color="#1e293b", dropdown_hover_color="#f1f5f9")
-        ch_box.pack(side="left", padx=(2, 2))
+        ch_box.pack(side="left", padx=(2, 4))
 
         # --- Latest value label (No border) ---
-        latest_var = tk.StringVar(value="--")
+        latest_var = tk.StringVar(value="")
         latest_label = tk.Label(left_frame, textvariable=latest_var, bg="#ffffff",
                                 fg="#1e293b", font=("Segoe UI", 12, "bold"), width=8)
-        latest_label.pack(side="left", padx=(10, 0))
+        # latest_label.pack(side="left", padx=(10, 0)) # Hidden to match image
 
         # === Chart Card ===
         fig, ax = plt.subplots(figsize=(6.0, 2.6))
@@ -11184,13 +11184,18 @@ class RunChatPage(ctk.CTkFrame):
             chart_info["update_visible"]()
 
         nav_btn_frame = tk.Frame(nav_bar, bg="#fdf4ff")
-        nav_btn_frame.pack(side="top", pady=(8, 8))
+        nav_btn_frame.pack(side="top", pady=(8, 8), fill="x", padx=10)
 
-        l_btn = ctk.CTkButton(nav_btn_frame, text="◀", font=("Segoe UI", 16), width=32, height=32, corner_radius=8, fg_color="#ffffff", text_color="#5b21b6", border_width=1, border_color="#e2e8f0", hover_color="#f3f0f8", command=move_left)
-        l_btn.pack(side="left", padx=40)
+        l_btn = ctk.CTkButton(nav_btn_frame, text="❮", font=("Segoe UI", 16), width=32, height=32, corner_radius=8, fg_color="#ffffff", text_color="#5b21b6", border_width=1, border_color="#e2e8f0", hover_color="#f3f0f8", command=move_left)
+        l_btn.pack(side="left", padx=(10, 10))
 
-        r_btn = ctk.CTkButton(nav_btn_frame, text="▶", font=("Segoe UI", 16), width=32, height=32, corner_radius=8, fg_color="#ffffff", text_color="#5b21b6", border_width=1, border_color="#e2e8f0", hover_color="#f3f0f8", command=move_right)
-        r_btn.pack(side="left", padx=40)
+        nav_slider = ctk.CTkScrollbar(nav_btn_frame, orientation="horizontal", height=12, fg_color="#e2e8f0", button_color="#9333ea", button_hover_color="#7e22ce")
+        nav_slider.pack(side="left", fill="x", expand=True, padx=10)
+        nav_slider.set(0, 1) # Initialize scrollbar
+        chart_info["slider"] = nav_slider
+
+        r_btn = ctk.CTkButton(nav_btn_frame, text="❯", font=("Segoe UI", 16), width=32, height=32, corner_radius=8, fg_color="#ffffff", text_color="#5b21b6", border_width=1, border_color="#e2e8f0", hover_color="#f3f0f8", command=move_right)
+        r_btn.pack(side="right", padx=(10, 10))
 
         chart_info["limit_annotations"] = []
 
@@ -11243,15 +11248,20 @@ class RunChatPage(ctk.CTkFrame):
                     ax.tick_params(axis='y', labelsize=10, colors="#1e293b", pad=8)
                     ax.tick_params(axis='x', labelsize=10, colors="#1e293b", pad=8)
                 else:
-                    ax.set_ylim(0, 1)
-                    ax.set_yticks([0, 0.5, 1])
-                    ax.set_yticklabels(["0.000", "No Spec", "1.000"])
+                    ax.set_ylim(0, 14)
+                    ax.set_yticks([0, 7, 14])
+                    ax.set_yticklabels(["", "", "12"])
                     
-                    # Draw subtle line at 0.5
-                    ax.axhline(0.5, color="#cbd5e1", linewidth=1.2, linestyle="--", zorder=2)
-                    ann = ax.annotate("Valid Configuration", xy=(0.05, 0.5), xycoords=("axes fraction", "data"),
-                                      fontsize=10, color="#94a3b8", va="center", ha="left", clip_on=False, annotation_clip=False)
+                    # Draw 'Valid Configuration' dashed line in center (like screenshot)
+                    ax.axhline(7, color="#93c5fd", linewidth=1.0, linestyle="--", zorder=2)
+                    ann = ax.annotate("Valid Configuration", xy=(0.05, 7), xycoords=("axes fraction", "data"),
+                                      fontsize=9, color="#93c5fd", va="bottom", ha="left",
+                                      clip_on=False, annotation_clip=False,
+                                      fontstyle="italic")
                     chart_info["limit_annotations"].append(ann)
+
+                    # Y-axis label: "Io Spec"
+                    ax.set_ylabel("Io Spec", fontsize=10, color="#64748b", labelpad=6)
 
                     ax.tick_params(axis='x', labelsize=10, colors="#1e293b", pad=8)
                     ax.tick_params(axis='y', labelsize=10, colors="#1e293b", pad=8)
@@ -11411,12 +11421,18 @@ class RunChatPage(ctk.CTkFrame):
             if "slider" in chart_info:
                 try:
                     slider = chart_info["slider"]
-                    fraction = s / max_start if max_start > 0 else 0.0
-                    
+                    # CTkScrollbar.set(start, end) — both in range [0.0, 1.0]
+                    # start = position of visible window start
+                    # end   = position of visible window end
+                    total = max(1, n)
+                    thumb_size = win / total  # fraction of total data visible
+                    start_frac = s / total
+                    end_frac = min(1.0, start_frac + thumb_size)
+
                     chart_info["_ignore_slider"] = True
-                    slider.set(fraction)
+                    slider.set(start_frac, end_frac)
                     if "pos_var" in chart_info:
-                        chart_info["pos_var"].set(f"Position : {int(fraction * 100)}%")
+                        chart_info["pos_var"].set(f"Position : {int(start_frac * 100)}%")
                     chart_info["_ignore_slider"] = False
                 except Exception as e:
                     print("Slider update err:", e)
@@ -11546,12 +11562,17 @@ class RunChatPage(ctk.CTkFrame):
             ag = air_var.get()
             if ag in self.comp_map:
                 chans = sorted(list(self.comp_map[ag].keys()))
-                ch_box.configure(values=chans if chans else [""])
+                if not chans:
+                    chans = ["CH1"]
+                ch_box.configure(values=chans)
                 if ch_var.get() not in chans:
-                    ch_var.set(chans[0] if chans else "")
+                    ch_var.set(chans[0])
+                    ch_box.set(chans[0])
             else:
-                ch_box.configure(values=[""])
-                ch_var.set("")
+                ch_box.configure(values=["CH1", "CH2", "CH3", "CH4"])
+                if not ch_var.get():
+                    ch_var.set("CH1")
+                    ch_box.set("CH1")
             on_spec_change()
 
         air_var.trace_add("write", update_channels)
@@ -11572,7 +11593,15 @@ class RunChatPage(ctk.CTkFrame):
             air_var.set(sel["air_id"])
         elif ids:
             air_var.set(ids[idx % len(ids)])
-        ch_var.set(sel.get("channel", f"CH{(idx % 4) + 1}"))
+        # Always set a visible channel — never blank
+        saved_ch = sel.get("channel", "")
+        if saved_ch:
+            ch_var.set(saved_ch)
+            ch_box.set(saved_ch)
+        else:
+            default_ch = f"CH{(idx % 4) + 1}"
+            ch_var.set(default_ch)
+            ch_box.set(default_ch)
         on_spec_change()
 
         chart_info.update({
@@ -11694,7 +11723,7 @@ class RunChatPage(ctk.CTkFrame):
             selections = []
             for info in self.chart_info:
                 air = info["air_var"].get()
-                ch = info["ch_var"].get()
+                ch = info["ch_var"].get() or "CH1"   # never save blank channel
                 selections.append({"air_id": air, "channel": ch})
 
             state = {
