@@ -5693,7 +5693,7 @@ class ComponentSetupPage(ctk.CTkFrame):
         make_label(c10, "Component Type")
         self.type_dropdown = ctk.CTkComboBox(
             c10,
-            values=["Shaft", "Bore"],
+            values=["Shaft", "Hole"],
             variable=self.comp_type,
             state="readonly",
             height=32,
