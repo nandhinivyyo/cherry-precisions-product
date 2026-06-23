@@ -1,4 +1,9 @@
 {
-  "chart_count": 0,
-  "saved_selections": []
+  "chart_count": 1,
+  "saved_selections": [
+    {
+      "air_id": "432235",
+      "channel": "CH1"
+    }
+  ]
 }
