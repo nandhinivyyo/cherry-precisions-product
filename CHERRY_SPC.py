@@ -11026,10 +11026,11 @@ class RunChatPage(ctk.CTkFrame):
         self.scrollable_frame.grid_columnconfigure(0, weight=1)
         self.scrollable_frame.grid_columnconfigure(1, weight=1)
 
-        self.add_button = ctk.CTkButton(self.scrollable_frame, text="+", font=("Segoe UI", 28, "bold"),
-                                        fg_color="#9b82d4", hover_color="#8b5cf6", text_color="#ffffff",
-                                        corner_radius=8, width=160, height=60, command=self.add_chart)
-        self.add_button.grid(row=0, column=0, padx=8, pady=8, sticky="")
+        self.add_button = ctk.CTkButton(self, text="+", font=("Segoe UI", 22, "bold"),
+                                        fg_color="#7c3aed", hover_color="#6d28d9", text_color="#ffffff",
+                                        corner_radius=22, width=44, height=44, command=self.add_chart)
+        self.add_button.place(relx=1.0, x=-65, y=12, anchor="ne")
+        self.add_button.lift()
 
         # === Load previous layout ===
         initial_count, saved_state = self.load_runchat_state()
@@ -11127,16 +11128,19 @@ class RunChatPage(ctk.CTkFrame):
         cols = 2
         rows = max(1, (n + 1) // cols)
 
+        # Configure row 0 to have a minimum height for the floating add button area
+        self.scrollable_frame.grid_rowconfigure(0, minsize=70)
+
         # Set uniform column weights for equal sizing, but let rows define their natural height
         for i in range(cols):
             self.scrollable_frame.grid_columnconfigure(i, weight=1, uniform="col")
-        for r in range(rows):
+        for r in range(1, rows + 1):
             self.scrollable_frame.grid_rowconfigure(r, weight=0, uniform="")
 
-        # Re-grid all frames in order (2 per row)
+        # Re-grid all frames in order (2 per row), shifting down by 1 row to prevent FAB overlap
         for i, f in enumerate(self.chart_frames):
             r, c = divmod(i, cols)
-            f.grid(row=r, column=c, sticky="nsew", padx=8, pady=8)
+            f.grid(row=r + 1, column=c, sticky="nsew", padx=8, pady=8)
 
         # Properly reposition Add button
         self.reposition_add_button()
@@ -11146,15 +11150,8 @@ class RunChatPage(ctk.CTkFrame):
 
 
     def reposition_add_button(self):
-        n = len(self.chart_frames)
-        self.add_button.grid_forget()
-        row = n // 2
-        col = n % 2
-        self.add_button.grid(row=row, column=col, columnspan=1, padx=8, pady=(40, 40), sticky="")
-        
-        if col == 0:
-            self.scrollable_frame.grid_rowconfigure(row, minsize=0)
-        self.scrollable_frame.grid_rowconfigure(row + 2, minsize=12)
+        # Add button is now a floating circle placed on the top right
+        pass
 
     # ------------------------------------------------------
     # Add Chart Panel
@@ -11226,9 +11223,16 @@ class RunChatPage(ctk.CTkFrame):
                         f.grid_remove()
                 outer_frame.configure(height=800)
                 outer_frame.grid(row=0, column=0, columnspan=2, sticky="nsew", padx=8, pady=8)
+<<<<<<< Updated upstream
                 table_card.pack(fill="x", padx=(0, 16), pady=(8, 16))
                 try: self.add_button.grid_forget()
                 except: pass
+=======
+                try:
+                    self.add_button.place_forget()
+                except:
+                    pass
+>>>>>>> Stashed changes
                 expand_btn.configure(text="🗗")
                 cpk_label.pack(side="right", padx=(0, 24))
                 op_label.pack(side="right", padx=(0, 24))
@@ -11241,8 +11245,14 @@ class RunChatPage(ctk.CTkFrame):
                 op_label.pack_forget()
                 cpk_label.pack_forget()
                 expanded = False
-                try: self.reposition_add_button()
-                except: pass
+                def _restore_add_button():
+                    try:
+                        if self.winfo_exists():
+                            self.add_button.place(relx=1.0, x=-65, y=12, anchor="ne")
+                            self.add_button.lift()
+                    except Exception as e:
+                        print("Restore add button err:", e)
+                self.after(50, _restore_add_button)
 
         def close_chart():
             try:
@@ -11265,6 +11275,17 @@ class RunChatPage(ctk.CTkFrame):
                 except: pass
 
                 self.reindex_after_removal(removed_index)
+
+                # Always restore the + button after any chart is closed
+                def _restore_add_button_after_close():
+                    try:
+                        if self.winfo_exists():
+                            self.add_button.place(relx=1.0, x=-65, y=12, anchor="ne")
+                            self.add_button.lift()
+                    except Exception as e:
+                        print("Restore add button after close err:", e)
+                self.after(80, _restore_add_button_after_close)
+
             except Exception as e:
                 print("Close chart error:", e)
 
@@ -11336,12 +11357,20 @@ class RunChatPage(ctk.CTkFrame):
                                  dropdown_fg_color="#ffffff", dropdown_text_color="#1e293b", dropdown_hover_color="#f1f5f9")
         ch_box.pack(side="left", padx=(2, 4))
 
-        # --- Latest value label (Bordered Box) ---
+        # --- Latest value label (Unified Premium Box) ---
+        latest_container = ctk.CTkFrame(left_frame, fg_color="#ffffff", border_width=1, border_color="#e2e8f0", corner_radius=6)
+        latest_container.pack(side="left", padx=(0, 20), pady=4)
+        
+        latest_lbl_frame = ctk.CTkFrame(latest_container, fg_color="#9333ea", corner_radius=4)
+        latest_lbl_frame.pack(side="left", fill="y", padx=1, pady=1)
+        
+        latest_lbl = tk.Label(latest_lbl_frame, text="Value", bg="#9333ea", fg="#ffffff", font=("Segoe UI", 10, "bold"))
+        latest_lbl.pack(padx=10, pady=4)
+        
         latest_var = tk.StringVar(value="--")
-        latest_label = tk.Label(left_frame, textvariable=latest_var, bg="#ffffff",
-                                fg="navy", font=("Segoe UI", 13, "bold"), width=12,
-                                bd=1, relief="solid")
-        latest_label.pack(side="left", padx=(15, 0), ipady=3)
+        latest_label = tk.Label(latest_container, textvariable=latest_var, bg="#ffffff",
+                                fg="navy", font=("Segoe UI", 11, "bold"), width=10)
+        latest_label.pack(side="left", padx=(8, 8))
 
         # === Chart Card ===
         fig, ax = plt.subplots(figsize=(6.0, 2.6))

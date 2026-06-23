@@ -1,4 +1,5 @@
 {
+<<<<<<< Updated upstream
   "chart_count": 4,
   "saved_selections": [
     {
@@ -18,4 +19,8 @@
       "channel": "CH4"
     }
   ]
+=======
+  "chart_count": 0,
+  "saved_selections": []
+>>>>>>> Stashed changes
 }
