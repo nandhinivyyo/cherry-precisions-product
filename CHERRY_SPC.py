@@ -2887,6 +2887,11 @@ class CherryApp(ctk.CTk):
         self.data_queue = queue.Queue()
         self.rssi_queue = queue.Queue(maxsize=5)  # Only keep latest RSSI readings
 
+        # ---------------- Global Scroll Bindings ----------------
+        self.bind_all("<MouseWheel>", self._on_global_mousewheel)
+        self.bind_all("<Shift-MouseWheel>", self._on_global_shift_mousewheel)
+        self.bind_all("<Button-4>", self._on_global_mousewheel)
+        self.bind_all("<Button-5>", self._on_global_mousewheel)
 
         # ---------------- Setup Check ----------------
         # ---------------- Setup Check ----------------
@@ -2896,6 +2901,157 @@ class CherryApp(ctk.CTk):
         else:
             # Step 2: Normal Admin Login
             self.show_admin_login()
+
+    def _on_global_mousewheel(self, event):
+        try:
+            # Find the widget under the mouse cursor
+            x, y = self.winfo_pointerxy()
+            widget = self.winfo_containing(x, y)
+            if not widget:
+                return
+
+            # Determine scroll direction & distance
+            if event.num == 4:  # Linux scroll up
+                delta = 120
+            elif event.num == 5:  # Linux scroll down
+                delta = -120
+            else:
+                delta = event.delta
+
+            if delta == 0:
+                return
+
+            # Walk up the parent hierarchy to find a scrollable widget
+            curr = widget
+            while curr:
+                # Check if the widget is self-scrollable
+                name = type(curr).__name__
+                if name in ("Treeview", "Sheet", "Text", "CTkTextbox", "Listbox") or "sheet" in str(type(curr)).lower():
+                    # Let the widget's own bindings handle it
+                    return
+                
+                # Check if this widget is a canvas
+                if isinstance(curr, (tk.Canvas, ctk.CTkCanvas)):
+                    # Check if canvas can scroll in this direction
+                    try:
+                        y_start, y_end = curr.yview()
+                    except Exception:
+                        y_start, y_end = 0.0, 1.0
+
+                    can_scroll = True
+                    if y_start <= 0.001 and y_end >= 0.999:
+                        can_scroll = False
+                    elif delta > 0 and y_start <= 0.001:
+                        can_scroll = False
+                    elif delta < 0 and y_end >= 0.999:
+                        can_scroll = False
+
+                    if not can_scroll:
+                        # Bubble scroll event up to parent canvas
+                        try:
+                            curr = curr.master
+                        except AttributeError:
+                            break
+                        continue
+
+                    # Check yscrollincrement
+                    try:
+                        inc = float(curr.cget("yscrollincrement"))
+                    except Exception:
+                        inc = 0
+                        
+                    if inc > 0:
+                        # Pixel-based scrolling (e.g. AnalysisPage with yscrollincrement=2)
+                        scroll_factor = max(1, int(50 / inc))
+                    else:
+                        # Grid-based/default scrolling
+                        scroll_factor = 3
+                        
+                    scroll_units = int(-1 * (delta / 120) * scroll_factor)
+                    if scroll_units == 0:
+                        scroll_units = -1 if delta > 0 else 1
+                        
+                    curr.yview_scroll(scroll_units, "units")
+                    return "break"
+                
+                # Move to parent
+                try:
+                    curr = curr.master
+                except AttributeError:
+                    break
+        except Exception:
+            pass
+
+    def _on_global_shift_mousewheel(self, event):
+        try:
+            # Find the widget under the mouse cursor
+            x, y = self.winfo_pointerxy()
+            widget = self.winfo_containing(x, y)
+            if not widget:
+                return
+
+            delta = event.delta
+            if delta == 0:
+                return
+
+            # Walk up the parent hierarchy to find a scrollable widget
+            curr = widget
+            while curr:
+                # Check if the widget is self-scrollable
+                name = type(curr).__name__
+                if name in ("Treeview", "Sheet", "Text", "CTkTextbox", "Listbox") or "sheet" in str(type(curr)).lower():
+                    # Let the widget's own bindings handle it
+                    return
+                
+                # Check if this widget is a canvas
+                if isinstance(curr, (tk.Canvas, ctk.CTkCanvas)):
+                    # Check if canvas can scroll horizontally in this direction
+                    try:
+                        x_start, x_end = curr.xview()
+                    except Exception:
+                        x_start, x_end = 0.0, 1.0
+
+                    can_scroll = True
+                    if x_start <= 0.001 and x_end >= 0.999:
+                        can_scroll = False
+                    elif delta > 0 and x_start <= 0.001:
+                        can_scroll = False
+                    elif delta < 0 and x_end >= 0.999:
+                        can_scroll = False
+
+                    if not can_scroll:
+                        # Bubble scroll event up to parent canvas
+                        try:
+                            curr = curr.master
+                        except AttributeError:
+                            break
+                        continue
+
+                    # Check xscrollincrement
+                    try:
+                        inc = float(curr.cget("xscrollincrement"))
+                    except Exception:
+                        inc = 0
+                        
+                    if inc > 0:
+                        scroll_factor = max(1, int(50 / inc))
+                    else:
+                        scroll_factor = 3
+                        
+                    scroll_units = int(-1 * (delta / 120) * scroll_factor)
+                    if scroll_units == 0:
+                        scroll_units = -1 if delta > 0 else 1
+                        
+                    curr.xview_scroll(scroll_units, "units")
+                    return "break"
+                
+                # Move to parent
+                try:
+                    curr = curr.master
+                except AttributeError:
+                    break
+        except Exception:
+            pass
 
     def show_installer_login(self):
         """Show the Installer Login Page (Hardcoded)."""
@@ -10985,12 +11141,6 @@ class RunChatPage(ctk.CTkFrame):
         def update_inner_scroll(_=None):
             inner_canvas.configure(scrollregion=inner_canvas.bbox("all"))
             inner_canvas.itemconfig(inner_window, width=inner_canvas.winfo_width())
-            
-        def _on_mousewheel(event):
-            inner_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
-
-        inner_canvas.bind("<Enter>", lambda e: inner_canvas.bind_all("<MouseWheel>", _on_mousewheel))
-        inner_canvas.bind("<Leave>", lambda e: inner_canvas.unbind_all("<MouseWheel>"))
 
         scrollable_inner.bind("<Configure>", update_inner_scroll)
         inner_canvas.bind("<Configure>", update_inner_scroll)
@@ -16007,11 +16157,6 @@ class AnalysisPage(ctk.CTkFrame):
             pass
 
     def destroy(self):
-        try:
-            self.unbind_all("<MouseWheel>")
-            self.unbind_all("<Shift-MouseWheel>")
-        except Exception:
-            pass
         super().destroy()
 
     # ------------------------------
@@ -16066,67 +16211,6 @@ class AnalysisPage(ctk.CTkFrame):
         def on_frame_configure(event=None):
             self.canvas.configure(scrollregion=self.canvas.bbox("all"))
         scroll_frame.bind("<Configure>", on_frame_configure)
-
-        # Mousewheel handling similar to reference
-        # Mousewheel handling
-        def is_cursor_inside(widget):
-            try:
-                if not widget.winfo_exists(): return False
-                x, y = widget.winfo_pointerx(), widget.winfo_pointery()
-                gx, gy = widget.winfo_rootx(), widget.winfo_rooty()
-                w, h = widget.winfo_width(), widget.winfo_height()
-                return gx <= x <= gx + w and gy <= y <= gy + h
-            except Exception:
-                return False
-
-        def on_mousewheel(event):
-            try:
-                if not self.winfo_exists(): return
-                inside_spc = hasattr(self, "table") and is_cursor_inside(self.table)
-                inside_hist = hasattr(self, "calc_table") and is_cursor_inside(self.calc_table)
-                
-                if inside_spc or inside_hist:
-                    # Mouse is over a table -> Let tksheet handle it
-                    return 
-                
-                # Mouse is over background -> Smooth Scroll Main Canvas
-                # Since yscrollincrement=2, we scroll by roughly 25*2 = 50px per notch (delta=120)
-                # Adjust '25' to change speed.
-                scroll_units = int(-1 * (event.delta / 120) * 25)
-                canvas.yview_scroll(scroll_units, "units")
-                return "break"
-            except Exception:
-                pass
-
-        def _bind_mouse(_):
-            self.canvas.bind_all("<MouseWheel>", on_mousewheel)
-            self.canvas.bind_all("<Shift-MouseWheel>", lambda e: self.canvas.xview_scroll(-1 * (e.delta // 120), "units"))
-            
-            # Keypad/Arrow Scrolling
-            try:
-                top = self.winfo_toplevel()
-                top.bind("<Up>", lambda e: self.canvas.yview_scroll(-5, "units"))
-                top.bind("<Down>", lambda e: self.canvas.yview_scroll(5, "units"))
-                top.bind("<KP_Up>", lambda e: self.canvas.yview_scroll(-5, "units"))
-                top.bind("<KP_Down>", lambda e: self.canvas.yview_scroll(5, "units")) # Keypad 8/2 (NumLock Off/On behavior varies but KP_Up/Down usually handles arrows)
-                # Windows might map Keypad 8 with NumLock OFF as Up, but if ON it sends a number. 
-                # Tkinter <KP_Up> is usually the arrow on keypad. 
-                # Just in case, we can also bind the numbers if simpler, but <KP_Up> is standard.
-            except: pass
-        
-        def _unbind_mouse(_):
-            self.canvas.unbind_all("<MouseWheel>")
-            self.canvas.unbind_all("<Shift-MouseWheel>")
-            try:
-                top = self.winfo_toplevel()
-                top.unbind("<Up>")
-                top.unbind("<Down>")
-                top.unbind("<KP_Up>")
-                top.unbind("<KP_Down>")
-            except: pass
-
-        self.canvas.bind("<Enter>", _bind_mouse)
-        self.canvas.bind("<Leave>", _unbind_mouse)
 
         # Header
         header = ctk.CTkFrame(scroll_frame, fg_color="#E3F2FD", corner_radius=8, height=58)
