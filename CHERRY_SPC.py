@@ -11292,11 +11292,12 @@ class RunChatPage(ctk.CTkFrame):
                                  dropdown_fg_color="#ffffff", dropdown_text_color="#1e293b", dropdown_hover_color="#f1f5f9")
         ch_box.pack(side="left", padx=(2, 4))
 
-        # --- Latest value label (No border) ---
-        latest_var = tk.StringVar(value="")
+        # --- Latest value label (Bordered Box) ---
+        latest_var = tk.StringVar(value="--")
         latest_label = tk.Label(left_frame, textvariable=latest_var, bg="#ffffff",
-                                fg="#1e293b", font=("Segoe UI", 12, "bold"), width=8)
-        # latest_label.pack(side="left", padx=(10, 0)) # Hidden to match image
+                                fg="navy", font=("Segoe UI", 13, "bold"), width=12,
+                                bd=1, relief="solid")
+        latest_label.pack(side="left", padx=(15, 0), ipady=3)
 
         # === Chart Card ===
         fig, ax = plt.subplots(figsize=(6.0, 2.6))
@@ -11309,43 +11310,52 @@ class RunChatPage(ctk.CTkFrame):
         nav_frame = ctk.CTkFrame(chart_card, fg_color="#fdf4ff", corner_radius=24)
         nav_frame.pack(fill="x", pady=10, padx=20)
 
-        # title_lbl = tk.Label(nav_frame, text="SPC Record Navigation", bg="#fdf4ff", fg="#5b21b6", font=("Segoe UI", 10, "bold"))
-        # title_lbl.pack(pady=(8, 0))
-
         nav_bar = tk.Frame(nav_frame, bg="#fdf4ff")
-        nav_bar.pack(fill="x", padx=16, pady=(4, 0))
+        nav_bar.pack(fill="x", padx=16, pady=10)
 
-        def move_left():
+        def on_scroll(*args):
+            if chart_info.get("_ignore_slider", False):
+                return
+            if not args:
+                return
             data_len = len(self.global_data[idx]["x"])
-            if data_len == 0: return
-            step = max(1, chart_info["win_size"] // 5)
-            chart_info["auto_follow"] = False
-            chart_info["start"] = max(0, chart_info["start"] - step)
-            chart_info["update_visible"]()
+            if data_len == 0:
+                return
+            win = chart_info["win_size"]
+            max_start = max(0, data_len - win)
 
-        def move_right():
-            data_len = len(self.global_data[idx]["x"])
-            if data_len == 0: return
-            step = max(1, chart_info["win_size"] // 5)
-            max_start = max(0, data_len - chart_info["win_size"])
-            chart_info["start"] = min(max_start, chart_info["start"] + step)
-            if chart_info["start"] >= max_start:
-                chart_info["auto_follow"] = True
-            chart_info["update_visible"]()
+            action = args[0]
+            if action == 'moveto':
+                try:
+                    fraction = float(args[1])
+                    start = int(fraction * data_len)
+                    chart_info["start"] = min(max_start, max(0, start))
+                    if chart_info["start"] >= max_start:
+                        chart_info["auto_follow"] = True
+                    else:
+                        chart_info["auto_follow"] = False
+                    chart_info["update_visible"]()
+                except Exception as e:
+                    print("Scroll moveto err:", e)
+            elif action == 'scroll':
+                try:
+                    units = int(args[1])
+                    how_many = args[2] # 'units' or 'pages'
+                    step = max(1, win // 5) if how_many == 'pages' else 1
+                    delta = units * step
+                    chart_info["start"] = min(max_start, max(0, chart_info["start"] + delta))
+                    if chart_info["start"] >= max_start:
+                        chart_info["auto_follow"] = True
+                    else:
+                        chart_info["auto_follow"] = False
+                    chart_info["update_visible"]()
+                except Exception as e:
+                    print("Scroll scroll err:", e)
 
-        nav_btn_frame = tk.Frame(nav_bar, bg="#fdf4ff")
-        nav_btn_frame.pack(side="top", pady=(8, 8), fill="x", padx=10)
-
-        l_btn = ctk.CTkButton(nav_btn_frame, text="❮", font=("Segoe UI", 16), width=32, height=32, corner_radius=8, fg_color="#ffffff", text_color="#5b21b6", border_width=1, border_color="#e2e8f0", hover_color="#f3f0f8", command=move_left)
-        l_btn.pack(side="left", padx=(10, 10))
-
-        nav_slider = ctk.CTkScrollbar(nav_btn_frame, orientation="horizontal", height=12, fg_color="#e2e8f0", button_color="#9333ea", button_hover_color="#7e22ce")
-        nav_slider.pack(side="left", fill="x", expand=True, padx=10)
+        nav_slider = ctk.CTkScrollbar(nav_bar, orientation="horizontal", height=8, fg_color="#2F2F2F", button_color="#BDBDBD", button_hover_color="#A9A9A9", command=on_scroll)
+        nav_slider.pack(fill="x", expand=True, padx=40, pady=5)
         nav_slider.set(0, 1) # Initialize scrollbar
         chart_info["slider"] = nav_slider
-
-        r_btn = ctk.CTkButton(nav_btn_frame, text="❯", font=("Segoe UI", 16), width=32, height=32, corner_radius=8, fg_color="#ffffff", text_color="#5b21b6", border_width=1, border_color="#e2e8f0", hover_color="#f3f0f8", command=move_right)
-        r_btn.pack(side="right", padx=(10, 10))
 
         chart_info["limit_annotations"] = []
 
@@ -11666,6 +11676,9 @@ class RunChatPage(ctk.CTkFrame):
                 latest_val = yw[-1]
                 latest_var.set(f"{latest_val:.4f}")
                 self.update_val_color(latest_label, air_var.get(), ch_var.get(), latest_val)
+            else:
+                latest_var.set("--")
+                latest_label.config(fg="navy")
 
             # ---- Calculate CpK (only after 50 readings) ----
             try:
