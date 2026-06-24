@@ -19028,17 +19028,105 @@ class LogoutPage(ctk.CTkFrame):
 #  Home Page — Displays welcome_bg.png inside a rounded card
 # ─────────────────────────────────────────────────────────────────────────────
 class HomePage(tk.Frame):
-    """Full-screen welcome image page shown by default after login."""
+    """Full-screen welcome image page shown by default after login.
+    Right side features a premium upward-scrolling company info ticker.
+    """
 
     BG_IMAGE_PATH = os.path.join("settings", "welcome_bg.png")
+
+    # ── Ticker content: all company info sections ──────────────────────────
+    TICKER_SECTIONS = [
+        ("🏭  CHERRY PRECISION PRODUCTS", []),
+        ("📌  ABOUT US", [
+            "Established in 2009 at Coimbatore, Tamil Nadu.",
+            "Manufacturer & Supplier of Digital Measuring Air Gauges,",
+            "Nitrogen Generators, Automatic Tyre Inflators",
+            "and Automatic Drain Valves.",
+            "",
+            "Our state-of-the-art infrastructure is equipped with",
+            "advanced tools driven by cutting-edge technology.",
+            "Products designed to comply with international standards.",
+            "",
+            "Under the guidance of Mr. T. Nachiappan, we have",
+            "carved a distinct niche in the precision industry.",
+        ]),
+        ("🎯  VISION", [
+            "To provide the highest quality end products to our customers",
+            "while making them leaders in their respective industries.",
+            "To become the industry leader through dedication,",
+            "innovation, and integrity.",
+        ]),
+        ("🚀  MISSION", [
+            "Dedicated to providing superior, cost-effective, reliable",
+            "quality products to reduce manual effort with simple and",
+            "easy automation processes.",
+            "Offering the highest standard of service to customers",
+            "and dealers.",
+        ]),
+        ("🏆  OUR MAJOR CUSTOMERS", [
+            "Metal Cutting:  Roots India Pvt Ltd · Integro Automation",
+            "                Indore CNC · DMW CNC Solutions India Pvt Ltd",
+            "Automotive:     Wheels India · Hero Honda · Mercedes Benz",
+            "                Maruti Service Centers",
+            "Laboratories:   Aventtec Labs Chennai · TNAU Coimbatore",
+            "                BVN Instruments Chennai",
+            "Pharmaceutical: Pharma Fabricon, Madurai",
+            "Petrol Outlets: IOCL · BPCL · HP · ESSAR",
+            "Other:          Plasma Cutting · Inert Blanketing",
+            "                Food Packing Industries",
+        ]),
+        ("📍  LOCATIONS", [
+            "Head Quarters : Coimbatore, Tamil Nadu",
+            "Branch Office : Chennai, Tamil Nadu",
+            "Dealer Offices: Bangalore (Karnataka)",
+            "                Delhi",
+            "                Indore (Madhya Pradesh)",
+            "                Thrissur (Kerala)",
+        ]),
+        ("📞  CONTACT US", [
+            "Cherry Precision Products",
+            "No. 161/3, Lakshmi Thottam,",
+            "Chinnavedampatti, Maniyakaranpalayam Road,",
+            "Coimbatore - 641049, Tamil Nadu.",
+            "",
+            "📱  +91 422 4393361",
+            "📱  +91 93645 02659",
+            "🛠️  Service: +91 73580 33362",
+            "✉️  cherryprecision@gmail.com",
+            "🌐  www.cherryprecision.com",
+        ]),
+        ("🧑‍🤝‍🧑  OUR TEAM", [
+            "✦  Research & Development",
+            "✦  Production",
+            "✦  Service Support",
+            "✦  Marketing & Sales",
+            "",
+            "~15 dedicated employees working together",
+            "to deliver excellence in every product.",
+        ]),
+        ("✅  QUALITY ASSURANCE", [
+            "Frequent quality checks by dedicated QC unit.",
+            "Testing instruments calibrated regularly by",
+            "NABL-accredited laboratories.",
+            "Finest quality raw materials, tested & verified",
+            "on several quality parameters.",
+            "Customized packaging for damage-free delivery.",
+        ]),
+    ]
 
     def __init__(self, parent, app):
         super().__init__(parent, bg="#F4F6F8")
         self.app = app
         self._photo = None
         self._raw_img = None
+        self._ticker_scroll_id = None
+        self._ticker_y = 0
+        self._ticker_total_height = 0
+        self._ticker_paused = False
+        self._ticker_populate_job = None
+        self._resize_job = None
 
-        # Card container to give rounded corners and a border effect
+        # ── Outer card ─────────────────────────────────────────────────────
         self.card = ctk.CTkFrame(
             self,
             fg_color="white",
@@ -19048,23 +19136,151 @@ class HomePage(tk.Frame):
         )
         self.card.pack(fill="both", expand=True, padx=15, pady=15)
 
-        # Canvas inside the card
+        # ── Background image canvas fills the whole card ────────────────────
         self._canvas = tk.Canvas(self.card, bg="white", highlightthickness=0)
         self._canvas.pack(fill="both", expand=True, padx=10, pady=10)
         self._img_item = self._canvas.create_image(0, 0, anchor="nw")
 
-        # Load the image once
+        # Load background image
         self._load_image()
 
-        # Re-scale when window resizes
-        self._canvas.bind("<Configure>", self._on_resize)
+        # Re-scale image & populate overlay on resize
+        self._canvas.bind("<Configure>", self._on_canvas_configure)
 
+    # ── Ticker Content ──────────────────────────────────────────────────────
+    def _populate_ticker_canvas(self):
+        """Draw all ticker text items directly onto the main canvas."""
+        self._canvas.delete("ti")
+        canvas_w = self._canvas.winfo_width()
+        canvas_h = self._canvas.winfo_height()
+        if canvas_w < 10 or canvas_h < 10:
+            return
+
+        # The machine in the background image occupies about the left 65% of the image.
+        # Since the image scales with the canvas, we start the text at 68% of the canvas width
+        # so it is always constrained to the right-hand blank area, never overlapping the machine.
+        x_start = int(canvas_w * 0.68)
+        PANEL_W = canvas_w - x_start
+        x_pad = 12
+        y = 0   # items drawn starting at y=0; then shifted down to canvas_h
+        wrap = max(PANEL_W - x_pad * 2, 60)
+
+        # To make text readable against an image, we can use a slightly darker or bold font.
+        # Since the background might be light or dark, we'll draw text with a subtle shadow effect.
+        def create_text_with_shadow(x, y, text, font, fill, width, anchor="nw", shadow_color="#000000"):
+            self._canvas.create_text(x+1, y+1, text=text, font=font, fill=shadow_color, anchor=anchor, width=width, tags="ti")
+            tid = self._canvas.create_text(x, y, text=text, font=font, fill=fill, anchor=anchor, width=width, tags="ti")
+            return self._canvas.bbox(tid)
+
+        # ── Header ─────────────────────────────────────────────────────────
+        bbox = create_text_with_shadow(
+            x_start + PANEL_W // 2, y + 14,
+            text="🏷  COMPANY INFO",
+            font=("Segoe UI", 11, "bold"),
+            fill="#DC2626",
+            anchor="center",
+            width=wrap + x_pad,
+            shadow_color="#FFFFFF"
+        )
+        if bbox:
+            y = bbox[3] + 16
+        else:
+            y += 34
+
+        for section_title, lines in self.TICKER_SECTIONS:
+            # Section title
+            bbox = create_text_with_shadow(
+                x_start + PANEL_W // 2, y + 10,
+                text=section_title,
+                font=("Segoe UI", 9, "bold"),
+                fill="#DC2626",
+                anchor="center",
+                width=wrap + x_pad,
+                shadow_color="#FFFFFF" # white shadow for red text to pop
+            )
+            if bbox:
+                y = bbox[3] + 6
+            else:
+                y += 28
+
+            for line in lines:
+                if line == "":
+                    y += 6
+                    continue
+                bbox = create_text_with_shadow(
+                    x_start + x_pad, y,
+                    text=line,
+                    font=("Segoe UI", 8, "bold"),
+                    fill="#1A1A2E",
+                    anchor="nw",
+                    width=wrap,
+                    shadow_color="#FFFFFF" # white shadow for dark text
+                )
+                if bbox:
+                    y = bbox[3] + 3 # gap between lines
+                else:
+                    y += 18
+
+            y += 18   # section gap
+
+        # Footer URL
+        bbox = create_text_with_shadow(
+            x_start + PANEL_W // 2, y + 10,
+            text="www.cherryprecision.com",
+            font=("Segoe UI", 8, "bold"),
+            fill="#DC2626",
+            anchor="center",
+            width=wrap + x_pad,
+            shadow_color="#FFFFFF"
+        )
+        if bbox:
+            y = bbox[3] + 20
+        else:
+            y += 24
+
+        self._ticker_total_height = y
+
+        # Shift all items down so they start just below the visible viewport
+        self._canvas.move("ti", 0, canvas_h)
+        self._ticker_y = canvas_h
+
+        self._start_ticker()
+
+    def _start_ticker(self):
+        """Start the upward scroll loop."""
+        if self._ticker_scroll_id:
+            try:
+                self.after_cancel(self._ticker_scroll_id)
+            except Exception:
+                pass
+        self._animate_ticker()
+
+    def _animate_ticker(self):
+        """Scroll all ticker items upward by 1 px every 25 ms (~40 fps)."""
+        try:
+            if not self.winfo_exists():
+                return
+        except Exception:
+            return
+
+        if not self._ticker_paused:
+            self._ticker_y -= 1
+
+            if self._ticker_y < -self._ticker_total_height:
+                # All content has scrolled off the top → teleport back below viewport
+                canvas_h = self._canvas.winfo_height()
+                jump = self._ticker_total_height + (canvas_h if canvas_h > 10 else 400)
+                self._canvas.move("ti", 0, jump)
+                self._ticker_y += jump
+            else:
+                self._canvas.move("ti", 0, -1)
+
+        self._ticker_scroll_id = self.after(25, self._animate_ticker)
+
+    # ── Background image ────────────────────────────────────────────────────
     def _load_image(self):
         try:
             from PIL import Image
-            # ── Use preloaded image if available (loaded during splash) ──
-            # The background preload thread decoded this image into RAM so
-            # the first open has zero disk I/O and no decode delay.
             cached = getattr(self.app, "_cached_bg_image", None)
             if cached is not None:
                 self._raw_img = cached
@@ -19075,28 +19291,35 @@ class HomePage(tk.Frame):
             print("HomePage image load error:", e)
             self._raw_img = None
 
-    def _on_resize(self, event=None):
-        if hasattr(self, "_resize_job") and self._resize_job:
+    def _on_canvas_configure(self, event=None):
+        """Debounce canvas resize: update image AND repopulate the ticker."""
+        if self._resize_job:
             self.after_cancel(self._resize_job)
         self._resize_job = self.after(100, self._do_resize)
 
+        if self._ticker_populate_job:
+            self.after_cancel(self._ticker_populate_job)
+        self._ticker_populate_job = self.after(120, self._populate_ticker_canvas)
+
     def _do_resize(self):
         self._resize_job = None
-        if self._raw_img is None:
-            return
-        try:
-            from PIL import Image, ImageTk
-            w = self._canvas.winfo_width()
-            h = self._canvas.winfo_height()
-            if w < 10 or h < 10:
-                return
-            resized = self._raw_img.resize((w, h), Image.Resampling.LANCZOS)
-            # Add rounded corners to matching card border
-            resized = add_corners(resized, 15)
-            self._photo = ImageTk.PhotoImage(resized)
-            self._canvas.itemconfig(self._img_item, image=self._photo)
-        except Exception as e:
-            print("HomePage resize error:", e)
+        # Resize and redraw the background image
+        if self._raw_img is not None:
+            try:
+                from PIL import Image, ImageTk
+                w = self._canvas.winfo_width()
+                h = self._canvas.winfo_height()
+                if w > 10 and h > 10:
+                    resized = self._raw_img.resize((w, h), Image.Resampling.LANCZOS)
+                    resized = add_corners(resized, 15)
+                    self._photo = ImageTk.PhotoImage(resized)
+                    self._canvas.itemconfig(self._img_item, image=self._photo)
+            except Exception as e:
+                print("HomePage resize error:", e)
+
+
+
+
 
 
 
