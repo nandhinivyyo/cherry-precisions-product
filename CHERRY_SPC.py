@@ -13301,16 +13301,16 @@ class LiveDataPage(ctk.CTkFrame):
                 data=[],
                 show_header=True,
                 show_row_index=False,
-                show_x_scrollbar=True,
+                show_x_scrollbar=False,
                 show_y_scrollbar=True,
-                font=("Segoe UI", 11, "normal"),
-                row_height=44
+                font=("Segoe UI", 9, "normal"),
+                row_height=28
             )
             try:
                 self.sheet.set_options(
                     table_bg="#fdf4ff",
                     frame_bg="#fdf4ff",
-                    grid_color="#ddd6fe",          # purple tint grid
+                    grid_color="#ddd6fe",
                     show_vertical_grid=False,
                     show_horizontal_grid=True,
                     show_row_index=False,
@@ -13319,10 +13319,10 @@ class LiveDataPage(ctk.CTkFrame):
                     header_grid_color="#ddd6fe",
                     show_vertical_header_grid=False,
                     show_horizontal_header_grid=True,
-                    font=("Segoe UI", 11, "normal"),
-                    header_font=("Segoe UI", 11, "bold"),
-                    row_height=44,
-                    header_height=38,
+                    font=("Segoe UI", 9, "normal"),
+                    header_font=("Segoe UI", 9, "bold"),
+                    row_height=28,
+                    header_height=26,
                     select_bg="#ede9fe",
                     select_fg="#6d28d9",
                     selected_cells_border_color="#7c3aed"
@@ -13341,9 +13341,9 @@ class LiveDataPage(ctk.CTkFrame):
             self.table_frame.grid_rowconfigure(0, weight=1)
             self.table_frame.grid_columnconfigure(0, weight=1)
 
-            # Column widths for the 14 columns (same scale logic as ReportPage)
-            # Default widths for: S.No, Date, Time, Reading, Offset, Status, AirGauge ID, Channel, Drawing, User ID, Component ID, Item, CNC ID, Customer
-            self.col_widths = [60, 100, 100, 110, 95, 90, 110, 110, 95, 110, 120, 120, 120, 120]
+            # Column widths for 14 columns — compact to fit without horizontal scroll
+            # S.No, Time, Date, Reading, Offset, Status, AirGaugeID, Channel, Drawing, User, CompID, Item, CNC ID, Customer
+            self.col_widths = [42, 62, 72, 78, 48, 52, 70, 60, 72, 62, 68, 52, 58, 62]
 
             def resize_sheet(ev=None):
                 try:
@@ -19112,23 +19112,26 @@ class AboutUsPage(ctk.CTkFrame):
     def __init__(self, parent, app):
         super().__init__(parent, fg_color="#F8FAFC")
         self.app = app
-        
-        # Main Scrollable Frame to avoid screen overflow
+        self._configure_job = None   # debounce handle
+        self._last_w = 0             # skip redundant wraplength calls
+        self._ui_built = False
+
+        # Main Scrollable Frame
         self.scroll_area = ctk.CTkScrollableFrame(
             self, fg_color="#F8FAFC",
             scrollbar_button_color="#a78bfa",
             scrollbar_button_hover_color="#7c3aed"
         )
         self.scroll_area.pack(fill="both", expand=True, padx=5, pady=5)
-        
+
         # Central container for all sections
         self.main_container = ctk.CTkFrame(self.scroll_area, fg_color="transparent")
         self.main_container.pack(fill="x", expand=True, padx=20, pady=20)
-        
-        self._build_ui()
-        
-        # Bind configure event to outer frame to avoid recursive size changes
+
+        # Bind BEFORE building so the first configure triggers the build
         self.bind("<Configure>", self._on_configure)
+        # Kick off the build after the frame is visible (non-blocking)
+        self.after_idle(self._build_ui)
 
     def load_image_asset(self, filename, size):
         try:
@@ -19199,7 +19202,7 @@ class AboutUsPage(ctk.CTkFrame):
 
     def _build_ui(self):
         # 1. Hero Section Frames (Centered layout)
-        self.hero_frame = ctk.CTkFrame(self.main_container, fg_color="white", corner_radius=16, border_width=1, border_color="#E2E8F0")
+        self.hero_frame = ctk.CTkFrame(self.main_container, fg_color="white", corner_radius=16, border_width=1, border_color="#7c3aed")
         
         logo_img = self.load_image_asset("cherry_full_logo.png", size=(180, 50))
         if logo_img:
@@ -19251,7 +19254,7 @@ class AboutUsPage(ctk.CTkFrame):
         self.about_main_frame = ctk.CTkFrame(self.main_container, fg_color="transparent")
         
         # About Text Card (verbatim text paragraphs with side headings)
-        self.about_text_card = ctk.CTkFrame(self.about_main_frame, fg_color="white", corner_radius=12, border_width=1, border_color="#E2E8F0")
+        self.about_text_card = ctk.CTkFrame(self.about_main_frame, fg_color="white", corner_radius=12, border_width=1, border_color="#7c3aed")
         
         about_data = [
             ("Company Profile", 
@@ -19269,26 +19272,41 @@ class AboutUsPage(ctk.CTkFrame):
         self.about_rows = []
         for title, text in about_data:
             row_frame = ctk.CTkFrame(self.about_text_card, fg_color="transparent")
-            row_frame.pack(fill="x", padx=15, pady=10)
-            
+            row_frame.pack(fill="x", padx=15, pady=(6, 6))
+
             title_lbl = ctk.CTkLabel(
                 row_frame,
                 text=title,
                 font=("Poppins", 13, "bold"),
                 text_color="#7c3aed",
-                anchor="w",
-                justify="left"
-            )
-            text_lbl = ctk.CTkLabel(
-                row_frame,
-                text=text,
-                font=("Poppins", 11),
-                text_color="#475569",
+                anchor="nw",
                 justify="left",
-                anchor="w"
+                width=165
             )
-            self.about_rows.append((row_frame, title_lbl, text_lbl))
-            self.make_wrappable_about(text_lbl, row_frame)
+
+            # Use tk.Text (read-only) so text wraps naturally to available width.
+            # width=1 is critical: lets the grid geometry manage the actual pixel
+            # width instead of the default 80-char minimum which overflows columns.
+            text_widget = tk.Text(
+                row_frame,
+                wrap="word",
+                width=1,          # grid controls actual width, NOT this value
+                height=4,
+                font=("Segoe UI", 11),
+                fg="#475569",
+                bg="#ffffff",
+                relief="flat",
+                bd=0,
+                highlightthickness=0,
+                cursor="arrow",
+                state="normal",
+                padx=2,
+                pady=4
+            )
+            text_widget.insert("1.0", text)
+            text_widget.configure(state="disabled")  # read-only
+
+            self.about_rows.append((row_frame, title_lbl, text_widget))
 
         self.about_prod_cards = []
 
@@ -19307,12 +19325,16 @@ class AboutUsPage(ctk.CTkFrame):
         self.satisfaction_cards = []
         self.satisfaction_labels = []
         for title, text in satisfaction_data:
-            card = self.create_card(self.satisfaction_grid, title=title, icon="✓", border_color="#E2E8F0")
-            txt_lbl = ctk.CTkLabel(card, text=text, font=("Poppins", 11), text_color="#475569", justify="left", anchor="w")
-            txt_lbl.pack(fill="both", expand=True, padx=15, pady=(0, 15))
+            card = self.create_card(self.satisfaction_grid, title=title, icon="✓", border_color="#7c3aed")
+            txt_lbl = tk.Text(card, wrap="word", width=1, height=4,
+                              font=("Segoe UI", 11), fg="#475569", bg="white",
+                              relief="flat", bd=0, highlightthickness=0,
+                              cursor="arrow", padx=2, pady=4)
+            txt_lbl.insert("1.0", text)
+            txt_lbl.configure(state="disabled")
+            txt_lbl.pack(fill="x", expand=False, padx=15, pady=(0, 15))
             self.satisfaction_cards.append(card)
             self.satisfaction_labels.append(txt_lbl)
-            self.make_wrappable(txt_lbl, card, padding=30)
 
         # 4. Employees Section
         self.employees_header = self.create_section_header(self.main_container, "Employees", "👥")
@@ -19332,12 +19354,16 @@ class AboutUsPage(ctk.CTkFrame):
         self.emp_cards = []
         self.emp_labels = []
         for dept, text, icon in emp_divisions:
-            card = self.create_card(self.employees_grid, title=dept, icon=icon, border_color="#E2E8F0")
-            txt_lbl = ctk.CTkLabel(card, text=text, font=("Poppins", 11), text_color="#475569", justify="left", anchor="w")
-            txt_lbl.pack(fill="both", expand=True, padx=15, pady=(0, 15))
+            card = self.create_card(self.employees_grid, title=dept, icon=icon, border_color="#7c3aed")
+            txt_lbl = tk.Text(card, wrap="word", width=1, height=4,
+                              font=("Segoe UI", 11), fg="#475569", bg="white",
+                              relief="flat", bd=0, highlightthickness=0,
+                              cursor="arrow", padx=2, pady=4)
+            txt_lbl.insert("1.0", text)
+            txt_lbl.configure(state="disabled")
+            txt_lbl.pack(fill="x", expand=False, padx=15, pady=(0, 15))
             self.emp_cards.append(card)
             self.emp_labels.append(txt_lbl)
-            self.make_wrappable(txt_lbl, card, padding=30)
 
         # 5. Factory Section
         self.factory_header = self.create_section_header(self.main_container, "Factory", "🏭")
@@ -19354,12 +19380,16 @@ class AboutUsPage(ctk.CTkFrame):
         self.factory_cards = []
         self.factory_labels = []
         for title, text, icon in factory_items:
-            card = self.create_card(self.factory_grid, title=title, icon=icon, border_color="#E2E8F0")
-            txt_lbl = ctk.CTkLabel(card, text=text, font=("Poppins", 11), text_color="#475569", justify="left", anchor="w")
-            txt_lbl.pack(fill="both", expand=True, padx=15, pady=(0, 15))
+            card = self.create_card(self.factory_grid, title=title, icon=icon, border_color="#7c3aed")
+            txt_lbl = tk.Text(card, wrap="word", width=1, height=4,
+                              font=("Segoe UI", 11), fg="#475569", bg="white",
+                              relief="flat", bd=0, highlightthickness=0,
+                              cursor="arrow", padx=2, pady=4)
+            txt_lbl.insert("1.0", text)
+            txt_lbl.configure(state="disabled")
+            txt_lbl.pack(fill="x", expand=False, padx=15, pady=(0, 15))
             self.factory_cards.append(card)
             self.factory_labels.append(txt_lbl)
-            self.make_wrappable(txt_lbl, card, padding=30)
 
         # 6. Major Customers Section
         self.customers_header = self.create_section_header(self.main_container, "Locations & Major Customers", "🤝")
@@ -19370,64 +19400,92 @@ class AboutUsPage(ctk.CTkFrame):
         loc_text = """• Head Quarters: Coimbatore, Tamil Nadu
 • Branch Office: Chennai, Tamil Nadu
 • Dealer Offices: Bangalore (Karnataka), Delhi, Indore (Madhya Pradesh) & Thrissur (Kerala)"""
-        self.loc_lbl = ctk.CTkLabel(self.loc_card, text=loc_text, font=("Poppins", 11), text_color="#475569", justify="left", anchor="w")
-        self.loc_lbl.pack(anchor="w", padx=15, pady=(0, 15))
-        self.make_wrappable(self.loc_lbl, self.loc_card, padding=30)
+        self.loc_lbl = tk.Text(self.loc_card, wrap="word", width=1, height=3,
+                               font=("Segoe UI", 11), fg="#475569", bg="white",
+                               relief="flat", bd=0, highlightthickness=0,
+                               cursor="arrow", padx=2, pady=4)
+        self.loc_lbl.insert("1.0", loc_text)
+        self.loc_lbl.configure(state="disabled")
+        self.loc_lbl.pack(fill="x", padx=15, pady=(0, 15))
         
         # Metal Cutting list
-        self.mc_card = self.create_card(self.customers_grid, title="Metal Cutting Industries", icon="⚙️", border_color="#E2E8F0")
+        self.mc_card = self.create_card(self.customers_grid, title="Metal Cutting Industries", icon="⚙️", border_color="#7c3aed")
         mc_text = """• Roots India Pvt Ltd, Coimbatore
 • Integro Automation Pvt Ltd, Coimbatore
 • Indore CNC, Indore
 • DMW CNC Solutions India Pvt Ltd, Coimbatore"""
-        self.mc_lbl = ctk.CTkLabel(self.mc_card, text=mc_text, font=("Poppins", 11), text_color="#475569", justify="left", anchor="w")
-        self.mc_lbl.pack(anchor="w", padx=15, pady=(0, 15))
-        self.make_wrappable(self.mc_lbl, self.mc_card, padding=30)
+        self.mc_lbl = tk.Text(self.mc_card, wrap="word", width=1, height=4,
+                              font=("Segoe UI", 11), fg="#475569", bg="white",
+                              relief="flat", bd=0, highlightthickness=0,
+                              cursor="arrow", padx=2, pady=4)
+        self.mc_lbl.insert("1.0", mc_text)
+        self.mc_lbl.configure(state="disabled")
+        self.mc_lbl.pack(fill="x", padx=15, pady=(0, 15))
         
         # Automotive list
-        self.auto_card = self.create_card(self.customers_grid, title="Automotive", icon="🚗", border_color="#E2E8F0")
+        self.auto_card = self.create_card(self.customers_grid, title="Automotive", icon="🚗", border_color="#7c3aed")
         auto_text = """• Wheels India Pvt Ltd
 • Hero Honda
 • Mercedes Benz
 • Maruti Service Centers"""
-        self.auto_lbl = ctk.CTkLabel(self.auto_card, text=auto_text, font=("Poppins", 11), text_color="#475569", justify="left", anchor="w")
-        self.auto_lbl.pack(anchor="w", padx=15, pady=(0, 15))
-        self.make_wrappable(self.auto_lbl, self.auto_card, padding=30)
+        self.auto_lbl = tk.Text(self.auto_card, wrap="word", width=1, height=4,
+                                font=("Segoe UI", 11), fg="#475569", bg="white",
+                                relief="flat", bd=0, highlightthickness=0,
+                                cursor="arrow", padx=2, pady=4)
+        self.auto_lbl.insert("1.0", auto_text)
+        self.auto_lbl.configure(state="disabled")
+        self.auto_lbl.pack(fill="x", padx=15, pady=(0, 15))
         
         # Other lists card
-        self.other_card = self.create_card(self.customers_grid, title="Other Industries", icon="🏢", border_color="#E2E8F0")
+        self.other_card = self.create_card(self.customers_grid, title="Other Industries", icon="🏢", border_color="#7c3aed")
         other_text = """• Plasma Cutting
 • Inert Blanketing
 • Food Packing Industries"""
-        self.other_lbl = ctk.CTkLabel(self.other_card, text=other_text, font=("Poppins", 11), text_color="#475569", justify="left", anchor="w")
-        self.other_lbl.pack(anchor="w", padx=15, pady=(0, 15))
-        self.make_wrappable(self.other_lbl, self.other_card, padding=30)
+        self.other_lbl = tk.Text(self.other_card, wrap="word", width=1, height=3,
+                                 font=("Segoe UI", 11), fg="#475569", bg="white",
+                                 relief="flat", bd=0, highlightthickness=0,
+                                 cursor="arrow", padx=2, pady=4)
+        self.other_lbl.insert("1.0", other_text)
+        self.other_lbl.configure(state="disabled")
+        self.other_lbl.pack(fill="x", padx=15, pady=(0, 15))
         
         # Laboratories list
-        self.lab_card = self.create_card(self.customers_grid, title="Laboratories", icon="🔬", border_color="#E2E8F0")
+        self.lab_card = self.create_card(self.customers_grid, title="Laboratories", icon="🔬", border_color="#7c3aed")
         lab_text = """• Aventtec Laboratories, Chennai
 • TNAU, Coimbatore
 • BVN Instruments, Chennai"""
-        self.lab_lbl = ctk.CTkLabel(self.lab_card, text=lab_text, font=("Poppins", 11), text_color="#475569", justify="left", anchor="w")
-        self.lab_lbl.pack(anchor="w", padx=15, pady=(0, 15))
-        self.make_wrappable(self.lab_lbl, self.lab_card, padding=30)
+        self.lab_lbl = tk.Text(self.lab_card, wrap="word", width=1, height=3,
+                               font=("Segoe UI", 11), fg="#475569", bg="white",
+                               relief="flat", bd=0, highlightthickness=0,
+                               cursor="arrow", padx=2, pady=4)
+        self.lab_lbl.insert("1.0", lab_text)
+        self.lab_lbl.configure(state="disabled")
+        self.lab_lbl.pack(fill="x", padx=15, pady=(0, 15))
         
         # Pharmaceutical list
-        self.pharm_card = self.create_card(self.customers_grid, title="Pharmaceutical", icon="💊", border_color="#E2E8F0")
+        self.pharm_card = self.create_card(self.customers_grid, title="Pharmaceutical", icon="💊", border_color="#7c3aed")
         pharm_text = """• Pharma Fabricon, Madurai"""
-        self.pharm_lbl = ctk.CTkLabel(self.pharm_card, text=pharm_text, font=("Poppins", 11), text_color="#475569", justify="left", anchor="w")
-        self.pharm_lbl.pack(anchor="w", padx=15, pady=(0, 15))
-        self.make_wrappable(self.pharm_lbl, self.pharm_card, padding=30)
+        self.pharm_lbl = tk.Text(self.pharm_card, wrap="word", width=1, height=1,
+                                 font=("Segoe UI", 11), fg="#475569", bg="white",
+                                 relief="flat", bd=0, highlightthickness=0,
+                                 cursor="arrow", padx=2, pady=4)
+        self.pharm_lbl.insert("1.0", pharm_text)
+        self.pharm_lbl.configure(state="disabled")
+        self.pharm_lbl.pack(fill="x", padx=15, pady=(0, 15))
         
         # Petrol Retail Outlets list
-        self.petrol_card = self.create_card(self.customers_grid, title="Petrol Retail Outlets", icon="⛽", border_color="#E2E8F0")
+        self.petrol_card = self.create_card(self.customers_grid, title="Petrol Retail Outlets", icon="⛽", border_color="#7c3aed")
         petrol_text = """• IOCL
 • BPCL
 • HP
 • ESSAR"""
-        self.petrol_lbl = ctk.CTkLabel(self.petrol_card, text=petrol_text, font=("Poppins", 11), text_color="#475569", justify="left", anchor="w")
-        self.petrol_lbl.pack(anchor="w", padx=15, pady=(0, 15))
-        self.make_wrappable(self.petrol_lbl, self.petrol_card, padding=30)
+        self.petrol_lbl = tk.Text(self.petrol_card, wrap="word", width=1, height=4,
+                                  font=("Segoe UI", 11), fg="#475569", bg="white",
+                                  relief="flat", bd=0, highlightthickness=0,
+                                  cursor="arrow", padx=2, pady=4)
+        self.petrol_lbl.insert("1.0", petrol_text)
+        self.petrol_lbl.configure(state="disabled")
+        self.petrol_lbl.pack(fill="x", padx=15, pady=(0, 15))
 
         self.cust_labels = [
             self.loc_lbl, self.mc_lbl, self.auto_lbl,
@@ -19441,20 +19499,28 @@ class AboutUsPage(ctk.CTkFrame):
         # Vision card
         self.vis_card = self.create_card(self.vision_grid, title="VISION", icon="✨", border_color="#7C3AED")
         vis_text = "Cherry Precision Products will provide the highest quality end products to our customers while striving to make them leaders in their respective industries. We will become the leader in the industry through individual and combined dedication, innovation and integrity. We will give our employees opportunities for both personal and professional growth."
-        self.vis_lbl = ctk.CTkLabel(self.vis_card, text=vis_text, font=("Poppins", 12), text_color="#475569", justify="left", anchor="w")
-        self.vis_lbl.pack(fill="both", expand=True, padx=20, pady=(0, 20))
-        self.make_wrappable(self.vis_lbl, self.vis_card, padding=40)
-        
+        self.vis_lbl = tk.Text(self.vis_card, wrap="word", width=1, height=4,
+                               font=("Segoe UI", 11), fg="#475569", bg="white",
+                               relief="flat", bd=0, highlightthickness=0,
+                               cursor="arrow", padx=4, pady=6)
+        self.vis_lbl.insert("1.0", vis_text)
+        self.vis_lbl.configure(state="disabled")
+        self.vis_lbl.pack(fill="x", padx=20, pady=(0, 20))
+
         # Mission card
         self.mis_card = self.create_card(self.vision_grid, title="MISSION", icon="🚀", border_color="#7C3AED")
         mis_text = "Cherry Precision Products is dedicated to providing superior, cost-effective, reliable quality products to reduce manual effort with simple and easy automation processes. We offer the highest standard of service to our customers and dealers."
-        self.mis_lbl = ctk.CTkLabel(self.mis_card, text=mis_text, font=("Poppins", 12), text_color="#475569", justify="left", anchor="w")
-        self.mis_lbl.pack(fill="both", expand=True, padx=20, pady=(0, 20))
-        self.make_wrappable(self.mis_lbl, self.mis_card, padding=40)
+        self.mis_lbl = tk.Text(self.mis_card, wrap="word", width=1, height=4,
+                               font=("Segoe UI", 11), fg="#475569", bg="white",
+                               relief="flat", bd=0, highlightthickness=0,
+                               cursor="arrow", padx=4, pady=6)
+        self.mis_lbl.insert("1.0", mis_text)
+        self.mis_lbl.configure(state="disabled")
+        self.mis_lbl.pack(fill="x", padx=20, pady=(0, 20))
 
         # 8. Contact Details Section
         self.contact_header = self.create_section_header(self.main_container, "Contact Details", "📞")
-        self.contact_card = ctk.CTkFrame(self.main_container, fg_color="white", corner_radius=12, border_width=1, border_color="#E2E8F0")
+        self.contact_card = ctk.CTkFrame(self.main_container, fg_color="white", corner_radius=12, border_width=1, border_color="#7c3aed")
         
         self.contact_left = ctk.CTkFrame(self.contact_card, fg_color="transparent")
         
@@ -19472,37 +19538,100 @@ Coimbatore - 641049, Tamil Nadu.
 🌐 Website: www.cherryprecision.com
 
 🛠️ Service Support: +91 73580 33362"""
-        self.details_lbl = ctk.CTkLabel(self.contact_left, text=details_txt, font=("Poppins", 12), text_color="#475569", justify="left", anchor="w")
-        self.details_lbl.pack(fill="both", expand=True, padx=20, pady=20)
-        self.make_wrappable(self.details_lbl, self.contact_left, padding=40)
+        self.details_lbl = tk.Text(self.contact_left, wrap="word", width=1, height=12,
+                                   font=("Segoe UI", 12), fg="#475569", bg="white",
+                                   relief="flat", bd=0, highlightthickness=0,
+                                   cursor="arrow", padx=4, pady=4)
+        self.details_lbl.insert("1.0", details_txt)
+        self.details_lbl.configure(state="disabled")
+        self.details_lbl.pack(fill="x", padx=20, pady=20)
+
+        # Mark build complete — _do_configure will now proceed
+        self._ui_built = True
+        # Trigger first layout immediately after widgets are rendered
+        self.after_idle(self._do_configure)
 
     def _on_configure(self, event=None):
-        """Responsive column restructuring based on frame width."""
+        """Debounced responsive layout handler — fires at most once per 150 ms."""
+        # Cancel any pending call
+        if self._configure_job is not None:
+            try:
+                self.after_cancel(self._configure_job)
+            except Exception:
+                pass
+        self._configure_job = self.after(150, self._do_configure)
+
+    def _do_configure(self):
+        """Actual configure work, called after 150ms debounce delay."""
+        self._configure_job = None
+        if not self._ui_built:
+            return
         w = self.winfo_width()
         if w < 100:
             return
-            
+
         new_mode = "mobile" if w < 900 else "desktop"
-        
-        if not hasattr(self, "_current_mode") or self._current_mode != new_mode:
+        mode_changed = not hasattr(self, "_current_mode") or self._current_mode != new_mode
+
+        if mode_changed:
             self._current_mode = new_mode
             self._apply_layout(new_mode)
-            
-        self._update_wraplengths(w, new_mode)
+
+        # Only update wraplengths if width actually changed
+        if w != self._last_w or mode_changed:
+            self._last_w = w
+            self._update_wraplengths(w, new_mode)
+            self.after(100, self._fix_text_heights)
+
+    def _fix_text_heights(self):
+        """Auto-resize ALL tk.Text widgets in every section to fit content exactly."""
+        if not self._ui_built:
+            return
+        all_text_widgets = []
+        if hasattr(self, "about_rows"):
+            all_text_widgets += [tw for _, _, tw in self.about_rows]
+        for attr in ("satisfaction_labels", "emp_labels", "factory_labels", "cust_labels"):
+            if hasattr(self, attr):
+                all_text_widgets += getattr(self, attr)
+        for attr in ("vis_lbl", "mis_lbl", "details_lbl",
+                     "loc_lbl", "mc_lbl", "auto_lbl", "other_lbl",
+                     "lab_lbl", "pharm_lbl", "petrol_lbl"):
+            if hasattr(self, attr):
+                all_text_widgets.append(getattr(self, attr))
+
+        # Single update_idletasks before the loop (not per-widget)
+        try:
+            self.update_idletasks()
+        except Exception:
+            return
+
+        seen = set()
+        for tw in all_text_widgets:
+            if id(tw) in seen:
+                continue
+            seen.add(id(tw))
+            try:
+                if not tw.winfo_exists() or not tw.winfo_ismapped():
+                    continue
+                result = tw.count("1.0", "end", "displaylines")
+                display_lines = result[0] if result else 1
+                if tw.cget("height") != display_lines:
+                    tw.configure(height=max(1, display_lines))
+                tw.configure(state="disabled")
+            except Exception:
+                pass
 
     def _update_wraplengths(self, w, mode):
         # Calculate wrapping widths for labels based on window width
         if mode == "desktop":
             hero_wrap = max(350, int(w * 0.7))
-            about_wrap = max(250, w - 540)
             grid3_wrap = max(180, int((w - 120) / 3) - 40)
             grid2_wrap = max(220, int((w - 92) / 2) - 40)
             full_wrap = max(300, w - 120)
-            contact_wrap = max(250, w - 480)
+            contact_wrap = max(250, w - 200)
             vis_wrap = max(220, int((w - 92) / 2) - 60)
         else:
             hero_wrap = max(200, w - 60)
-            about_wrap = max(200, w - 60)
             grid3_wrap = max(200, w - 60)
             grid2_wrap = max(200, w - 60)
             full_wrap = max(200, w - 60)
@@ -19510,36 +19639,10 @@ Coimbatore - 641049, Tamil Nadu.
             vis_wrap = max(200, w - 60)
 
         # Apply wraplengths safely with exist guards
+        # Only hero_subtitle still uses CTkLabel wraplength — all others are tk.Text
         if hasattr(self, "hero_subtitle") and self.hero_subtitle.winfo_exists():
             self.hero_subtitle.configure(wraplength=hero_wrap)
-        if hasattr(self, "about_rows"):
-            for _, _, text_lbl in self.about_rows:
-                if text_lbl.winfo_exists():
-                    text_lbl.configure(wraplength=about_wrap)
-        if hasattr(self, "satisfaction_labels"):
-            for lbl in self.satisfaction_labels:
-                if lbl.winfo_exists():
-                    lbl.configure(wraplength=grid3_wrap)
-        if hasattr(self, "emp_labels"):
-            for lbl in self.emp_labels:
-                if lbl.winfo_exists():
-                    lbl.configure(wraplength=grid3_wrap)
-        if hasattr(self, "factory_labels"):
-            for lbl in self.factory_labels:
-                if lbl.winfo_exists():
-                    lbl.configure(wraplength=grid2_wrap)
-        if hasattr(self, "cust_labels"):
-            for lbl in self.cust_labels:
-                if lbl.winfo_exists():
-                    lbl.configure(wraplength=grid3_wrap)
-        if hasattr(self, "petrol_lbl") and self.petrol_lbl.winfo_exists():
-            self.petrol_lbl.configure(wraplength=full_wrap if mode == "desktop" else grid3_wrap)
-        if hasattr(self, "vis_lbl") and self.vis_lbl.winfo_exists():
-            self.vis_lbl.configure(wraplength=vis_wrap)
-        if hasattr(self, "mis_lbl") and self.mis_lbl.winfo_exists():
-            self.mis_lbl.configure(wraplength=vis_wrap)
-        if hasattr(self, "details_lbl") and self.details_lbl.winfo_exists():
-            self.details_lbl.configure(wraplength=contact_wrap)
+        # All section paragraph texts now use tk.Text — wrapping is automatic
 
     def _apply_layout(self, mode):
         # Clear main layout packings
@@ -19567,13 +19670,12 @@ Coimbatore - 641049, Tamil Nadu.
             self.about_main_frame.pack(fill="x", pady=(0, 20))
             self.about_text_card.pack(fill="x", pady=5)
             
-            for row_frame, title_lbl, text_lbl in self.about_rows:
+            for row_frame, title_lbl, text_widget in self.about_rows:
                 row_frame.columnconfigure(0, weight=1)
-                row_frame.columnconfigure(1, weight=0)
                 title_lbl.grid_forget()
-                text_lbl.grid_forget()
+                text_widget.grid_forget()
                 title_lbl.grid(row=0, column=0, sticky="w", padx=5, pady=(5, 2))
-                text_lbl.grid(row=1, column=0, sticky="w", padx=5, pady=(2, 5))
+                text_widget.grid(row=1, column=0, sticky="ew", padx=5, pady=(2, 8))
                 
             self.satisfaction_header.pack(fill="x", pady=(40, 10))
             self.satisfaction_grid.pack(fill="x", pady=(0, 20))
@@ -19624,13 +19726,13 @@ Coimbatore - 641049, Tamil Nadu.
             self.about_main_frame.pack(fill="x", pady=(0, 20))
             
             self.about_text_card.pack(fill="both", expand=True)
-            for row_frame, title_lbl, text_lbl in self.about_rows:
-                row_frame.columnconfigure(0, minsize=180, weight=0)
+            for row_frame, title_lbl, text_widget in self.about_rows:
+                row_frame.columnconfigure(0, minsize=165, weight=0)
                 row_frame.columnconfigure(1, weight=1)
                 title_lbl.grid_forget()
-                text_lbl.grid_forget()
-                title_lbl.grid(row=0, column=0, sticky="nw", padx=(5, 15), pady=10)
-                text_lbl.grid(row=0, column=1, sticky="nsew", padx=5, pady=10)
+                text_widget.grid_forget()
+                title_lbl.grid(row=0, column=0, sticky="nw", padx=(5, 10), pady=(10, 10))
+                text_widget.grid(row=0, column=1, sticky="ew", padx=(0, 10), pady=(8, 8))
                 
             self.satisfaction_header.pack(fill="x", pady=(40, 10))
             self.satisfaction_grid.pack(fill="x", pady=(0, 20))
