@@ -13303,8 +13303,8 @@ class LiveDataPage(ctk.CTkFrame):
                 show_row_index=False,
                 show_x_scrollbar=False,
                 show_y_scrollbar=True,
-                font=("Segoe UI", 9, "normal"),
-                row_height=28
+                font=("Arial", 7),
+                row_height=20
             )
             try:
                 self.sheet.set_options(
@@ -13319,14 +13319,14 @@ class LiveDataPage(ctk.CTkFrame):
                     header_grid_color="#ddd6fe",
                     show_vertical_header_grid=False,
                     show_horizontal_header_grid=True,
-                    font=("Segoe UI", 9, "normal"),
-                    header_font=("Segoe UI", 9, "bold"),
-                    row_height=28,
-                    header_height=26,
+                    row_height=20,
+                    header_height=24,
                     select_bg="#ede9fe",
                     select_fg="#6d28d9",
                     selected_cells_border_color="#7c3aed"
                 )
+                self.sheet.font(("Arial", 7))
+                self.sheet.header_font(("Arial", 8, "bold"))
             except Exception as e:
                 print("Error setting options for table sheet:", e)
 
@@ -13341,9 +13341,11 @@ class LiveDataPage(ctk.CTkFrame):
             self.table_frame.grid_rowconfigure(0, weight=1)
             self.table_frame.grid_columnconfigure(0, weight=1)
 
-            # Column widths for 14 columns — compact to fit without horizontal scroll
+            # Column widths for 14 columns — absolutely minimized to fit tiny screens without horizontal scroll
+            # Heavily re-balanced: Date and Reading get the lion's share of space so they don't clip,
+            # while small columns like S.No, AirGauge, User, CNC get very little.
             # S.No, Time, Date, Reading, Offset, Status, AirGaugeID, Channel, Drawing, User, CompID, Item, CNC ID, Customer
-            self.col_widths = [42, 62, 72, 78, 48, 52, 70, 60, 72, 62, 68, 52, 58, 62]
+            self.col_widths = [25, 50, 80, 95, 30, 45, 30, 35, 50, 30, 50, 35, 30, 40]
 
             def resize_sheet(ev=None):
                 try:
