@@ -3842,6 +3842,9 @@ class CherryApp(ctk.CTk):
             widget.pack_forget()
         self.component_page = ComponentSetupPage(self.content_frame, self)
         self.component_page.pack(fill="both", expand=True)
+        # Always refresh AirGauge IDs when the page opens so newly
+        # added IDs (from AirGauge Setup) are immediately visible.
+        self.component_page.refresh_airgauge_ids()
        
     def load_home(self):
         """Show the Home page (welcome image). Default page after login."""
@@ -4960,7 +4963,8 @@ class MachineSetupPage(ctk.CTkFrame):
             fg_color="#ffffff",
             text_color="#1e293b",
             font=("Segoe UI", 12),
-            justify="center"
+            justify="center",
+            placeholder_text="e.g. 192.168.1.10"
         )
         self.mac_entry.grid(row=0, column=1, padx=(5, 15), pady=12, sticky="ew")
 
@@ -4982,7 +4986,8 @@ class MachineSetupPage(ctk.CTkFrame):
             fg_color="#ffffff",
             text_color="#1e293b",
             font=("Segoe UI", 12),
-            justify="center"
+            justify="center",
+            placeholder_text="e.g. AG1"
         )
         self.id_entry.grid(row=0, column=3, padx=(5, 15), pady=12, sticky="ew")
 
@@ -5323,6 +5328,9 @@ class MachineSetupPage(ctk.CTkFrame):
         data[mac] = ag_id
         self.save_json(data)
         self.refresh_table()
+
+        # Propagate the new ID to Component Setup and RunChat immediately
+        self.app.refresh_id_dependent_pages()
 
         # Also send to ESP32 master if connected
         if getattr(self.app, "serial_conn", None):
@@ -5919,35 +5927,35 @@ class ComponentSetupPage(ctk.CTkFrame):
         )
         self.type_dropdown.pack(fill="x")
 
-        def add_entry(parent, key, label_txt):
+        def add_entry(parent, key, label_txt, placeholder=""):
             make_label(parent, label_txt)
-            self.entry_vars[key] = ctk.StringVar()
             e = ctk.CTkEntry(
                 parent,
-                textvariable=self.entry_vars[key],
                 height=32,
                 corner_radius=12,
                 border_width=1,
                 border_color="#a78bfa",
                 fg_color="#ffffff",
                 text_color="#1e293b",
-                font=("Segoe UI", 12)
+                font=("Segoe UI", 12),
+                placeholder_text=placeholder
             )
             e.pack(fill="x")
             self.entries.append(e)
+            self.entry_vars[key] = e
             return e
 
         # Col 1: Drawing
         c11 = get_cell(1, 1)
-        self.drawing_e = add_entry(c11, "drawing_value", "Drawing Number")
+        self.drawing_e = add_entry(c11, "drawing_value", "Drawing Number", "Enter drawing number...")
 
         # Col 2: Low Tol
         c12 = get_cell(1, 2)
-        self.low_tol_e = add_entry(c12, "low_tolerance", "Low Tolerance (mm)")
+        self.low_tol_e = add_entry(c12, "low_tolerance", "Low Tolerance (mm)", "Enter low tolerance...")
 
         # Col 3: High Tol
         c13 = get_cell(1, 3, padx=(0, 0))
-        self.high_tol_e = add_entry(c13, "high_tolerance", "High Tolerance (mm)")
+        self.high_tol_e = add_entry(c13, "high_tolerance", "High Tolerance (mm)", "Enter high tolerance...")
 
         # ── Thin divider + action buttons (same as ReportPage) ──────────────
         ctk.CTkFrame(
@@ -6404,8 +6412,8 @@ class ComponentSetupPage(ctk.CTkFrame):
         """Keep entry fields empty even when AirGauge ID or Channel changes.
         There is no need for auto-entering values from stored specs.
         """
-        for var in self.entry_vars.values():
-            var.set("")
+        for entry in self.entry_vars.values():
+            entry.delete(0, "end")
         try:
             self.item_dropdown.set("")
         except Exception:
@@ -6600,16 +6608,23 @@ class ComponentSetupPage(ctk.CTkFrame):
             messagebox.showerror("Error", f"Failed to delete: {e}")
 
     def refresh_airgauge_ids(self):
-        """Just refresh the AirGauge dropdown values (useful after ItemMaster updates)."""
+        """Reload AirGauge IDs from the DB using an absolute path so it works
+        on every machine regardless of working directory or EXE packaging."""
         try:
-            conn = sqlite3.connect("airgauge_master.db")
-            ids = [str(r[0]) for r in conn.execute("SELECT airgauge_id FROM airgauge_master").fetchall()]
+            db_path = resource_path("airgauge_master.db")
+            conn = sqlite3.connect(db_path)
+            ids = [str(r[0]) for r in conn.execute(
+                "SELECT airgauge_id FROM airgauge_master").fetchall()]
             conn.close()
+            # Deduplicate and sort, keep non-empty values
+            ids = sorted(set(i for i in ids if i and i.strip()))
             if not ids:
                 ids = [f"AG{i}" for i in range(1, 11)]
             self.id_dropdown.configure(values=ids)
-        except Exception:
-            pass
+            if ids:
+                self.id_dropdown.set(ids[0])
+        except Exception as e:
+            print("refresh_airgauge_ids error:", e)
 
     def refresh_table(self, highlight=None):
         """Show all saved component configurations including Item Name (only)."""
@@ -6748,9 +6763,12 @@ class ComponentSetupPage(ctk.CTkFrame):
             except Exception:
                 pass
 
-        self.entry_vars["drawing_value"].set(str(draw))
-        self.entry_vars["low_tolerance"].set(str(low))
-        self.entry_vars["high_tolerance"].set(str(high))
+        self.entry_vars["drawing_value"].delete(0, "end")
+        self.entry_vars["drawing_value"].insert(0, str(draw))
+        self.entry_vars["low_tolerance"].delete(0, "end")
+        self.entry_vars["low_tolerance"].insert(0, str(low))
+        self.entry_vars["high_tolerance"].delete(0, "end")
+        self.entry_vars["high_tolerance"].insert(0, str(high))
 
         self.delete_btn.configure(state="normal")
 
@@ -6766,8 +6784,8 @@ class ComponentSetupPage(ctk.CTkFrame):
         self.after(100, lambda: self.fade_status_opacity(opacity - 0.1))
 
     def reset_form(self):
-        for var in self.entry_vars.values():
-            var.set("")
+        for entry in self.entry_vars.values():
+            entry.delete(0, "end")
         self.selected_channel.set("CH1")
         # reload ids and master lists
         try:
@@ -6998,7 +7016,7 @@ class MachineMasterPage(ctk.CTkFrame):
                 anchor="w"
             ).pack(anchor="w", pady=(0, 4))
 
-        def make_entry(parent):
+        def make_entry(parent, placeholder=""):
             e = ctk.CTkEntry(
                 parent,
                 height=32,
@@ -7007,7 +7025,8 @@ class MachineMasterPage(ctk.CTkFrame):
                 border_color="#a78bfa",
                 fg_color="#ffffff",
                 text_color="#1e293b",
-                font=("Segoe UI", 12)
+                font=("Segoe UI", 12),
+                placeholder_text=placeholder
             )
             e.pack(fill="x")
             return e
@@ -7020,15 +7039,15 @@ class MachineMasterPage(ctk.CTkFrame):
         # Code + Name + Description in a nice grid
         c00 = get_form_cell(0, 0)
         make_label(c00, "Machine Code")
-        self.code_e = make_entry(c00)
+        self.code_e = make_entry(c00, "Enter Machine Code...")
 
         c01 = get_form_cell(0, 1)
         make_label(c01, "Machine Name")
-        self.name_e = make_entry(c01)
+        self.name_e = make_entry(c01, "Enter Machine Name...")
 
         c02 = get_form_cell(0, 2, padx=(0, 0), columnspan=2)
         make_label(c02, "Description")
-        self.desc_e = make_entry(c02)
+        self.desc_e = make_entry(c02, "Enter Description...")
 
         # Thin divider + action buttons
         ctk.CTkFrame(
@@ -7063,7 +7082,8 @@ class MachineMasterPage(ctk.CTkFrame):
             border_color="#a78bfa",
             fg_color="#ffffff",
             text_color="#1e293b",
-            font=("Segoe UI", 12)
+            font=("Segoe UI", 12),
+            placeholder_text="Search machines..."
         )
         search_e.pack(side="left")
         search_e.bind("<KeyRelease>", lambda e: self.refresh_table())
@@ -7532,19 +7552,19 @@ class MachineMasterPage(ctk.CTkFrame):
         ctk.CTkLabel(frm, text="Code:", font=("Segoe UI", 11)).grid(
             row=0, column=0, sticky="w", padx=6, pady=6
         )
-        code_e = ctk.CTkEntry(frm, width=300)
+        code_e = ctk.CTkEntry(frm, width=300, placeholder_text="Enter Machine Code...")
         code_e.grid(row=0, column=1, sticky="w", padx=6, pady=6)
 
         ctk.CTkLabel(frm, text="Name:", font=("Segoe UI", 11)).grid(
             row=1, column=0, sticky="w", padx=6, pady=6
         )
-        name_e = ctk.CTkEntry(frm, width=420)
+        name_e = ctk.CTkEntry(frm, width=420, placeholder_text="Enter Machine Name...")
         name_e.grid(row=1, column=1, sticky="w", padx=6, pady=6)
 
         ctk.CTkLabel(frm, text="Description:", font=("Segoe UI", 11)).grid(
             row=2, column=0, sticky="w", padx=6, pady=6
         )
-        desc_e = ctk.CTkEntry(frm, width=420)
+        desc_e = ctk.CTkEntry(frm, width=420, placeholder_text="Enter Description...")
         desc_e.grid(row=2, column=1, sticky="w", padx=6, pady=6)
 
         if mode == "edit" and index is not None:
@@ -7915,7 +7935,7 @@ class ItemMasterPage(ctk.CTkFrame):
                 anchor="w"
             ).pack(anchor="w", pady=(0, 4))
 
-        def make_entry(parent):
+        def make_entry(parent, placeholder=""):
             e = ctk.CTkEntry(
                 parent,
                 height=32,
@@ -7924,7 +7944,8 @@ class ItemMasterPage(ctk.CTkFrame):
                 border_color="#a78bfa",
                 fg_color="#ffffff",
                 text_color="#1e293b",
-                font=("Segoe UI", 12)
+                font=("Segoe UI", 12),
+                placeholder_text=placeholder
             )
             e.pack(fill="x")
             return e
@@ -7937,19 +7958,19 @@ class ItemMasterPage(ctk.CTkFrame):
         # Row 0
         c00 = get_form_cell(0, 0)
         make_label(c00, "Item Code")
-        self.code_e = make_entry(c00)
+        self.code_e = make_entry(c00, "Enter Item Code...")
 
         c01 = get_form_cell(0, 1)
         make_label(c01, "Drawing No")
-        self.drawing_e = make_entry(c01)
+        self.drawing_e = make_entry(c01, "Enter Drawing No...")
 
         c02 = get_form_cell(0, 2)
         make_label(c02, "Item Name")
-        self.name_e = make_entry(c02)
+        self.name_e = make_entry(c02, "Enter Item Name...")
 
         c03 = get_form_cell(0, 3, padx=(0, 0))
         make_label(c03, "Revision No")
-        self.revision_e = make_entry(c03)
+        self.revision_e = make_entry(c03, "Enter Revision No...")
 
         # ── Thin divider + action buttons (same as ReportPage) ──────────────
         ctk.CTkFrame(
@@ -7984,7 +8005,8 @@ class ItemMasterPage(ctk.CTkFrame):
             border_color="#a78bfa",
             fg_color="#ffffff",
             text_color="#1e293b",
-            font=("Segoe UI", 12)
+            font=("Segoe UI", 12),
+            placeholder_text="Search items..."
         )
         search_e.pack(side="left")
         search_e.bind("<KeyRelease>", lambda e: self.refresh_table())
@@ -8701,7 +8723,7 @@ class ProcessMasterPage(ctk.CTkFrame):
                 anchor="w"
             ).pack(anchor="w", pady=(0, 4))
 
-        def make_entry(parent):
+        def make_entry(parent, placeholder=""):
             e = ctk.CTkEntry(
                 parent,
                 height=32,
@@ -8710,7 +8732,8 @@ class ProcessMasterPage(ctk.CTkFrame):
                 border_color="#a78bfa",
                 fg_color="#ffffff",
                 text_color="#1e293b",
-                font=("Segoe UI", 12)
+                font=("Segoe UI", 12),
+                placeholder_text=placeholder
             )
             e.pack(fill="x")
             return e
@@ -8723,15 +8746,15 @@ class ProcessMasterPage(ctk.CTkFrame):
         # Code + Name + Description
         c00 = get_form_cell(0, 0)
         make_label(c00, "Process Code")
-        self.code_e = make_entry(c00)
+        self.code_e = make_entry(c00, "Enter Process Code...")
 
         c01 = get_form_cell(0, 1)
         make_label(c01, "Process Name")
-        self.name_e = make_entry(c01)
+        self.name_e = make_entry(c01, "Enter Process Name...")
 
         c02 = get_form_cell(0, 2, padx=(0, 0), columnspan=2)
         make_label(c02, "Description")
-        self.desc_e = make_entry(c02)
+        self.desc_e = make_entry(c02, "Enter Description...")
 
         # Thin divider + action buttons
         ctk.CTkFrame(
@@ -8766,7 +8789,8 @@ class ProcessMasterPage(ctk.CTkFrame):
             border_color="#a78bfa",
             fg_color="#ffffff",
             text_color="#1e293b",
-            font=("Segoe UI", 12)
+            font=("Segoe UI", 12),
+            placeholder_text="Search processes..."
         )
         search_e.pack(side="left")
         search_e.bind("<KeyRelease>", lambda e: self.refresh_table())
@@ -9234,19 +9258,19 @@ class ProcessMasterPage(ctk.CTkFrame):
         ctk.CTkLabel(frm, text="Code:", font=("Segoe UI", 11)).grid(
             row=0, column=0, sticky="w", padx=6, pady=6
         )
-        code_e = ctk.CTkEntry(frm, width=300)
+        code_e = ctk.CTkEntry(frm, width=300, placeholder_text="Enter Process Code...")
         code_e.grid(row=0, column=1, sticky="w", padx=6, pady=6)
 
         ctk.CTkLabel(frm, text="Name:", font=("Segoe UI", 11)).grid(
             row=1, column=0, sticky="w", padx=6, pady=6
         )
-        name_e = ctk.CTkEntry(frm, width=420)
+        name_e = ctk.CTkEntry(frm, width=420, placeholder_text="Enter Process Name...")
         name_e.grid(row=1, column=1, sticky="w", padx=6, pady=6)
 
         ctk.CTkLabel(frm, text="Description:", font=("Segoe UI", 11)).grid(
             row=2, column=0, sticky="w", padx=6, pady=6
         )
-        desc_e = ctk.CTkEntry(frm, width=420)
+        desc_e = ctk.CTkEntry(frm, width=420, placeholder_text="Enter Description...")
         desc_e.grid(row=2, column=1, sticky="w", padx=6, pady=6)
 
         if mode == "edit" and index is not None:
@@ -9621,7 +9645,7 @@ class OperatorManagerPage(ctk.CTkFrame):
                 anchor="w"
             ).pack(anchor="w", pady=(0, 4))
 
-        def make_entry(parent):
+        def make_entry(parent, placeholder=""):
             e = ctk.CTkEntry(
                 parent,
                 height=32,
@@ -9630,7 +9654,8 @@ class OperatorManagerPage(ctk.CTkFrame):
                 border_color="#a78bfa",
                 fg_color="#ffffff",
                 text_color="#1e293b",
-                font=("Segoe UI", 12)
+                font=("Segoe UI", 12),
+                placeholder_text=placeholder
             )
             e.pack(fill="x")
             return e
@@ -9643,19 +9668,19 @@ class OperatorManagerPage(ctk.CTkFrame):
         # Code + Name + Phone + Description
         c00 = get_form_cell(0, 0)
         make_label(c00, "Operator ID")
-        self.id_entry = make_entry(c00)
+        self.id_entry = make_entry(c00, "Enter Operator ID...")
 
         c01 = get_form_cell(0, 1)
         make_label(c01, "Name")
-        self.name_entry = make_entry(c01)
+        self.name_entry = make_entry(c01, "Enter Name...")
 
         c02 = get_form_cell(0, 2)
         make_label(c02, "Phone (optional)")
-        self.phone_entry = make_entry(c02)
+        self.phone_entry = make_entry(c02, "Enter Phone (optional)...")
 
         c03 = get_form_cell(0, 3, padx=(0, 0))
         make_label(c03, "Description")
-        self.desc_e = make_entry(c03)
+        self.desc_e = make_entry(c03, "Enter Description...")
 
         # Thin divider + action buttons
         ctk.CTkFrame(
@@ -10370,7 +10395,7 @@ class CustomerMasterPage(ctk.CTkFrame):
                 anchor="w"
             ).pack(anchor="w", pady=(0, 4))
 
-        def make_entry(parent):
+        def make_entry(parent, placeholder=""):
             e = ctk.CTkEntry(
                 parent,
                 height=32,
@@ -10379,7 +10404,8 @@ class CustomerMasterPage(ctk.CTkFrame):
                 border_color="#a78bfa",
                 fg_color="#ffffff",
                 text_color="#1e293b",
-                font=("Segoe UI", 12)
+                font=("Segoe UI", 12),
+                placeholder_text=placeholder
             )
             e.pack(fill="x")
             return e
@@ -10392,24 +10418,24 @@ class CustomerMasterPage(ctk.CTkFrame):
         # Row 0: Code, Name, Email, Phone
         c00 = get_form_cell(0, 0)
         make_label(c00, "Code")
-        self.code_e = make_entry(c00)
+        self.code_e = make_entry(c00, "Enter Customer Code...")
 
         c01 = get_form_cell(0, 1)
         make_label(c01, "Customer Name")
-        self.name_e = make_entry(c01)
+        self.name_e = make_entry(c01, "Enter Customer Name...")
 
         c02 = get_form_cell(0, 2)
         make_label(c02, "Email")
-        self.email_e = make_entry(c02)
+        self.email_e = make_entry(c02, "Enter Email...")
 
         c03 = get_form_cell(0, 3, padx=(0, 0))
         make_label(c03, "Phone")
-        self.phone_e = make_entry(c03)
+        self.phone_e = make_entry(c03, "Enter Phone...")
 
         # Row 1: Description
         c10 = get_form_cell(1, 0, columnspan=4, padx=(0, 0))
         make_label(c10, "Description")
-        self.desc_e = make_entry(c10)
+        self.desc_e = make_entry(c10, "Enter Description...")
 
         # Thin divider + action buttons
         ctk.CTkFrame(
@@ -10444,7 +10470,8 @@ class CustomerMasterPage(ctk.CTkFrame):
             border_color="#a78bfa",
             fg_color="#ffffff",
             text_color="#1e293b",
-            font=("Segoe UI", 12)
+            font=("Segoe UI", 12),
+            placeholder_text="Search customers..."
         )
         search_e.pack(side="left")
         search_e.bind("<KeyRelease>", lambda e: self.refresh_table())
@@ -19087,13 +19114,14 @@ class HomePage(tk.Frame):
         ]),
         ("📞  CONTACT US", [
             "Cherry Precision Products",
-            "No. 161/3, Lakshmi Thottam,",
-            "Chinnavedampatti, Maniyakaranpalayam Road,",
-            "Coimbatore - 641049, Tamil Nadu.",
+            "No.10/11-3, KK Nagar,",
+            "4th Cross Extension, Bharathi Nagar,",
+            "Ganapathy, Coimbatore - 641 006.",
             "",
-            "📱  +91 422 4393361",
+            "☎️  0422 4393361",
             "📱  +91 93645 02659",
-            "🛠️  Service: +91 73580 33362",
+            "📱  70948 33364",
+            "🛠️  Service: +91 95666 81283",
             "✉️  cherryprecision@gmail.com",
             "🌐  www.cherryprecision.com",
         ]),
@@ -19179,7 +19207,7 @@ class HomePage(tk.Frame):
             x_start + PANEL_W // 2, y + 14,
             text="🏷  COMPANY INFO",
             font=("Segoe UI", 11, "bold"),
-            fill="#DC2626",
+            fill="#7C3AED",
             anchor="center",
             width=wrap + x_pad,
             shadow_color="#FFFFFF"
@@ -19195,7 +19223,7 @@ class HomePage(tk.Frame):
                 x_start + PANEL_W // 2, y + 10,
                 text=section_title,
                 font=("Segoe UI", 9, "bold"),
-                fill="#DC2626",
+                fill="#7C3AED",
                 anchor="center",
                 width=wrap + x_pad,
                 shadow_color="#FFFFFF" # white shadow for red text to pop
@@ -19230,7 +19258,7 @@ class HomePage(tk.Frame):
             x_start + PANEL_W // 2, y + 10,
             text="www.cherryprecision.com",
             font=("Segoe UI", 8, "bold"),
-            fill="#DC2626",
+            fill="#7C3AED",
             anchor="center",
             width=wrap + x_pad,
             shadow_color="#FFFFFF"
@@ -19386,8 +19414,8 @@ class AboutUsPage(ctk.CTkFrame):
         )
         lbl.pack(side="top", anchor="w", pady=(0, 2))
         
-        # Accent line in Cherry Red (#DC2626)
-        line = ctk.CTkFrame(frame, fg_color="#DC2626", height=3, width=70)
+        # Accent line in Cherry Purple (#7C3AED)
+        line = ctk.CTkFrame(frame, fg_color="#7C3AED", height=3, width=70)
         line.pack(side="top", anchor="w")
         
         return frame
@@ -19414,7 +19442,7 @@ class AboutUsPage(ctk.CTkFrame):
             )
             lbl.pack(side="left")
             
-            line = ctk.CTkFrame(card, fg_color="#DC2626", height=2, width=45)
+            line = ctk.CTkFrame(card, fg_color="#7C3AED", height=2, width=45)
             line.pack(anchor="w", padx=15, pady=(0, 10))
             
         return card
@@ -19443,7 +19471,7 @@ class AboutUsPage(ctk.CTkFrame):
             anchor="center"
         )
         
-        self.hero_accent = ctk.CTkFrame(self.hero_frame, fg_color="#DC2626", height=3, width=80)
+        self.hero_accent = ctk.CTkFrame(self.hero_frame, fg_color="#7C3AED", height=3, width=80)
         
         self.hero_subtitle = ctk.CTkLabel(
             self.hero_frame,
@@ -19459,8 +19487,8 @@ class AboutUsPage(ctk.CTkFrame):
             self.hero_frame,
             text="Get in Touch",
             font=("Poppins", 13, "bold"),
-            fg_color="#DC2626",
-            hover_color="#B91C1C",
+            fg_color="#7C3AED",
+            hover_color="#6D28D9",
             text_color="white",
             corner_radius=20,
             height=40,
@@ -19472,7 +19500,7 @@ class AboutUsPage(ctk.CTkFrame):
         if hero_ill:
             self.hero_ill_lbl = ctk.CTkLabel(self.hero_frame, image=hero_ill, text="")
         else:
-            self.hero_ill_lbl = ctk.CTkLabel(self.hero_frame, text="⚙️ Cherry Precision Products", font=("Poppins", 18, "bold"), text_color="#DC2626")
+            self.hero_ill_lbl = ctk.CTkLabel(self.hero_frame, text="⚙️ Cherry Precision Products", font=("Poppins", 18, "bold"), text_color="#7C3AED")
 
         # 2. About Us Section with Side Headings
         self.about_header = self.create_section_header(self.main_container, "About Us", "📘")
@@ -19754,15 +19782,15 @@ class AboutUsPage(ctk.CTkFrame):
 Manufacturer of Nitrogen Generators, Nitrogen Tyre Inflators, Air Tyre Inflators, Digital Air Gauge Measuring Systems, etc.
 
 📍 Address:
-No. 161/3, Lakshmi Thottam,
-Chinnavedampatti, Maniyakaranpalayam Road,
-Coimbatore - 641049, Tamil Nadu.
+No.10/11-3, KK Nagar,
+4th Cross Extension, Bharathi Nagar,
+Ganapathy, Coimbatore - 641 006.
 
-📞 Phone: +91 422 4393361, +91 93645 02659
+📞 Phone: 0422 4393361, +91 93645 02659, 70948 33364
 ✉️ Email: cherryprecision@gmail.com
 🌐 Website: www.cherryprecision.com
 
-🛠️ Service Support: +91 73580 33362"""
+🛠️ Service Support: +91 95666 81283"""
         self.details_lbl = tk.Text(self.contact_left, wrap="word", width=1, height=12,
                                    font=("Segoe UI", 12), fg="#475569", bg="white",
                                    relief="flat", bd=0, highlightthickness=0,
