@@ -12335,36 +12335,37 @@ class UsbDataPage(ctk.CTkFrame):
         # Clear Data - secondary red
         clear_btn = ctk.CTkButton(
             btn_frame,
-            text="🗑️ Clear Data",
+            text="🗑️ Clear",
             text_color="#dc2626",
             fg_color="#ffffff",
             hover_color="#fef2f2",
             border_width=1,
             border_color="#f87171",
             height=38,
+            width=90,
             corner_radius=12,
             font=("Segoe UI", 13, "bold"),
             command=self.clear_usb_data
         )
         clear_btn.pack(side="left", padx=4)
 
-        # === Modern Table Shadow Frame (Lavender Tint) ===
+        # === Square box with purple fill ===
         self.table_shadow = ctk.CTkFrame(
             self,
-            fg_color="#ede9fe",
-            corner_radius=18
+            fg_color="transparent",
+            corner_radius=0
         )
         self.table_shadow.pack(fill="both", expand=True, padx=20, pady=(4, 12))
 
-        # Inner table container (Glass panel lookalike)
+        # Square purple-tint panel
         self.table_frame = ctk.CTkFrame(
             self.table_shadow,
             fg_color="#fdf4ff",
-            corner_radius=16,
+            corner_radius=0,
             border_width=1,
             border_color="#a78bfa"
         )
-        self.table_frame.pack(fill="both", expand=True, padx=(1, 3), pady=(1, 3))
+        self.table_frame.pack(fill="both", expand=True, padx=0, pady=0)
 
         # Results label
         self.results_title_lbl = ctk.CTkLabel(
@@ -12513,15 +12514,15 @@ class UsbDataPage(ctk.CTkFrame):
                                          "rc_insert_row", "rc_delete_row")
             try:
                 self.sheet.set_options(
-                    table_bg="#fdf4ff",
-                    frame_bg="#fdf4ff",
-                    grid_color="#ddd6fe",
-                    show_vertical_grid=False,
+                    table_bg="#ffffff",
+                    frame_bg="#ffffff",
+                    grid_color="#e2e8f0",
+                    show_vertical_grid=True,
                     show_horizontal_grid=True,
                     show_row_index=False,
-                    select_bg="#ede9fe",
-                    select_fg="#6d28d9",
-                    selected_cells_border_color="#7c3aed"
+                    select_bg="#f1f5f9",
+                    select_fg="#0f172a",
+                    selected_cells_border_color="#cbd5e1"
                 )
                 self.sheet.hide_row_index()
             except Exception:
@@ -13205,24 +13206,24 @@ class LiveDataPage(ctk.CTkFrame):
         )
         self.delete_all_btn.pack(side="right", padx=(0, 10))
 
-        # Outer shadow wrapper — lavender tint (#ede9fe)
+        # Square box with purple fill
         self.table_shadow = ctk.CTkFrame(
             self,
-            fg_color="#ede9fe",
-            corner_radius=18,
+            fg_color="transparent",
+            corner_radius=0,
             height=600
         )
         self.table_shadow.pack(fill="both", expand=True, padx=20, pady=(6, 16))
 
-        # Glass panel card
+        # Square purple-tint panel
         self.table_frame = ctk.CTkFrame(
             self.table_shadow,
-            fg_color="#fdf4ff",     # lavender glass bg
-            corner_radius=16,
+            fg_color="#fdf4ff",
+            corner_radius=0,
             border_width=1,
-            border_color="#a78bfa"  # purple border
+            border_color="#a78bfa"
         )
-        self.table_frame.pack(fill="both", expand=True, padx=(1, 3), pady=(1, 3))
+        self.table_frame.pack(fill="both", expand=True, padx=0, pady=0)
 
         # === Column Configuration ===
         cols = [
@@ -13338,19 +13339,19 @@ class LiveDataPage(ctk.CTkFrame):
                     table_bg="#fdf4ff",
                     frame_bg="#fdf4ff",
                     grid_color="#ddd6fe",
-                    show_vertical_grid=False,
+                    show_vertical_grid=True,
                     show_horizontal_grid=True,
                     show_row_index=False,
                     header_bg="#f5f3ff",
                     header_fg="#0f172a",
                     header_grid_color="#ddd6fe",
-                    show_vertical_header_grid=False,
+                    show_vertical_header_grid=True,
                     show_horizontal_header_grid=True,
                     row_height=20,
                     header_height=24,
                     select_bg="#ede9fe",
                     select_fg="#6d28d9",
-                    selected_cells_border_color="#7c3aed"
+                    selected_cells_border_color="#a78bfa"
                 )
                 self.sheet.font(("Arial", 7))
                 self.sheet.header_font(("Arial", 8, "bold"))
@@ -13441,6 +13442,9 @@ class LiveDataPage(ctk.CTkFrame):
             self.table_frame.grid_columnconfigure(0, weight=1)
 
             # Column width ratio-based resizer for fallback Treeview
+            # S.No, Date, Time, Reading, Offset, Status, AirGaugeID, Channel, Drawing, User, CompID, Item, CNC ID, Customer
+            self.col_widths = [42, 62, 72, 78, 48, 52, 70, 60, 72, 62, 68, 52, 58, 62]
+
             def resize_tree(ev=None):
                 try:
                     w = self.table_frame.winfo_width() - 20
@@ -14482,23 +14486,23 @@ class ReportPage(ctk.CTkFrame):
     # glass-select style inputs, btn-secondary + btn-primary
     # ─────────────────────────────────────────────────────────────────────────
     def _build_filter_grid(self):
-        # Outer ambient-glow-simulating shadow wrapper
+        # Flat square wrapper
         self.filter_shadow = ctk.CTkFrame(
             self,
-            fg_color="#ede9fe",   # lavender tint — ambient glow simulation
-            corner_radius=26
+            fg_color="transparent",
+            corner_radius=0
         )
         self.filter_shadow.pack(fill="x", padx=20, pady=(14, 8))
 
-        # Glass panel — rgba(253,244,255,0.55) with purple border
+        # Square purple-tint panel (matches USB style)
         self.filter_card = ctk.CTkFrame(
             self.filter_shadow,
-            fg_color="#fdf4ff",   # closest opaque approximation of glass bg
-            corner_radius=24,
+            fg_color="#fdf4ff",
+            corner_radius=0,
             border_width=1,
-            border_color="#a78bfa"   # rgba(167,139,250,0.4) → #a78bfa
+            border_color="#a78bfa"
         )
-        self.filter_card.pack(fill="both", expand=True, padx=(1, 3), pady=(1, 3))
+        self.filter_card.pack(fill="both", expand=True, padx=0, pady=0)
 
         # Card header
         card_hdr = ctk.CTkFrame(self.filter_card, fg_color="transparent")
@@ -15220,23 +15224,23 @@ class ReportPage(ctk.CTkFrame):
     # Matches .glass-panel + Results Showcase section from HTML ref
     # ─────────────────────────────────────────────────────────────────────────
     def _build_table_area(self):
-        # Outer shadow wrapper — lavender tint (#ede9fe)
+        # Square box with purple fill
         self.table_shadow = ctk.CTkFrame(
             self,
-            fg_color="#ede9fe",
-            corner_radius=18
+            fg_color="transparent",
+            corner_radius=0
         )
         self.table_shadow.pack(fill="both", expand=True, padx=20, pady=(4, 12))
 
-        # Glass panel card
+        # Square purple-tint panel
         table_frame = ctk.CTkFrame(
             self.table_shadow,
-            fg_color="#fdf4ff",     # lavender glass bg
-            corner_radius=16,
+            fg_color="#fdf4ff",
+            corner_radius=0,
             border_width=1,
-            border_color="#a78bfa"  # purple border
+            border_color="#a78bfa"
         )
-        table_frame.pack(fill="both", expand=True, padx=(1, 3), pady=(1, 3))
+        table_frame.pack(fill="both", expand=True, padx=0, pady=0)
 
         # Section label — .section-label style: uppercase, #94a3b8, bold
         self.results_title_lbl = ctk.CTkLabel(
@@ -15270,27 +15274,24 @@ class ReportPage(ctk.CTkFrame):
             )
             try:
                 self.sheet.set_options(
-                    # Table colours — glass white with purple accents
-                    table_bg="#fdf4ff",
-                    frame_bg="#fdf4ff",
-                    grid_color="#ddd6fe",          # purple tint grid
-                    show_vertical_grid=False,
+                    table_bg="#ffffff",
+                    frame_bg="#ffffff",
+                    grid_color="#e2e8f0",
+                    show_vertical_grid=True,
                     show_horizontal_grid=True,
                     show_row_index=False,
-                    # Header — matches thead style from HTML ref
-                    header_bg="#f5f3ff",
+                    header_bg="#f8fafc",
                     header_fg="#0f172a",
-                    header_grid_color="#ddd6fe",
-                    show_vertical_header_grid=False,
+                    header_grid_color="#e2e8f0",
+                    show_vertical_header_grid=True,
                     show_horizontal_header_grid=True,
                     font=("Segoe UI", 11, "normal"),
                     header_font=("Segoe UI", 11, "bold"),
                     row_height=44,
                     header_height=38,
-                    # Selection — violet
-                    select_bg="#ede9fe",
-                    select_fg="#6d28d9",
-                    selected_cells_border_color="#7c3aed"
+                    select_bg="#f1f5f9",
+                    select_fg="#0f172a",
+                    selected_cells_border_color="#cbd5e1"
                 )
             except Exception as e:
                 print("Error setting options for table sheet:", e)
